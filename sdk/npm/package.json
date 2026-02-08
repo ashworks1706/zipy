@@ -1,0 +1,7 @@
+{
+  "name": "zipy-compute",
+  "version": "0.1.0",
+  "description": "Edge kernel for vector databases orchestrating CPU and GPU resources on constrained hardware.",
+  "main": "index.js",
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,11 @@
+[project]
+name = "zipy-compute"
+version = "0.1.0"
+description = "Edge kernel for vector databases orchestrating CPU and GPU resources on constrained hardware."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
