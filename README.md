@@ -16,12 +16,11 @@
 
 Zipy is a compute kernel built in Rust that manages CPU, RAM, GPU, and VRAM resources for vector database operations. It decides where each operation runs and handles data movement automatically.
 
-- 100% Rust implementation
 - Manages CPU threads, RAM allocation, GPU memory, VRAM pooling
 - Automatic CPU vs GPU scheduling
 - Zero-copy transfers with DMA
 - Works on NVIDIA, AMD, Intel, Apple GPUs
-- Standalone library or use with Piramid
+- Standalone library or use with [Piramid](https://piramiddb.com/)
 
 ## Qucik Start
 
