@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    <b>Compute Kernel for Vector Operations</b>
+    <b>Compute Kernel for Vector Databases</b>
 </p>
 
 <p align="center">
