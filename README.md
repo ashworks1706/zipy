@@ -7,6 +7,12 @@
 </p>
 
 <p align="center">
+    <a href="https://crates.io/crates/zipy"><img src="https://img.shields.io/crates/v/zipy.svg" alt="crates.io"></a>
+    <a href="https://www.npmjs.com/package/zipy-compute"><img src="https://img.shields.io/npm/v/zipy-compute.svg" alt="npm"></a>
+    <a href="https://pypi.org/project/zipy-compute/"><img src="https://img.shields.io/pypi/v/zipy-compute.svg" alt="PyPI"></a>
+</p>
+
+<p align="center">
     <a href="#quick-start">Quick Start</a> •
     <a href="#usage">Usage</a> •
     <a href="#contributing">Contributing</a>
