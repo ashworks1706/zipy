@@ -1,0 +1,8 @@
+[package]
+name = "zipy"
+version = "0.1.0"
+edition = "2024"
+description = "Edge kernel for vector databases orchestrating CPU and GPU resources on constrained hardware."
+license = "Apache-2.0"
+
+[dependencies]
