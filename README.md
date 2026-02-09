@@ -20,7 +20,7 @@
 
  
 
-Zipy is a compute kernel built in Rust that manages CPU, RAM, GPU, and VRAM resources for vector database operations specifically on edge devices or cheap hardware. It decides where each operation runs and handles data movement automatically.
+Zipy is a compute kernel runtime built in Rust that manages CPU, RAM, GPU, and VRAM resources for vector database operations specifically on edge devices or cheap hardware. It decides where each operation runs and handles data movement automatically.
 
 - Manages CPU threads, RAM allocation, GPU memory, VRAM pooling
 - Automatic CPU vs GPU scheduling
