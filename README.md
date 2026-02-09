@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    <b>Edge Kernel for Vector Databases</b>
+    <b>GPU Compute Kernel for Vector Databases</b>
 </p>
 
 <p align="center">
