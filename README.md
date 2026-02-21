@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    <b>Compute Kernel Runtime for Vector Databases</b>
+    <b>Compute Kernel Runtime for Vector Operations</b>
 </p>
 
 <p align="center">
