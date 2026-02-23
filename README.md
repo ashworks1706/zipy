@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    <b>GPU Compute Runtime for Inference & Retrieval</b>
+    <b>GPU Compute Runtime for Retrieval Augmented Systems</b>
 </p>
 
 <p align="center">
@@ -20,16 +20,16 @@
 
  
 
-Zipy is a Rust-based GPU compute runtime designed for large language model (LLM) inference and embedding retrieval workloads. It orchestrates GPU memory, manages KV and embedding caches, and optimizes batched vector execution to reduce latency and minimize host-device data movement in retrieval-augmented inference pipelines.
+Zipy is a Rust-based GPU runtime designed to accelerate retrieval-augmented generation (RAG) workflows. It co-locates embedding retrieval and LLM inference on the same GPU, orchestrates memory across retriever and generator components, and minimizes host-device transfers to improve end-to-end latency in RAG systems.
 
-- On-GPU embedding cache (LRU / frequency-based) for high-throughput retrieval
-- GPU-resident KV cache management for autoregressive LLM inference
-- Batched vector operations (dot-product, cosine similarity, top-k search) optimized for embedding workloads
-- Retrieval-to-inference memory fusion for RAG pipelines (reduced host-device roundtrips)
-- Automatic CPU/GPU workload scheduling for inference-heavy systems
-- VRAM memory pooling and eviction policies for safer LLM serving
-- Mixed-precision compute support (FP16 / BF16) for efficient model execution
-- CLI benchmarking for inference latency, throughput, and GPU utilization
+- On-GPU embedding cache for retrieval workloads
+- GPU-resident KV cache management for LLM inference
+- Retrieval-to-attention memory fusion
+- Batched vector search and generation scheduling
+- RAG-aware VRAM pooling and memory planning
+- Mixed-precision support (FP16 / BF16)
+- RAG-aware fine-tuning acceleration (hard negative mining & in-loop retrieval)
+- CLI benchmarking for RAG latency, throughput, and GPU utilization
 - Standalone library or use with [Piramid](https://piramiddb.com/)
 
 ## Quick Start
