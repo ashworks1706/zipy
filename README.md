@@ -22,14 +22,14 @@
 
 Zipy is a Rust-based compute runtime built to accelerate embedding-heavy ML systems. It manages GPU memory, schedules vector workloads across CPU/GPU, and eliminates unnecessary host-device roundtrips for retrieval and inference pipelines.
 
-- On-GPU embedding cache (LRU / frequency-based)
-- Batched vector operations (dot-product, cosine similarity, top-k search)
-- Automatic CPU/GPU workload scheduling
-- Zero-copy host ↔ device transfers (pinned memory / DMA)
-- VRAM memory pooling and eviction policies
-- Mixed-precision compute support (FP16/BF16)
-- CLI benchmarking for latency, throughput, and GPU utilization
-- Optional KV cache layer for LLM inference acceleration
+- On-GPU embedding cache (LRU / frequency-based) for high-throughput retrieval
+- GPU-resident KV cache management for autoregressive LLM inference
+- Batched vector operations (dot-product, cosine similarity, top-k search) optimized for embedding workloads
+- Retrieval-to-inference memory fusion for RAG pipelines (reduced host-device roundtrips)
+- Automatic CPU/GPU workload scheduling for inference-heavy systems
+- VRAM memory pooling and intelligent eviction policies for sustained LLM serving
+- Mixed-precision compute support (FP16 / BF16) for efficient model execution
+- CLI benchmarking for inference latency, throughput, and GPU utilization
 - Standalone library or use with [Piramid](https://piramiddb.com/)
 
 ## Quick Start
