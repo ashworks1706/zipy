@@ -1,113 +1,123 @@
 ### Repository & Environment
 
-- [ ] Set up cargo workspace with core and compute crates
-- [ ] Configure logging facade and gpu tracing
-- [ ] Set up ci pipeline for validating wgsl shader compilation
-- [ ] Add rust toolchain file for reproducible builds
-- [ ] Implement cargo bench suite for gpu benchmarks
+- [ ] Set up cargo workspace with `core`, `runtime`, and `rag` crates
+- [ ] Configure logging facade with GPU + inference tracing
+- [ ] Add structured latency tracing for retrieval and generation stages
+- [ ] Set up CI pipeline validating WGSL shader compilation
+- [ ] Add Rust toolchain file for reproducible builds
+- [ ] Implement cargo bench suite for RAG latency and GPU benchmarks
 
-### Core Infrastructure
+---
+
+### Core GPU Runtime Infrastructure
 
 - [ ] Initialize wgpu instance with backend selector
-- [ ] Implement adapter enumeration and selection logic (Discrete > Integrated > CPU)
-- [ ] Request device and queue with required features and limits
+- [ ] Implement adapter selection logic (Discrete > Integrated > CPU)
+- [ ] Request device and queue with required inference features
 - [ ] Implement robust device loss handling and recovery
-- [ ] Create abstract compute context struct to hold wgpu state
+- [ ] Create compute runtime context for LLM & retrieval orchestration
 - [ ] Add polling mechanism for ensuring device progress
-- [ ] Implement headless support for servers without displays
-- [ ] Integrate async runtime for non-blocking gpu operations
+- [ ] Implement headless support for inference servers
+- [ ] Integrate async runtime for non-blocking GPU workloads
 
-### Memory Management
+---
 
-- [ ] Create buffer factory for uniform and storage buffers
-- [ ] Implement staging belt for efficient cpu to gpu transfer
-- [ ] Implement async buffer mapping for gpu to cpu readback
-- [ ] Create unified buffer allocator to manage vram blocks
-- [ ] Add strict alignment validation for webgpu constraints
-- [ ] Create ring buffer allocator for transient command encoding
-- [ ] Implement memory pooling to reduce allocation overhead
-- [ ] Add memory usage tracking and leak detection
+### RAG-Aware Memory Management
 
-### Pipeline Management
+- [ ] Create unified GPU memory manager for embeddings + KV cache
+- [ ] Implement GPU-resident embedding cache (LRU / frequency-based)
+- [ ] Implement VRAM pooling across retrieval + inference stages
+- [ ] Add dynamic memory partitioning between retriever and generator
+- [ ] Implement staging belt for efficient CPU → GPU transfers
+- [ ] Implement async GPU → CPU readback (for logging / metrics)
+- [ ] Add memory usage tracking and fragmentation detection
+- [ ] Create ring buffer allocator for transient RAG workloads
 
-- [ ] Create shader module loader that reads wgsl files
-- [ ] Implement compute pipeline caching to avoid recompilation
-- [ ] Create bind group layout generator based on reflection
-- [ ] Implement dynamic bind group management
-- [ ] Add push constant support for small uniform data
-- [ ] Create pipeline layout manager to deduplicate layouts
+---
 
-### Compute Kernels
+### Retrieval & Search Kernels
 
-- [ ] Implement element wise vector addition shader for sanity checks
-- [ ] Implement vector normalization shader
-- [ ] Implement dot product accumulation shader using workgroup memory
-- [ ] Implement fused cosine similarity shader
-- [ ] Implement euclidean distance squared shader
-- [ ] Implement scalar quantization shader for f32 to int8 conversion
-- [ ] Implement half precision f16 variants for all metric kernels
-
-### Search Algorithms
-
-- [ ] Implement naive brute force flat search
-- [ ] Implement batched matrix multiplication for multi query search
-- [ ] Implement parallel reduction for finding max values
-- [ ] Implement local bitonic sort for sorting top-k results
-- [ ] Implement global sort dispatch for large result sets
-- [ ] Optimize workgroup sizes for nvidia versus amd architectures
-- [ ] Offload nearest centroid calculation to gpu (IVF prep)
+- [ ] Implement brute force flat search (GPU)
+- [ ] Implement batched matrix multiplication for multi-query retrieval
+- [ ] Implement fused cosine similarity kernel
+- [ ] Implement top-k reduction and bitonic sort kernels
+- [ ] Optimize workgroup sizes for NVIDIA vs AMD
+- [ ] Add mixed precision (f16 / bf16) variants for retrieval
+- [ ] Implement GPU-based centroid computation (IVF prep)
 - [ ] Implement k-means clustering shader for index training
 
-### Testing & Validation
+---
 
-- [ ] Create cpu reference implementations for all gpu kernels
-- [ ] Implement fuzzy comparison tests for floating point accuracy
-- [ ] Add property based tests comparing cpu vs gpu results
-- [ ] Create stress tests for out of memory scenarios
-- [ ] Implement headless test runner for ci environments
+### RAG Fusion Layer
+
+- [ ] Implement retrieval-to-attention tensor fusion logic
+- [ ] Create GPU pipeline for embedding → context tensor conversion
+- [ ] Minimize host-device roundtrips during RAG context construction
+- [ ] Implement batched retrieval + generation scheduling
+- [ ] Add retrieval-aware batching logic (token-length grouping)
+
+---
+
+### LLM Inference Runtime
+
+- [ ] Implement model loader (gguf / safetensors)
+- [ ] Implement GPU KV cache manager
+- [ ] Implement paged attention memory layout
+- [ ] Create block table manager for sequence generation
+- [ ] Implement KV cache eviction and session-based policies
+- [ ] Implement continuous batching scheduler for inference
+- [ ] Add mixed-precision inference execution support
+
+---
+
+### RAG-Aware Fine-Tuning Acceleration
+
+- [ ] Implement hard negative mining on GPU
+- [ ] Create in-loop retrieval API for training workflows
+- [ ] Add embedding dataset residency on GPU
+- [ ] Implement contrastive batch acceleration kernels
+- [ ] Expose PyTorch integration hooks for retrieval-aware training
+
+---
+
+### Transformer Compute Kernels
+
+- [ ] Implement optimized matmul shader for linear layers
+- [ ] Implement fused RMSNorm and LayerNorm shaders
+- [ ] Implement SiLU and SwiGLU activation kernels
+- [ ] Implement softmax kernel for attention
+- [ ] Implement multi-head attention dispatch logic
+
+---
+
+### Inference & Sampling
+
+- [ ] Implement logits processor for temperature scaling
+- [ ] Implement top-k and top-p sampling
+- [ ] Implement repetition and frequency penalty logic
+- [ ] Implement stop-token detection
+- [ ] Implement speculative decoding optimization
+
+---
 
 ### Public API
 
-- [ ] Define clean public rust traits for engine interaction
-- [ ] Implement builder pattern for engine configuration
-- [ ] Create blocking and async api variants
-- [ ] Add comprehensive documentation for unsafe code blocks
-- [ ] Expose performance counters and timing metrics
+- [ ] Define clean public Rust traits for runtime interaction
+- [ ] Implement builder pattern for RAG runtime configuration
+- [ ] Expose inference and retrieval APIs
+- [ ] Create async and blocking variants
+- [ ] Expose performance counters and RAG-stage metrics
+- [ ] Provide integration hooks for Piramid
 
-### LLM Infrastructure (Future)
+---
 
-- [ ] Implement model loader for gguf and safetensors formats
-- [ ] Implement memory mapping strategy for large weight files
-- [ ] Implement layer offloading logic for limited vram environments
-- [ ] Create tensor view abstraction for multi dimensional slicing
+### Testing & Validation
 
-### Transformer Kernels (Future)
+- [ ] Create CPU reference implementations for retrieval kernels
+- [ ] Implement fuzzy comparison tests for floating-point accuracy
+- [ ] Add property-based tests for CPU vs GPU equivalence
+- [ ] Create stress tests for VRAM exhaustion
+- [ ] Implement headless CI test runner
+- [ ] Benchmark end-to-end RAG latency (retrieval + generation)
 
-- [ ] Implement optimized matrix multiplication shader for linear layers
-- [ ] Implement rotary positional embedding shader
-- [ ] Implement fused rms norm and layer norm shaders
-- [ ] Implement silu and swiglu activation function shaders
-- [ ] Implement softmax shader for attention score calculation
-- [ ] Implement multi head attention dispatch logic
-
-### KV Cache & Memory (Future)
-
-- [ ] Implement paged attention memory layout for efficient caching
-- [ ] Create block table manager for handling sequence generation
-- [ ] Implement kv cache eviction and swapping policy
-- [ ] Implement continuous batching scheduler for maximizing throughput
-
-### Inference & Generation (Future)
-
-- [ ] Implement logits processor for temperature and entropy sampling
-- [ ] Implement top k and top p sampling strategies
-- [ ] Implement penalty logic for repetition and frequency
-- [ ] Implement stop token detection and end of sequence logic
-- [ ] Implement speculative decoding for faster token generation
-
-### Agentic Capabilities (Future)
-
-- [ ] Implement constrained decoding for enforcing json schema outputs
-- [ ] Implement grammar based sampling for structured responses
-- [ ] Create tool use parser for function calling formats
-- [ ] Implement prompt template manager for chatml and llama formats
+Because this scope is big.
