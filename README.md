@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    <b>Compute Kernel Runtime for Vector Operations</b>
+    <b>GPU Compute Runtime for ML Inference & Retrieval</b>
 </p>
 
 <p align="center">
@@ -20,12 +20,16 @@
 
  
 
-Zipy is a compute kernel runtime built in Rust that manages CPU, RAM, GPU, and VRAM resources for vector database operations specifically on edge devices or cheap hardware. It decides where each operation runs and handles data movement automatically.
+Zipy is a Rust-based compute runtime built to accelerate embedding-heavy ML systems. It manages GPU memory, schedules vector workloads across CPU/GPU, and eliminates unnecessary host-device roundtrips for retrieval and inference pipelines.
 
-- Manages CPU threads, RAM allocation, GPU memory, VRAM pooling
-- Automatic CPU vs GPU scheduling
-- Zero-copy transfers with DMA
-- Works on NVIDIA, AMD, Intel, Apple GPUs
+- On-GPU embedding cache (LRU / frequency-based)
+- Batched vector operations (dot-product, cosine similarity, top-k search)
+- Automatic CPU/GPU workload scheduling
+- Zero-copy host ↔ device transfers (pinned memory / DMA)
+- VRAM memory pooling and eviction policies
+- Mixed-precision compute support (FP16/BF16)
+- CLI benchmarking for latency, throughput, and GPU utilization
+- Optional KV cache layer for LLM inference acceleration
 - Standalone library or use with [Piramid](https://piramiddb.com/)
 
 ## Quick Start
