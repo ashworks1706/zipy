@@ -119,5 +119,3 @@
 - [ ] Create stress tests for VRAM exhaustion
 - [ ] Implement headless CI test runner
 - [ ] Benchmark end-to-end RAG latency (retrieval + generation)
-
-Because this scope is big.
