@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    <b>GPU Compute Runtime for ML Inference & Retrieval</b>
+    <b>GPU Compute Runtime for Inference & Retrieval</b>
 </p>
 
 <p align="center">
