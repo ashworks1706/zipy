@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    <b>GPU Compute Runtime for Retrieval Augmented Systems</b>
+    <b>GPU Inference Engine for Retrieval Augmented Systems</b>
 </p>
 
 <p align="center">
@@ -20,17 +20,15 @@
 
  
 
-Zipy is a Rust-based GPU runtime designed to accelerate retrieval-augmented generation (RAG) workflows. It co-locates embedding retrieval and LLM inference on the same GPU, orchestrates memory across retriever and generator components, and minimizes host-device transfers to improve end-to-end latency in RAG systems.
+Zipy is an LLM inference engine implemented in Rust and wgpu. It is designed to operate as the compute layer for Piramid, focusing on reducing the "prefill" bottleneck in RAG by fusing vector retrieval with the LLM's attention mechanism. The project moves beyond standard text-based RAG pipelines by allowing the vector database to communicate directly with the inference engine's memory space, enabling zero-copy context injection through shared KV-cache management.
 
-- On-GPU embedding cache for retrieval workloads
-- GPU-resident KV cache management for LLM inference
-- Retrieval-to-attention memory fusion
-- Batched vector search and generation scheduling
-- RAG-aware VRAM pooling and memory planning
-- Mixed-precision support (FP16 / BF16)
-- RAG-aware fine-tuning acceleration (hard negative mining & in-loop retrieval)
-- CLI benchmarking for RAG latency, throughput, and GPU utilization
-- Standalone library or use with [Piramid](https://piramiddb.com/)
+- Native safetensors weight loading and GPU buffer management via wgpu
+- Custom WGSL kernels for Transformer operations (MatMul, RoPE, RMSNorm)
+- PagedAttention for fragmented KV-cache management in VRAM
+- Shared memory protocol for direct pointer-passing between Piramid and Zipy
+- Persistent KV-cache offloading to NVMe SSDs to bypass LLM re-computation
+- Continuous batching for iteration-level request scheduling
+- Support for FP16 and BF16 precision
 
 ## Quick Start
 
