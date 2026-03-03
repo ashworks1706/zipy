@@ -1,121 +1,60 @@
-### Repository & Environment
+### Phase 1: GPU Foundation & Tensor Infrastructure
 
-- [ ] Set up cargo workspace with `core`, `runtime`, and `rag` crates
-- [ ] Configure logging facade with GPU + inference tracing
-- [ ] Add structured latency tracing for retrieval and generation stages
-- [ ] Set up CI pipeline validating WGSL shader compilation
-- [ ] Add Rust toolchain file for reproducible builds
-- [ ] Implement cargo bench suite for RAG latency and GPU benchmarks
-
----
-
-### Core GPU Runtime Infrastructure
-
-- [ ] Initialize wgpu instance with backend selector
-- [ ] Implement adapter selection logic (Discrete > Integrated > CPU)
-- [ ] Request device and queue with required inference features
-- [ ] Implement robust device loss handling and recovery
-- [ ] Create compute runtime context for LLM & retrieval orchestration
-- [ ] Add polling mechanism for ensuring device progress
-- [ ] Implement headless support for inference servers
-- [ ] Integrate async runtime for non-blocking GPU workloads
+- [ ] Set up cargo workspace with `zipy-core` and `zipy-runtime`
+- [ ] Initialize `wgpu` instance with adapter selection (Discrete > Integrated)
+- [ ] Implement `.safetensors` parser to map model headers to metadata
+- [ ] Create a staging belt for efficient `CPU -> GPU` weight transfers
+- [ ] Implement a basic `Tensor` abstraction for GPU-resident buffers
+- [ ] Write a validation suite to compare GPU matmul results against a CPU reference (ndarray)
+- [ ] Set up CI pipeline for WGSL shader compilation checks
 
 ---
 
-### RAG-Aware Memory Management
+### Phase 2: Transformer Compute Kernels (The Math)
 
-- [ ] Create unified GPU memory manager for embeddings + KV cache
-- [ ] Implement GPU-resident embedding cache (LRU / frequency-based)
-- [ ] Implement VRAM pooling across retrieval + inference stages
-- [ ] Add dynamic memory partitioning between retriever and generator
-- [ ] Implement staging belt for efficient CPU → GPU transfers
-- [ ] Implement async GPU → CPU readback (for logging / metrics)
-- [ ] Add memory usage tracking and fragmentation detection
-- [ ] Create ring buffer allocator for transient RAG workloads
+- [ ] Implement optimized MatMul shader (Linear layers)
+- [ ] Implement RMSNorm and LayerNorm shaders
+- [ ] Implement RoPE (Rotary Positional Embeddings) kernel
+- [ ] Implement Activation kernels (SiLU / SwiGLU)
+- [ ] Implement Softmax kernel for attention scores
+- [ ] Add mixed-precision support (FP16 / BF16) to all kernels
 
 ---
 
-### Retrieval & Search Kernels
+### Phase 3: The Inference Engine (The Generation Loop)
 
-- [ ] Implement brute force flat search (GPU)
-- [ ] Implement batched matrix multiplication for multi-query retrieval
-- [ ] Implement fused cosine similarity kernel
-- [ ] Implement top-k reduction and bitonic sort kernels
-- [ ] Optimize workgroup sizes for NVIDIA vs AMD
-- [ ] Add mixed precision (f16 / bf16) variants for retrieval
-- [ ] Implement GPU-based centroid computation (IVF prep)
-- [ ] Implement k-means clustering shader for index training
+- [ ] Implement the full Transformer block dispatch logic
+- [ ] Create the token-to-id / id-to-token wrapper (Tokenizer integration)
+- [ ] Implement the generation loop (Argmax, Top-K, Top-P sampling)
+- [ ] Implement Logits processors (Temperature, Repetition penalty)
+- [ ] Add stop-token detection and sequence handling
 
 ---
 
-### RAG Fusion Layer
+### Phase 4: Systems Engineering & PagedAttention
 
-- [ ] Implement retrieval-to-attention tensor fusion logic
-- [ ] Create GPU pipeline for embedding → context tensor conversion
-- [ ] Minimize host-device roundtrips during RAG context construction
-- [ ] Implement batched retrieval + generation scheduling
-- [ ] Add retrieval-aware batching logic (token-length grouping)
-
----
-
-### LLM Inference Runtime
-
-- [ ] Implement model loader (gguf / safetensors)
-- [ ] Implement GPU KV cache manager
-- [ ] Implement paged attention memory layout
-- [ ] Create block table manager for sequence generation
-- [ ] Implement KV cache eviction and session-based policies
-- [ ] Implement continuous batching scheduler for inference
-- [ ] Add mixed-precision inference execution support
+- [ ] Implement a VRAM block allocator (The PagedAttention foundation)
+- [ ] Create the Block Table manager to map logical sequences to physical GPU blocks
+- [ ] Implement the PagedAttention kernel (Multi-head attention using block tables)
+- [ ] Implement KV cache eviction policies
+- [ ] Add support for "spilling" KV blocks to host RAM or NVMe SSD
 
 ---
 
-### RAG-Aware Fine-Tuning Acceleration
+### Phase 5: The Piramid Fusion (The "Unique" Part)
 
-- [ ] Implement hard negative mining on GPU
-- [ ] Create in-loop retrieval API for training workflows
-- [ ] Add embedding dataset residency on GPU
-- [ ] Implement contrastive batch acceleration kernels
-- [ ] Expose PyTorch integration hooks for retrieval-aware training
-
----
-
-### Transformer Compute Kernels
-
-- [ ] Implement optimized matmul shader for linear layers
-- [ ] Implement fused RMSNorm and LayerNorm shaders
-- [ ] Implement SiLU and SwiGLU activation kernels
-- [ ] Implement softmax kernel for attention
-- [ ] Implement multi-head attention dispatch logic
+- [ ] Define the Shared Memory Protocol for pointer-passing between Piramid and Zipy
+- [ ] Implement "Zero-Prefill" context injection (directly loading KV blocks from Piramid results)
+- [ ] Create a unified VRAM pool manager to balance Piramid's index and Zipy's cache
+- [ ] Implement the batched RAG scheduler (Search -> Inject -> Generate)
+- [ ] Implement speculative decoding using retrieved context from Piramid
 
 ---
 
-### Inference & Sampling
+### Phase 6: Scheduling & Optimization
 
-- [ ] Implement logits processor for temperature scaling
-- [ ] Implement top-k and top-p sampling
-- [ ] Implement repetition and frequency penalty logic
-- [ ] Implement stop-token detection
-- [ ] Implement speculative decoding optimization
-
----
-
-### Public API
-
-- [ ] Define clean public Rust traits for runtime interaction
-- [ ] Implement builder pattern for RAG runtime configuration
-- [ ] Expose inference and retrieval APIs
-- [ ] Create async and blocking variants
-- [ ] Expose performance counters and RAG-stage metrics
-- [ ] Provide integration hooks for Piramid
-
----
-
-### Testing & Validation
-
-- [ ] Create CPU reference implementations for retrieval kernels
-- [ ] Implement fuzzy comparison tests for floating-point accuracy
-- [ ] Add property-based tests for CPU vs GPU equivalence
-- [ ] Create stress tests for VRAM exhaustion
-- [ ] Implement headless CI test runner
-- [ ] Benchmark end-to-end RAG latency (retrieval + generation)
+- [ ] Implement Continuous Batching (iteration-level scheduling)
+- [ ] Add async polling mechanism to maximize GPU utilization
+- [ ] Implement headless support for running Zipy as a background service
+- [ ] Benchmark end-to-end RAG latency (Time-to-First-Token)
+- [ ] Create `cargo bench` suite for hardware-specific profiling (NVIDIA vs Apple Silicon)
