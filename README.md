@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    <b>GPU Inference Engine for Retrieval Augmented Systems</b>
+    <b>Inference Engine for Retrieval Augmented Systems</b>
 </p>
 
 <p align="center">
