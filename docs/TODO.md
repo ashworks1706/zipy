@@ -41,13 +41,14 @@
 
 ---
 
-### Phase 5: The Piramid Fusion (The "Unique" Part)
+### Phase 5: Edge Deployment & Sensor Fusion
 
-- [ ] Define the Shared Memory Protocol for pointer-passing between Piramid and Zipy
-- [ ] Implement "Zero-Prefill" context injection (directly loading KV blocks from Piramid results)
-- [ ] Create a unified VRAM pool manager to balance Piramid's index and Zipy's cache
-- [ ] Implement the batched RAG scheduler (Search -> Inject -> Generate)
-- [ ] Implement speculative decoding using retrieved context from Piramid
+- [ ] Define the quantization pipeline (INT8 / INT4 weight quantization for edge targets)
+- [ ] Implement model distillation utilities to reduce model size for constrained environments
+- [ ] Add multi-modal input support (camera frames, IMU data alongside text tokens)
+- [ ] Create a unified VRAM pool manager to balance sensor buffers and inference cache
+- [ ] Implement a low-latency scheduler optimized for real-time autonomous decision loops
+- [ ] Add speculative decoding to reduce time-to-first-token on edge hardware
 
 ---
 
