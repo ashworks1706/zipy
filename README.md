@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    <b>Quantized Inference Runtime for Edge Devices</b>
+    <b>LLM Inference Runtime for Autonomous Systems</b>
 </p>
 
 <p align="center">
@@ -18,22 +18,28 @@
     <a href="#contributing">Contributing</a>
 </p>
 
- 
+---
 
-Zipy is a quantized LLM inference runtime implemented in Rust and wgpu, targeting resource-constrained edge devices such as rovers, drones, and autonomous systems. It focuses on maximizing inference throughput and minimizing latency under strict memory and power budgets, enabling real-time autonomous decision-making without relying on cloud connectivity.
+**Zipy** is a quantized LLM inference runtime built in Rust and wgpu for low-latency decision-making in resource-constrained autonomous systems. It is designed to run directly on-device under strict memory, compute, and power constraints such as rovers, drones, and edge-based agents without reliance on cloud infrastructure.
 
-- Native safetensors weight loading and GPU buffer management via wgpu
+- Native `safetensors` loading with efficient GPU buffer management via `wgpu`
 - Custom WGSL kernels for Transformer operations (MatMul, RoPE, RMSNorm)
-- Quantization for memory efficiency on edge devices
-- PagedAttention for fragmented KV-cache management in VRAM
-- Low-latency inference for real-time autonomous decisions
-- Multi-modal sensor support (camera frames, IMU data, and other edge inputs)
-- Persistent KV-cache offloading to NVMe SSDs to bypass LLM re-computation
-- Continuous batching for iteration-level request scheduling
+- Quantized inference for reduced memory footprint on edge devices
+- PagedAttention for efficient KV-cache management under fragmented VRAM
+- Low-latency inference optimized for real-time decision loops
+- Multi-modal input support (camera frames, IMU data, sensor streams)
+- Persistent KV-cache offloading to NVMe to reduce recomputation overhead
+- Continuous batching for fine-grained request scheduling
 - Model distillation support for deployment in constrained environments
-- Support for FP16 and BF16 precision
+- FP16 / BF16 precision support
+
+---
 
 ## Quick Start
+
+TBD.
+
+## Usage
 
 TBD.
 
@@ -47,6 +53,4 @@ TBD.
 
 ## Acknowledgments
 
-Built by @ashworks1706 for autonomous edge systems including rovers, drones, and other resource-constrained devices.
-
- 
+Built by @ashworks1706 for real-time autonomous systems operating under constrained environments.
