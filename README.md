@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    <b>LLM Inference Runtime for Autonomous Systems</b>
+    <b>Reliable Inference Runtime for Autonomous Systems</b>
 </p>
 
 <p align="center">
@@ -20,7 +20,8 @@
 
 ---
 
-**Zipy** is a quantized LLM inference runtime built in Rust and wgpu for low-latency decision-making in resource-constrained autonomous systems. It is designed to run directly on-device under strict memory, compute, and power constraints such as rovers, drones, and edge-based agents without reliance on cloud infrastructure.
+**Zipy** is a constraint-aware LLM inference runtime built in Rust and wgpu for low-latency decision-making in autonomous systems. It is designed to run directly on-device under strict memory, compute, and power constraints such as rovers, drones, and edge-based agents by enforcing bounded execution, fallback modes, and structured outputs.
+
 
 - Native `safetensors` loading with efficient GPU buffer management via `wgpu`
 - Custom WGSL kernels for Transformer operations (MatMul, RoPE, RMSNorm)
