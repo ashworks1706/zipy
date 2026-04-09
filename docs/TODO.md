@@ -10,7 +10,12 @@
 
 ---
 
-### Phase 2: Transformer Compute Kernels (The Math)
+### Phase 1.5: Transformer Compute Kernels 
+- [ ] Brainstorm and experiment with new transformer architectures
+- [ ] conduct tests with diffusion based transformers / energy based / MoE architectures
+- [ ] define excalidraw flowchart
+
+### Phase 2: Transformer Compute Kernels
 
 - [ ] Implement optimized MatMul shader (Linear layers)
 - [ ] Implement RMSNorm and LayerNorm shaders
@@ -21,13 +26,21 @@
 
 ---
 
-### Phase 3: The Inference Engine (The Generation Loop)
+### Phase 3: The Inference Engine 
 
 - [ ] Implement the full Transformer block dispatch logic
 - [ ] Create the token-to-id / id-to-token wrapper (Tokenizer integration)
 - [ ] Implement the generation loop (Argmax, Top-K, Top-P sampling)
 - [ ] Implement Logits processors (Temperature, Repetition penalty)
 - [ ] Add stop-token detection and sequence handling
+
+### Phase 3.5: Constraint & Reliability Layer 
+- [ ] Implement deadline-aware inference (max time per request)
+- [ ] Add fallback modes (switch to smaller model / cached output)
+- [ ] Implement structured output schema (JSON-constrained decoding)
+- [ ] Add output validation layer (reject invalid / unsafe outputs)
+- [ ] Implement confidence scoring / heuristics for outputs
+- [ ] Add graceful degradation modes (fast vs accurate vs safe)
 
 ---
 
@@ -47,7 +60,7 @@
 - [ ] Implement model distillation utilities to reduce model size for constrained environments
 - [ ] Add multi-modal input support (camera frames, IMU data alongside text tokens)
 - [ ] Create a unified VRAM pool manager to balance sensor buffers and inference cache
-- [ ] Implement a low-latency scheduler optimized for real-time autonomous decision loops
+- [ ] Implement a constraint-aware scheduler (latency + memory + fallback coordination)
 - [ ] Add speculative decoding to reduce time-to-first-token on edge hardware
 
 ---
