@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    <b>Reliable Inference Runtime for Autonomous Systems</b>
+    <b>Reliable Operating System for Risky Autonomous Systems</b>
 </p>
 
 <p align="center">
