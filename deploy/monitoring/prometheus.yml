@@ -1,0 +1,14 @@
+# Scrapes zipy's /metrics. Prometheus runs on the host network, so the target is the host's
+# loopback, whether zipy runs from source (just serve) or in compose with its port published.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: zipy
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["localhost:8080"]
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

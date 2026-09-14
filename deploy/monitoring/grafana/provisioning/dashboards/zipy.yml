@@ -1,0 +1,9 @@
+# Loads every dashboard JSON under the mounted dashboards directory into the Zipy folder.
+apiVersion: 1
+providers:
+  - name: zipy
+    type: file
+    folder: Zipy
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

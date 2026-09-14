@@ -1,0 +1,16 @@
+# Production overlay: the published image instead of a local build, nothing but zipy published
+# on the host, and logs capped. Put Caddy or nginx in front of :8080 for HTTPS on the OAuth
+# callbacks and HTTP-based platforms; websocket platforms such as Discord need none.
+services:
+  zipy:
+    build: !reset null
+    image: ghcr.io/ashworks1706/zipy:${ZIPY_IMAGE_TAG:-main}
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  postgres:
+    ports: !reset []
+
+  redis:
+    ports: !reset []

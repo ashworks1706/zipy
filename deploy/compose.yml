@@ -1,0 +1,131 @@
+# The Zipy stack on one box: zipy, postgres with pgvector, redis, and under the observe profile
+# langfuse, prometheus, grafana and uptime-kuma.
+# Every port binds to loopback. just up starts postgres and redis for local development; zipy
+# itself runs from source with just serve, or here under the app profile. Chat platforms are
+# plugins inside zipy, not services.
+name: zipy
+
+services:
+  zipy:
+    profiles: [app]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      ZIPY_DATA__DATABASE_URL: postgresql+asyncpg://zipy:${ZIPY_POSTGRES_PASSWORD:-zipy}@postgres:5432/zipy
+      ZIPY_DATA__REDIS_URL: redis://redis:6379/0
+      ZIPY_TELEMETRY__LANGFUSE_HOST: http://langfuse:3000
+    ports: ["127.0.0.1:8080:8080"]
+    volumes: [zipydata:/var/lib/zipy]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: zipy
+      POSTGRES_PASSWORD: ${ZIPY_POSTGRES_PASSWORD:-zipy}
+      POSTGRES_DB: zipy
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports: ["127.0.0.1:5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zipy -d zipy"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # LangFuse v2 keeps its data in the shared postgres (database langfuse) and does not start until
+  # ZIPY_LANGFUSE_NEXTAUTH_SECRET and ZIPY_LANGFUSE_SALT are set in .env. See Open decisions in
+  # docs/ARCHITECTURE.md before moving to v3, which adds ClickHouse and object storage.
+  langfuse:
+    profiles: [observe]
+    image: langfuse/langfuse:2
+    environment:
+      DATABASE_URL: postgresql://zipy:${ZIPY_POSTGRES_PASSWORD:-zipy}@postgres:5432/langfuse
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      NEXTAUTH_SECRET: ${ZIPY_LANGFUSE_NEXTAUTH_SECRET:-}
+      SALT: ${ZIPY_LANGFUSE_SALT:-}
+      TELEMETRY_ENABLED: "false"
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  # Metrics store. Scrapes zipy's /metrics, whether zipy runs from source on the host or in compose
+  # with its port published there.
+  prometheus:
+    profiles: [observe]
+    image: prom/prometheus:v3.1.0
+    # On the host network, so it scrapes services bound to the host's loopback.
+    network_mode: host
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.listen-address=127.0.0.1:9090
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/-/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+    restart: unless-stopped
+
+  # Dashboards over Prometheus at http://127.0.0.1:3002; LangFuse has :3000. Provisioned.
+  grafana:
+    profiles: [observe]
+    image: grafana/grafana:11.5.1
+    network_mode: host
+    environment:
+      GF_SERVER_HTTP_ADDR: 127.0.0.1
+      GF_SERVER_HTTP_PORT: "3002"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${ZIPY_GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:3002/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+    depends_on: [prometheus]
+    restart: unless-stopped
+
+  uptime-kuma:
+    profiles: [observe]
+    image: louislam/uptime-kuma:1
+    volumes: [kumadata:/app/data]
+    ports: ["127.0.0.1:3001:3001"]
+    restart: unless-stopped
+
+volumes:
+  zipydata:
+  pgdata:
+  redisdata:
+  kumadata:
+  promdata:
+  grafanadata:
