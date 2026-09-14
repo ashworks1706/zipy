@@ -1,6 +1,6 @@
 # The zipy image: apps/engine, which runs every enabled chat platform, the HTTP server and the
 # workers in one process. The console runs from source.
-FROM ghcr.io/astral-sh/uv:0.11-python3.12-trixie-slim
+FROM ghcr.io/astral-sh/uv:0.12-python3.12-trixie-slim
 
 ENV PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
