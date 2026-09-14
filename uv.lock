@@ -814,7 +814,7 @@ requires-dist = [
     { name = "notion-client", specifier = ">=2.2" },
     { name = "pgvector", specifier = ">=0.3" },
     { name = "prometheus-client", specifier = ">=0.21" },
-    { name = "pydantic", extras = ["email"], specifier = ">=2.10" },
+    { name = "pydantic", extras = ["email"], specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.7" },
     { name = "redis", specifier = ">=5.2" },
     { name = "rich", specifier = ">=13" },

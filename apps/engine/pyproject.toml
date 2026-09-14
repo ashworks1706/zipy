@@ -5,7 +5,7 @@ description = "Zipy: the gateway, agent, tools and memory, platform and provider
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 dependencies = [
-    "pydantic[email]>=2.10",
+    "pydantic[email]>=2.13.5",
     "pydantic-settings>=2.7",
     "typer>=0.15",
     "rich>=13",
