@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="1873" height="291" alt="Zipy" src="https://github.com/user-attachments/assets/70e9e233-3e7d-40b8-b7e0-3d8e9cc1dc83" />
+  <img width="1921" height="418" alt="image" src="https://github.com/user-attachments/assets/eea84b08-15c5-407b-9888-10521b8a0145" />
 </p>
 
 <p align="center"><b>Collaborative agents for team logistics</b></p>
