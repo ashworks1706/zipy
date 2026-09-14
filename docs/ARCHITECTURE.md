@@ -1,9 +1,10 @@
 # Architecture
 
-How Zipy is structured, how a request flows through it, and how it grows. Read the README first;
-this assumes you know what Zipy does. The dependency rule below is enforced by the import-linter
-contracts in the root `pyproject.toml` and by `apps/engine/tests/test_plugins.py`; changing a rule
-means changing the doc and the check in the same commit.
+How Zipy is structured, how a request flows through it, and how it grows. Read the README and
+[USER_STORIES.md](USER_STORIES.md) first; this assumes you know what Zipy does. The dependency
+rule below is enforced by the import-linter contracts in the root `pyproject.toml` and by
+`apps/engine/tests/test_plugins.py`; changing a rule means changing the doc and the check in the
+same commit.
 
 
 ## Design principles
