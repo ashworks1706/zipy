@@ -1,0 +1,26 @@
+[project]
+name = "cli"
+version = "0.1.0"
+description = "The developer console: every just recipe, its logs, and the state of the stack"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "rich>=13",
+    "textual>=6",
+]
+
+[project.scripts]
+console = "cli.app:run"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "cli" = "." }
+packages = ["cli", "cli.core"]
+
+[tool.setuptools.package-data]
+cli = ["assets/*.json"]
