@@ -17,9 +17,6 @@
     <a href="docs/ROADMAP.md">Roadmap</a>
 </p>
 
-> **Status:** being rebuilt from scratch. The layout, config, contracts and tests are in place;
-> most modules are scaffolds.
-
 Zipy is an open-source, self-hosted team of agents for student organizations. It lives in
 the chat app the org already uses (Discord today, Slack next) and works the org's shared Google
 Calendar, Drive, Notion and Zoom accounts, so officers stop juggling six tabs and nothing breaks
@@ -53,13 +50,6 @@ just migrate       # tables
 just serve         # every enabled platform, the HTTP server, the workers
 just chat          # or talk to Zipy in the terminal, no chat app needed
 ```
-
-`just doctor` says what is missing; `just console` opens the developer console.
-
-## What it is not
-
-Not a general assistant, not a replacement for Notion or Calendar (they stay the systems of
-record), and not a SaaS: any org can run it on a free Oracle Cloud instance.
 
 ## Contributing
 
