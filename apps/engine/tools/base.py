@@ -1,0 +1,92 @@
+"""BaseTool: what every tool plugin implements, and the naming of its actions."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator, Mapping
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, ClassVar
+
+from pydantic import BaseModel
+
+from engine.core.types import CredentialError, Document, ProviderAuth
+
+
+@dataclass(frozen=True)
+class Action:
+    """One action a tool exposes. Its type comes from zipy.toml, not from here."""
+
+    description: str
+    params: type[BaseModel]
+    result: type[BaseModel]
+
+
+class BaseTool[S: BaseModel](ABC):
+    """One integration. name matches its folder and its [tools.name] table.
+
+    provider names the [providers.*] account the tool needs, or is empty. owns lists the
+    third-party libraries only this plugin may import. syncs is true when documents() yields
+    searchable documents for semantic recall.
+    """
+
+    name: ClassVar[str]
+    provider: ClassVar[str] = ""
+    owns: ClassVar[tuple[str, ...]] = ()
+    syncs: ClassVar[bool] = False
+    settings_model: ClassVar[type[BaseModel]]
+    actions: ClassVar[Mapping[str, Action]]
+
+    def __init__(self, settings: S) -> None:
+        self.settings = settings
+
+    @abstractmethod
+    async def execute(self, action: str, params: BaseModel, auth: ProviderAuth | None) -> BaseModel:
+        """Run one action with validated params. Provider failures raise ToolError."""
+
+    def target(self, action: str, params: BaseModel) -> str:  # noqa: ARG002 - overridable hook
+        """What the action acts on, for the audit log and the confirmation prompt."""
+        return ""
+
+    def documents(
+        self,
+        auth: ProviderAuth | None,  # noqa: ARG002 - overridable hook
+        since: datetime | None,  # noqa: ARG002 - overridable hook
+        source_id: str = "",  # noqa: ARG002 - overridable hook
+    ) -> AsyncIterator[Document]:
+        """Documents changed since a time, or the one named by source_id. Only when syncs."""
+        raise NotImplementedError
+
+
+def qualified(tool: str, action: str) -> str:
+    """The name the orchestrator, audit log and zipy.toml use: calendar.create_event."""
+    return f"{tool}.{action}"
+
+
+def wire_name(qualified_name: str) -> str:
+    """The function name sent to the model, which may not contain a dot."""
+    return qualified_name.replace(".", "__")
+
+
+def from_wire(name: str) -> str:
+    """The qualified name of a function name the model called."""
+    return name.replace("__", ".", 1)
+
+
+def require_auth(auth: ProviderAuth | None, provider: str) -> ProviderAuth:
+    """The credential, or CredentialError when the org has not connected the provider."""
+    if auth is None or auth.provider != provider:
+        raise CredentialError(f"{provider} is not connected")
+    return auth
+
+
+def function_schema(tool: str, action_name: str, action: Action) -> dict[str, Any]:
+    """The function-calling schema of one action."""
+    return {
+        "type": "function",
+        "function": {
+            "name": wire_name(qualified(tool, action_name)),
+            "description": action.description,
+            "parameters": action.params.model_json_schema(),
+        },
+    }
