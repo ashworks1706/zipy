@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish a release for, e.g. v0.2.0"
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+# The GitHub release for a tag. CD builds and pushes the tag's image; just release opens the
+# version bump and just tag creates the tag once that pull request is merged.
+jobs:
+  release:
+    name: GitHub release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - id: tag
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+      # The tag, both Python apps, the website and zipy.toml's config_version history agree.
+      - env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: ./scripts/release.sh verify "${TAG#v}"
+      - id: notes
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if [ -f "release-notes/$TAG.md" ]; then
+            echo "file=release-notes/$TAG.md" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: softprops/action-gh-release@v3.0.3
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          body_path: ${{ steps.notes.outputs.file }}
+          generate_release_notes: true
+          prerelease: ${{ contains(steps.tag.outputs.tag, '-') }}

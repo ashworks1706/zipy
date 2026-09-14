@@ -1,0 +1,84 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # The zipy image, amd64 and arm64 (Oracle Cloud free tier is ARM), with an SBOM and a signed
+  # build provenance attestation. main is tagged main and sha; a v* tag also gets its version.
+  # Rebuilt on main only when something the image contains changed.
+  image:
+    name: Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          filters: |
+            image:
+              - .github/workflows/cd.yml
+              - deploy/Dockerfile
+              - pyproject.toml
+              - uv.lock
+              - zipy.toml
+              - apps/engine/**
+      - id: build
+        if: steps.filter.outputs.image == 'true' || github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+        run: echo "yes=true" >> "$GITHUB_OUTPUT"
+      - if: steps.build.outputs.yes == 'true'
+        uses: docker/setup-qemu-action@v4.3.0
+      - if: steps.build.outputs.yes == 'true'
+        uses: docker/setup-buildx-action@v4.3.0
+      - if: steps.build.outputs.yes == 'true'
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.build.outputs.yes == 'true'
+        uses: docker/metadata-action@v6.2.0
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+      - if: steps.build.outputs.yes == 'true'
+        uses: docker/build-push-action@v7.3.0
+        id: push
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: GIT_SHA=${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=zipy
+          cache-to: type=gha,mode=max,scope=zipy
+      - if: steps.build.outputs.yes == 'true'
+        uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

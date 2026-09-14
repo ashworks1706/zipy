@@ -1,0 +1,164 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Which halves of the gate a change needs. A manual run needs every half.
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      python: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.python == 'true' }}
+      website: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.website == 'true' }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          filters: |
+            python:
+              - 'apps/engine/**'
+              - 'apps/cli/**'
+              - 'tests/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'zipy.toml'
+              - 'scripts/**'
+              - 'justfile'
+              - 'deploy/**'
+              - '.github/**'
+            website:
+              - 'apps/website/**'
+              - 'apps/cli/assets/**'
+              - '.github/workflows/ci.yml'
+
+  # The Python half of the gate. just setup installs with --locked, so a stale uv.lock fails here.
+  check:
+    name: Gate
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - uses: extractions/setup-just@v4
+      - run: just setup
+      - run: just check-python
+
+  # Migrations and repositories against a real postgres with pgvector, and redis.
+  integration:
+    name: Integration
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: zipy
+          POSTGRES_PASSWORD: zipy
+          POSTGRES_DB: zipy
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U zipy" --health-interval 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      ZIPY_DATA__DATABASE_URL: postgresql+asyncpg://zipy:zipy@127.0.0.1:5432/zipy
+      ZIPY_DATA__REDIS_URL: redis://127.0.0.1:6379/0
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - uses: extractions/setup-just@v4
+      - run: just setup
+      - run: just migrate
+      - run: just test integration
+
+  # The image builds, without pushing, so a broken Dockerfile fails the pull request and not CD.
+  image:
+    name: Image
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: docker/setup-buildx-action@v4.3.0
+      - uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: false
+          cache-from: type=gha,scope=zipy
+      - run: docker compose -f deploy/compose.yml --profile '*' config -q
+      - run: docker compose -f deploy/compose.yml -f deploy/compose.prod.yml --profile '*' config -q
+
+  # Lint, types and a production build of the website, and its frames match the console's.
+  website:
+    name: Website
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/website/package-lock.json
+      - uses: astral-sh/setup-uv@v10.1.0
+      - uses: extractions/setup-just@v4
+      - run: just web-setup
+      - run: just check-website
+      - run: just web-build
+      - run: uv sync --locked --package cli && just web-frames && git diff --exit-code apps/website/lib/cli-frames.ts
+
+  # Commit subjects on a pull request follow AGENTS.md: at most 72 characters, no trailing period.
+  commits:
+    name: Commits
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: ./scripts/check-commits.sh "$BASE" "$HEAD"
+
+  # The one required status check. It passes when every job above passed or was skipped for a
+  # change that does not touch it, so path filters never block a merge.
+  ci:
+    name: CI
+    if: always()
+    needs: [changes, check, integration, image, website, commits]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -qE '"(failure|cancelled)"'; then
+            echo "a required job failed or was cancelled"
+            exit 1
+          fi

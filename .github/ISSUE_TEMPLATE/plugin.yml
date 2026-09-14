@@ -1,0 +1,25 @@
+name: Platform or integration request
+description: A chat platform, an account provider, or a tool Zipy should support
+labels: [plugin]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options: [platform, provider, tool]
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      placeholder: slack, trello, canvas
+    validations:
+      required: true
+  - type: textarea
+    id: stories
+    attributes:
+      label: What officers would ask
+      description: Two or three real requests, and which would change or delete data.
+    validations:
+      required: true

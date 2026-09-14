@@ -1,0 +1,29 @@
+name: Bug
+description: Zipy did something wrong or failed
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you asked, what Zipy did, what you expected.
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: discord, slack, local
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The image tag, or the commit for a source run.
+  - type: textarea
+    id: trace
+    attributes:
+      label: Trace
+      description: >-
+        just traces <request_id> or the LangFuse trace, with message text, emails and names
+        removed. Never paste .env or tokens.
+      render: text

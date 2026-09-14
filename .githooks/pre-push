@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# main takes no direct pushes; the ruleset enforces it on GitHub and this says so before the round
+# trip. Every other push runs the gate for what it changes. Installed by just hooks.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+zero=0000000000000000000000000000000000000000
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = refs/heads/main ] && [ "$local_sha" != "$zero" ]; then
+    echo "pre-push: main takes no direct pushes; push a branch and open a pull request"
+    exit 1
+  fi
+  case "$remote_ref" in refs/tags/*) continue ;; esac
+  [ "$local_sha" = "$zero" ] && continue
+  base=$(git merge-base "$local_sha" origin/main 2>/dev/null || true)
+  [ -n "$base" ] && ./scripts/check-commits.sh "$base" "$local_sha"
+done
+command -v just >/dev/null || { echo "pre-push: just not installed, skipping the gate"; exit 0; }
+echo "pre-push: just check"
+just check
