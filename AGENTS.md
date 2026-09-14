@@ -1,7 +1,7 @@
 # Zipy — agent guide
 
-A self-hosted AI operations officer for university student orgs. It lives in the org's chat
-workspace (Discord today, Slack and others as plugins) and reads and writes the org's Google
+Collaborative agents for team logistics, built first for university student orgs. Zipy lives in
+the team's chat workspace (Discord today, Slack and others as plugins) and reads and writes the org's Google
 Calendar, Drive, Notion and Zoom through one agent with many tools.
 
 Read `docs/ROADMAP.md` for what is being built in what order, and `docs/ARCHITECTURE.md` for the

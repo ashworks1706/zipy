@@ -26,8 +26,10 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   keywords: [
+    "collaborative agents",
+    "team logistics",
+    "AI agents",
     "student organizations",
-    "AI assistant",
     "Discord bot",
     "Slack bot",
     "Notion",

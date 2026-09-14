@@ -86,14 +86,6 @@ code {
   text-align: center;
 }
 
-.landing-platforms {
-  margin: -1.25rem 0 0;
-  color: var(--fg-dim);
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
-  text-align: center;
-}
-
 .landing-actions {
   display: flex;
   flex-wrap: wrap;

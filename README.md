@@ -2,7 +2,7 @@
   <img width="1873" height="291" alt="Zipy" src="https://github.com/user-attachments/assets/70e9e233-3e7d-40b8-b7e0-3d8e9cc1dc83" />
 </p>
 
-<p align="center"><b>The AI officer for student orgs</b></p>
+<p align="center"><b>Collaborative agents for team logistics</b></p>
 
 <p align="center">
     <a href="https://github.com/ashworks1706/zipy/actions/workflows/ci.yml"><img src="https://github.com/ashworks1706/zipy/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -20,7 +20,7 @@
 > **Status:** being rebuilt from scratch. The layout, config, contracts and tests are in place;
 > most modules are scaffolds.
 
-Zipy is an open-source, self-hosted operations officer for university student orgs. It lives in
+Zipy is an open-source, self-hosted team of agents for student organizations. It lives in
 the chat app the org already uses (Discord today, Slack next) and works the org's shared Google
 Calendar, Drive, Notion and Zoom accounts, so officers stop juggling six tabs and nothing breaks
 when an officer graduates.
