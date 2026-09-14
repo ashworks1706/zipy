@@ -1,0 +1,51 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(just check:*)",
+      "Bash(just github)",
+      "Bash(just github plan)",
+      "Bash(just check-python:*)",
+      "Bash(just check-website:*)",
+      "Bash(just web-build:*)",
+      "Bash(just web-frames:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(just doctor:*)",
+      "Bash(just fmt:*)",
+      "Bash(just test:*)",
+      "Bash(just config:*)",
+      "Bash(just plugins:*)",
+      "Bash(just traces:*)",
+      "Bash(just diagrams:*)",
+      "Bash(just lock:*)",
+      "Bash(uv run:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv lock:*)",
+      "Bash(uvx ruff:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push -u origin main:*)",
+      "Bash(just github apply:*)",
+      "Bash(just tag:*)",
+      "Bash(./scripts/github.sh apply:*)",
+      "Bash(./scripts/release.sh tag:*)",
+      "Read(.env)",
+      "Read(.env.*)"
+    ]
+  }
+}
