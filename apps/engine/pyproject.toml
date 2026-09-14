@@ -1,0 +1,86 @@
+[project]
+name = "engine"
+version = "0.1.0"
+description = "Zipy: the gateway, agent, tools and memory, platform and provider plugins, workers"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "pydantic[email]>=2.10",
+    "pydantic-settings>=2.7",
+    "typer>=0.15",
+    "rich>=13",
+    "jinja2>=3.1",
+    # platforms
+    "discord.py>=2.4",
+    # http
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    # model
+    "litellm>=1.60",
+    # integrations
+    "httpx>=0.28",
+    "google-api-python-client>=2.150",
+    "google-auth>=2.36",
+    "notion-client>=2.2",
+    "beautifulsoup4>=4.12",
+    # data
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "pgvector>=0.3",
+    "alembic>=1.14",
+    "redis>=5.2",
+    "cryptography>=44",
+    # observability
+    "structlog>=24.4",
+    "prometheus-client>=0.21",
+    "sentry-sdk>=2.19",
+    "langfuse>=2.57",
+]
+
+[project.scripts]
+zipy = "engine.commands:app"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "engine" = "." }
+packages = [
+    "engine",
+    "engine.core",
+    "engine.core.config",
+    "engine.core.types",
+    "engine.telemetry",
+    "engine.data",
+    "engine.data.repos",
+    "engine.data.migrations",
+    "engine.llm",
+    "engine.auth",
+    "engine.auth.providers",
+    "engine.auth.providers.google",
+    "engine.auth.providers.notion",
+    "engine.auth.providers.zoom",
+    "engine.tools",
+    "engine.tools.calendar",
+    "engine.tools.drive",
+    "engine.tools.notion",
+    "engine.tools.zoom",
+    "engine.tools.search",
+    "engine.memory",
+    "engine.memory.ingest",
+    "engine.agent",
+    "engine.gateway",
+    "engine.platforms",
+    "engine.platforms.discord",
+    "engine.platforms.slack",
+    "engine.platforms.local",
+    "engine.api",
+    "engine.api.routes",
+    "engine.workers",
+    "engine.commands",
+]
+
+[tool.setuptools.package-data]
+"engine.agent" = ["templates/*.j2"]
+"engine.data.migrations" = ["script.py.mako", "versions/*.py"]

@@ -1,0 +1,218 @@
+"""One pydantic model per zipy.toml table. Each rejects an unknown key and a bad value.
+
+Plugin tables ([platforms.*], [providers.*], [tools.*]) accept any key: keys other than the ones
+declared here belong to the plugin and are validated by its own settings model when it loads.
+"""
+
+from __future__ import annotations
+
+from pydantic import BaseModel, ConfigDict, SecretStr, model_validator
+
+from engine.core.types.chat import ActionType
+from engine.core.types.errors import ConfigError
+from engine.core.types.identity import Role
+
+SECRET_SUFFIXES = ("secret", "token", "key", "password", "dsn")
+
+
+class _Table(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class App(_Table):
+    """Process-wide settings."""
+
+    env: str = "dev"
+    name: str = "Zipy"
+
+    @model_validator(mode="after")
+    def _check(self) -> App:
+        if self.env not in ("dev", "prod"):
+            raise ConfigError("app.env must be dev or prod")
+        return self
+
+
+class Api(_Table):
+    """The HTTP server for OAuth callbacks, webhooks and platform events. public_url is in .env."""
+
+    host: str = "127.0.0.1"
+    port: int = 8080
+    public_url: str = "http://127.0.0.1:8080"
+
+    @model_validator(mode="after")
+    def _check(self) -> Api:
+        if not 0 < self.port < 65536:
+            raise ConfigError("api.port must be a TCP port")
+        return self
+
+
+class Agent(_Table):
+    """The tool-calling loop."""
+
+    max_iterations: int = 8
+    confirmation_ttl_secs: int = 120
+    system_template: str = "system.md.j2"
+
+    @model_validator(mode="after")
+    def _check(self) -> Agent:
+        if self.max_iterations < 1:
+            raise ConfigError("agent.max_iterations must be at least 1")
+        if self.confirmation_ttl_secs < 10:
+            raise ConfigError("agent.confirmation_ttl_secs must be at least 10")
+        return self
+
+
+class ModelRole(_Table):
+    """One model the engine uses for one job, as a LiteLLM model string. api_key is in .env."""
+
+    model: str
+    api_key: SecretStr = SecretStr("")
+    api_base: str = ""
+    fallbacks: list[str] = []
+    temperature: float = 0.2
+    max_tokens: int = 1024
+    timeout_secs: float = 60.0
+    dimensions: int = 0
+
+    @model_validator(mode="after")
+    def _check(self) -> ModelRole:
+        if not 0 <= self.temperature <= 2:
+            raise ConfigError("models.*.temperature must lie in [0, 2]")
+        if self.max_tokens < 1 or self.timeout_secs <= 0:
+            raise ConfigError("models.*.max_tokens and timeout_secs must be positive")
+        return self
+
+
+class Memory(_Table):
+    """Conversation history, semantic recall and chunking."""
+
+    conversation_limit: int = 20
+    recall_triggers: list[str] = []
+    recall_top_k: int = 5
+    recall_min_similarity: float = 0.72
+    chunk_tokens: int = 500
+    chunk_overlap_tokens: int = 50
+    retention_days: dict[str, int] = {}
+
+    @model_validator(mode="after")
+    def _check(self) -> Memory:
+        if not 0 <= self.conversation_limit <= 100:
+            raise ConfigError("memory.conversation_limit must lie in [0, 100]")
+        if not 0 < self.recall_min_similarity <= 1:
+            raise ConfigError("memory.recall_min_similarity must lie in (0, 1]")
+        if self.chunk_overlap_tokens >= self.chunk_tokens:
+            raise ConfigError("memory.chunk_overlap_tokens must be less than chunk_tokens")
+        return self
+
+
+class Budget(_Table):
+    """The default monthly model spend per org."""
+
+    monthly_cents: int = 200
+
+
+class RateLimit(_Table):
+    """Message rate per member."""
+
+    per_member_per_minute: int = 10
+
+
+class Workers(_Table):
+    """Background job intervals. Per-tool sync intervals live in each [tools.*] table."""
+
+    token_refresh_minutes: int = 45
+    token_refresh_window_minutes: int = 60
+    cleanup_hour_utc: int = 4
+
+    @model_validator(mode="after")
+    def _check(self) -> Workers:
+        if self.token_refresh_window_minutes <= self.token_refresh_minutes:
+            raise ConfigError(
+                "workers.token_refresh_window_minutes must exceed token_refresh_minutes"
+            )
+        if not 0 <= self.cleanup_hour_utc < 24:
+            raise ConfigError("workers.cleanup_hour_utc must lie in [0, 23]")
+        return self
+
+
+class Permissions(_Table):
+    """The action types each role may run by default."""
+
+    admin: list[ActionType] = list(ActionType)
+    officer: list[ActionType] = list(ActionType)
+    member: list[ActionType] = [ActionType.READ]
+
+    def allowed(self, role: Role) -> frozenset[ActionType]:
+        """The action types a role may run by default."""
+        return frozenset(getattr(self, role.value))
+
+
+class Telemetry(_Table):
+    """Logs, trace files, metrics, Sentry and LangFuse. The DSN and keys are in .env.
+
+    trace_dir receives one JSONL file per request; empty writes none. metrics serves /metrics on
+    the API. An empty DSN or LangFuse key sends nothing there.
+    """
+
+    service_name: str = "zipy"
+    log_json: bool = False
+    trace_dir: str = ".zipy/traces"
+    metrics: bool = True
+    sentry_dsn: SecretStr = SecretStr("")
+    sentry_traces_sample_rate: float = 0.1
+    langfuse_host: str = ""
+    langfuse_public_key: SecretStr = SecretStr("")
+    langfuse_secret_key: SecretStr = SecretStr("")
+
+
+class Data(_Table):
+    """Postgres, Redis and the credential key. All are in .env."""
+
+    database_url: SecretStr = SecretStr("")
+    redis_url: SecretStr = SecretStr("")
+    fernet_key: SecretStr = SecretStr("")
+
+
+class PluginSettings(BaseModel):
+    """A plugin table. Keys not declared here are the plugin's own settings."""
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool = True
+
+    @property
+    def options(self) -> dict[str, object]:
+        """The plugin's own settings."""
+        return dict(self.model_extra or {})
+
+    def redacted(self) -> dict[str, object]:
+        """The table with every secret-looking plugin setting masked."""
+        shown: dict[str, object] = {"enabled": self.enabled}
+        for key, value in self.options.items():
+            secret = key.lower().endswith(SECRET_SUFFIXES) and value
+            shown[key] = "**********" if secret else value
+        return shown
+
+
+class PlatformSettings(PluginSettings):
+    """A [platforms.name] table: a chat platform Zipy lives on."""
+
+
+class ProviderSettings(PluginSettings):
+    """A [providers.name] table: an account type orgs connect, such as google or notion."""
+
+
+class ToolSettings(PluginSettings):
+    """A [tools.name] table. provider is empty for a tool that needs no connected account."""
+
+    provider: str = ""
+    scopes: list[str] = []
+    actions: dict[str, ActionType]
+
+    def redacted(self) -> dict[str, object]:
+        return {
+            "provider": self.provider,
+            "scopes": self.scopes,
+            "actions": {k: v.value for k, v in self.actions.items()},
+            **super().redacted(),
+        }
