@@ -24,7 +24,7 @@ dependencies = [
     "notion-client>=2.2",
     "beautifulsoup4>=4.12",
     # data
-    "sqlalchemy[asyncio]>=2.0",
+    "sqlalchemy[asyncio]>=2.0.52",
     "asyncpg>=0.30",
     "pgvector>=0.3",
     "alembic>=1.14",

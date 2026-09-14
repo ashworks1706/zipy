@@ -819,7 +819,7 @@ requires-dist = [
     { name = "redis", specifier = ">=5.2" },
     { name = "rich", specifier = ">=13" },
     { name = "sentry-sdk", specifier = ">=2.19" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52" },
     { name = "structlog", specifier = ">=24.4" },
     { name = "typer", specifier = ">=0.15" },
     { name = "uvicorn", specifier = ">=0.32" },
