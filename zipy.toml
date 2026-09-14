@@ -1,0 +1,225 @@
+# Zipy configuration. Every tunable value lives here at its default, committed.
+#
+# ZIPY_<TABLE>__<KEY> from the environment wins over this file (ZIPY_PLATFORMS__DISCORD__TOKEN
+# reaches [platforms.discord]); ZIPY_CONFIG_FILE points at another one. Secrets and per-machine
+# URLs live in .env (see .env.example), never here. A bad combination is rejected at load.
+# Per-org overrides of [tools.*] settings live in Postgres and are set from chat; orgs never edit
+# this file.
+#
+# Three plugin kinds are configured here, each one table per folder under apps/engine:
+#   [platforms.*]  chat platforms Zipy lives on          apps/engine/platforms/<name>
+#   [providers.*]  account types an org connects        apps/engine/auth/providers/<name>
+#   [tools.*]      what the model can call               apps/engine/tools/<name>
+# A folder without a table, or a table without a folder, fails at startup.
+
+# Bumped only when a table changes shape so an older file would be misread.
+config_version = 1
+
+[app]
+# dev prints readable logs; prod prints JSON lines.
+env = "dev"
+name = "Zipy"
+
+[api]
+# OAuth callbacks, provider webhooks and platform event routes, in the same event loop.
+host = "127.0.0.1"
+port = 8080
+
+[agent]
+# Tool-calling turns before the loop stops and says so.
+max_iterations = 8
+# Seconds a destructive action waits for a confirm click.
+confirmation_ttl_secs = 120
+# The Jinja2 template for the system prompt, under apps/engine/agent/templates.
+system_template = "system.md.j2"
+
+# ---------------------------------------------------------------- models
+#
+# One table per job the engine gives a model, each any LiteLLM model string. Change provider or
+# model here; keys live in .env as ZIPY_MODELS__<ROLE>__API_KEY. fallbacks are tried in order.
+
+[models.chat]
+# Runs the tool-calling loop.
+model = "openrouter/qwen/qwen3-32b"
+fallbacks = []
+temperature = 0.2
+max_tokens = 1024
+timeout_secs = 60.0
+
+[models.summary]
+# Condenses transcripts and long tool results.
+model = "openrouter/qwen/qwen3-8b"
+fallbacks = []
+temperature = 0.1
+max_tokens = 1024
+timeout_secs = 120.0
+
+[models.embedding]
+# Feeds semantic recall. dimensions must match the documents table; a change is a re-embed.
+model = "openai/text-embedding-3-small"
+dimensions = 1536
+
+[memory]
+# The last N messages of the conversation, read from the platform, given to the model.
+conversation_limit = 20
+# Semantic recall runs only when the message contains one of these phrases.
+recall_triggers = [
+    "last meeting",
+    "previous",
+    "previously",
+    "what did we decide",
+    "summarize",
+    "summary of",
+    "last week",
+    "last month",
+]
+recall_top_k = 5
+recall_min_similarity = 0.72
+chunk_tokens = 500
+chunk_overlap_tokens = 50
+
+[memory.retention_days]
+# Days a tool's documents are kept, by tool name. A tool not listed keeps them until re-synced.
+zoom = 180
+notion = 365
+drive = 365
+
+[budget]
+# The default monthly LLM spend per org, in cents. An org at its budget gets no LLM calls.
+monthly_cents = 200
+
+[rate_limit]
+# Messages per member per minute, per org.
+per_member_per_minute = 10
+
+[workers]
+token_refresh_minutes = 45
+# A token expiring within this window is refreshed.
+token_refresh_window_minutes = 60
+cleanup_hour_utc = 4
+
+[permissions]
+# The action types each role may run. Per-org overrides live in Postgres.
+admin = ["read", "create", "destructive"]
+officer = ["read", "create", "destructive"]
+member = ["read"]
+
+[telemetry]
+# Sentry DSN and LangFuse keys live in .env; empty sends nothing.
+service_name = "zipy"
+# JSON log lines instead of readable ones. The prod image sets ZIPY_TELEMETRY__LOG_JSON=true.
+log_json = false
+# One JSONL file per request, under <trace_dir>/<org_id>/<request_id>.jsonl; empty writes none.
+trace_dir = ".zipy/traces"
+# Serve Prometheus metrics at /metrics on the API.
+metrics = true
+sentry_traces_sample_rate = 0.1
+
+# ---------------------------------------------------------------- platforms
+#
+# Chat platforms. Each renders its own formatting and message limit; the gateway fits replies to
+# them. Tokens and signing secrets live in .env as ZIPY_PLATFORMS__<NAME>__<KEY>.
+
+[platforms.discord]
+enabled = true
+message_limit = 2000
+
+[platforms.slack]
+enabled = false
+message_limit = 3000
+
+[platforms.local]
+# A terminal conversation for development. zipy chat runs it whether or not it is enabled here.
+enabled = false
+org_name = "Local dev org"
+member_name = "developer"
+
+# ---------------------------------------------------------------- providers
+#
+# Accounts an org connects once, shared by every tool that names the provider. Client ids and
+# secrets live in .env as ZIPY_PROVIDERS__<NAME>__CLIENT_ID and __CLIENT_SECRET.
+
+[providers.google]
+enabled = true
+
+[providers.notion]
+enabled = true
+
+[providers.zoom]
+enabled = true
+
+# ---------------------------------------------------------------- tools
+#
+# Each action names its type, which decides whether it runs at once (read, create) or waits for a
+# confirmation (destructive). The model never decides this. A tool is offered to the model only
+# when its provider is connected and the org has it enabled. A tool that syncs documents for
+# recall has sync_hours.
+
+[tools.calendar]
+provider = "google"
+enabled = true
+scopes = ["https://www.googleapis.com/auth/calendar"]
+default_event_minutes = 60
+default_reminder_minutes = 10
+
+[tools.calendar.actions]
+list_events = "read"
+find_free_slots = "read"
+create_event = "create"
+update_event = "destructive"
+delete_event = "destructive"
+
+[tools.drive]
+provider = "google"
+enabled = true
+scopes = ["https://www.googleapis.com/auth/drive.readonly"]
+max_results = 10
+sync_hours = 12
+
+[tools.drive.actions]
+search_files = "read"
+list_folder = "read"
+
+[tools.notion]
+provider = "notion"
+enabled = true
+scopes = []
+max_results = 25
+sync_hours = 6
+
+[tools.notion.actions]
+query_database = "read"
+get_page = "read"
+create_page = "create"
+update_page = "destructive"
+
+[tools.zoom]
+provider = "zoom"
+enabled = false
+scopes = ["cloud_recording:read"]
+
+[tools.zoom.actions]
+list_recordings = "read"
+latest_summary = "read"
+
+[tools.search]
+# Web and campus portal search. Needs no connected account.
+enabled = true
+scopes = []
+campus_portal_url = "https://asu.campuslabs.com/engage/organizations"
+max_results = 5
+
+[tools.search.actions]
+web_search = "read"
+campus_orgs = "read"
+
+# ---------------------------------------------------------------- developer console (apps/cli)
+
+[console]
+# Every line a unit prints is also appended to <log_dir>/<unit>.log.
+log_dir = ".zipy/logs"
+# Play the logo animation from apps/cli/assets on start; any key skips it.
+splash = true
+log_lines = 5000
+status_interval_secs = 5.0
+metrics_interval_secs = 2.0

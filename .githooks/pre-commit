@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Runs the gate for what the staged changes touch. Installed by just hooks.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+changed=$(git diff --cached --name-only)
+touched() { grep -qE "$1" <<<"$changed"; }
+
+touched '^(apps/(engine|cli)/|tests/|\.github/|pyproject\.toml|uv\.lock|scripts/)' && { echo "pre-commit: just check-python"; just check-python; }
+touched '^apps/website/' && { echo "pre-commit: just check-website"; just check-website; }
+touched '^apps/cli/assets/' && { echo "pre-commit: website frames match"; just web-frames >/dev/null; git diff --quiet apps/website/lib/cli-frames.ts || { echo "cli-frames.ts changed; stage it"; exit 1; }; }
+touched '^zipy\.toml$' && { echo "pre-commit: config loads"; just config >/dev/null; }
+touched '^justfile$' && { echo "pre-commit: just --list"; just --list >/dev/null; }
+touched '^(docs/.*|README)\.md$' && grep -qs '```mermaid' docs/*.md README.md && { echo "pre-commit: diagrams"; just diagrams; }
+touched '^(scripts/|\.githooks/)' && { echo "pre-commit: bash -n"; for f in scripts/*.sh .githooks/*; do bash -n "$f"; done; }
+:

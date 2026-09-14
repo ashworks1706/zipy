@@ -1,0 +1,199 @@
+# The workspace. Every app under apps/ is its own package with its own pyproject.toml. This file
+# holds the tooling they share and the dependency rule, between apps and inside each one.
+#
+#   apps/engine   the one process: chat platform plugins, the gateway, the agent, its tools and
+#                 memory, provider plugins, the HTTP server, the workers, and the zipy command
+#   apps/cli      the developer console over every just recipe
+#   apps/website  the landing page, Next.js; not a Python package, not a workspace member
+#
+# Apps never import each other. The console runs recipes.
+
+[tool.uv.workspace]
+members = ["apps/engine", "apps/cli"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "mypy>=1.14",
+    "import-linter>=2.1",
+    "pyyaml>=6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["apps/website"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RET", "ARG", "PTH", "T20", "ANN"]
+ignore = ["ANN401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["engine", "cli"]
+
+[tool.ruff.lint.per-file-ignores]
+"apps/engine/commands/*" = ["T20"]
+"apps/**/tests/*" = ["ANN", "ARG"]
+"tests/*" = ["ANN", "ARG"]
+# Alembic loads these by path; they are not part of the package.
+"apps/engine/data/migrations/*" = ["ANN"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["apps/engine", "apps/cli"]
+exclude = ["/tests/", "apps/engine/data/migrations/"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["apps", "tests"]
+# Test files share basenames across apps and tool modules, so each is imported by path.
+addopts = "--strict-markers --import-mode=importlib"
+norecursedirs = ["apps/website", ".*", "node_modules"]
+markers = ["integration: needs the compose services (postgres, redis) running"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# The dependency rule. Adding an edge means editing this section and docs/ARCHITECTURE.md in the
+# same change. Enforced by scripts/check-deps.sh, which runs in just check, the pre-commit hook,
+# and CI.
+[tool.importlinter]
+root_packages = ["engine", "cli"]
+include_external_packages = true
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+name = "apps never import each other"
+type = "independence"
+modules = ["engine", "cli"]
+
+# ---------------------------------------------------------------- inside the engine
+#
+#   commands
+#   wiring
+#   platforms | api | workers
+#   gateway
+#   agent
+#   memory | tools | llm | auth
+#   data
+#   telemetry
+#   core
+#
+# Plugins (platforms, providers, tools) are held to two more rules by
+# apps/engine/tests/test_plugins.py rather than here, so a new plugin needs no contract edit: no
+# plugin imports a sibling plugin, and a library a plugin declares in owns is imported by no other
+# engine module.
+
+[[tool.importlinter.contracts]]
+name = "engine layering"
+type = "layers"
+layers = [
+    "engine.commands",
+    "engine.wiring",
+    "engine.platforms | engine.api | engine.workers",
+    "engine.gateway",
+    "engine.agent",
+    "engine.memory | engine.tools | engine.llm | engine.auth",
+    "engine.data",
+    "engine.telemetry",
+    "engine.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "only llm imports a model provider or LangFuse"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = [
+    "engine.core",
+    "engine.telemetry",
+    "engine.data",
+    "engine.memory",
+    "engine.tools",
+    "engine.auth",
+    "engine.agent",
+    "engine.gateway",
+    "engine.platforms",
+    "engine.api",
+    "engine.workers",
+]
+forbidden_modules = ["litellm", "langfuse"]
+
+[[tool.importlinter.contracts]]
+name = "only data imports the database drivers"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = [
+    "engine.core",
+    "engine.telemetry",
+    "engine.memory",
+    "engine.tools",
+    "engine.llm",
+    "engine.auth",
+    "engine.agent",
+    "engine.gateway",
+    "engine.platforms",
+    "engine.api",
+    "engine.workers",
+]
+forbidden_modules = ["sqlalchemy", "asyncpg", "pgvector", "redis", "alembic", "cryptography"]
+
+[[tool.importlinter.contracts]]
+name = "the gateway and everything below it never import a web framework"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = [
+    "engine.core",
+    "engine.telemetry",
+    "engine.data",
+    "engine.memory",
+    "engine.tools",
+    "engine.llm",
+    "engine.auth",
+    "engine.agent",
+    "engine.gateway",
+]
+forbidden_modules = ["fastapi", "starlette", "uvicorn"]
+
+[[tool.importlinter.contracts]]
+name = "only telemetry imports the metrics and error reporting SDKs"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = [
+    "engine.core",
+    "engine.data",
+    "engine.memory",
+    "engine.tools",
+    "engine.llm",
+    "engine.auth",
+    "engine.agent",
+    "engine.gateway",
+    "engine.platforms",
+    "engine.api",
+    "engine.workers",
+]
+forbidden_modules = ["prometheus_client", "sentry_sdk"]
+
+[[tool.importlinter.contracts]]
+name = "core imports nothing else in the engine"
+type = "forbidden"
+source_modules = ["engine.core"]
+forbidden_modules = [
+    "engine.telemetry",
+    "engine.data",
+    "engine.memory",
+    "engine.tools",
+    "engine.llm",
+    "engine.auth",
+    "engine.agent",
+    "engine.gateway",
+    "engine.platforms",
+    "engine.api",
+    "engine.workers",
+    "engine.wiring",
+    "engine.commands",
+]
