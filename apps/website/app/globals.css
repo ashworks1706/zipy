@@ -1,0 +1,130 @@
+@import "tailwindcss";
+@source "./app/**/*.{ts,tsx}";
+@source "./components/**/*.{ts,tsx}";
+
+/* Palette: black ground, the logo's pink for anything interactive. */
+:root {
+  --bg: #05070c;
+  --bg-raised: #0d0a12;
+  --line: #2a1a2e;
+  --accent: #ff009f;
+  --accent-dim: #9e0063;
+  --fg: #ece8ef;
+  --fg-dim: #8e8397;
+  /* --font-blocks covers only U+2500-259F; every other glyph comes from --font-mono. */
+  --mono: var(--font-mono), var(--font-blocks), ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+code {
+  font-family: var(--mono);
+}
+
+.landing {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+}
+
+.landing-inner {
+  /* The animation is sized from this container's width. */
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.25rem;
+  width: 100%;
+  max-width: 60rem;
+}
+
+.cli-animation {
+  font-family: var(--mono);
+  /* 59 columns at a 0.6em advance are 35.4em wide, capped at 18px; vw is the fallback for cqi. */
+  font-size: min(18px, calc((100vw - 2.5rem) / 35.4));
+  font-size: min(18px, calc(100cqi / 35.4));
+  line-height: 1.05;
+  white-space: pre;
+  color: var(--accent);
+  margin: 0;
+  /* Height of the logo, so the blank frame does not collapse the page. */
+  min-height: calc(13 * 1.05em);
+}
+
+/* Glow applies once the animation settles. */
+.cli-animation.is-settled {
+  text-shadow: 0 0 28px rgba(255, 0, 159, 0.35);
+  transition: text-shadow 0.5s ease;
+}
+
+.landing-tagline {
+  margin: 0;
+  color: var(--fg);
+  font-size: 0.9rem;
+  letter-spacing: 0.3em;
+  text-transform: lowercase;
+  text-align: center;
+}
+
+.landing-platforms {
+  margin: -1.25rem 0 0;
+  color: var(--fg-dim);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.landing-install {
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--fg);
+  padding: 0.5rem 0.95rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.landing-install::before {
+  content: "$ ";
+  color: var(--accent);
+}
+
+.landing-link {
+  border: 1px solid transparent;
+  padding: 0.5rem 0.95rem;
+  color: var(--fg-dim);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.landing-link:hover {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
