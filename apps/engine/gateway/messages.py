@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
-from engine.core.types import ChannelRef, MemberRef
+from engine.core.types import Attachment, ChannelRef, MemberRef
 
 
 @dataclass(frozen=True)
@@ -33,6 +33,8 @@ class Inbound:
     platform_roles: tuple[str, ...] = ()
     #: The message of Zipy's this one replies to. Empty when it replies to nothing.
     reply_to: str = ""
+    #: Images attached to the message.
+    images: tuple[Attachment, ...] = ()
 
 
 class Answer(StrEnum):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -46,6 +47,36 @@ def from_wire(name: str) -> str:
     return name.replace("__", ".", 1)
 
 
+#: Media types a model is sent. Anything else is dropped rather than guessed at.
+IMAGE_MEDIA_TYPES = ("image/png", "image/jpeg", "image/gif", "image/webp")
+
+
+@dataclass(frozen=True)
+class Attachment:
+    """One image attached to a member's message.
+
+    The link is what reaches the model, not the bytes: the platform holds them and every
+    OpenAI-compatible server fetches a URL. A server with no route to the host sees no image.
+    """
+
+    url: str
+    media_type: str
+
+    @classmethod
+    def of(cls, url: str, media_type: str) -> Attachment | None:
+        """An attachment, or None when the media type is not one a model is sent."""
+        kind = media_type.split(";")[0].strip().lower()
+        if not url or kind not in IMAGE_MEDIA_TYPES:
+            return None
+        return cls(url=url, media_type=kind)
+
+    @classmethod
+    def accepted(cls, images: Sequence[Attachment], most: int) -> tuple[Attachment, ...]:
+        """The attachments a model is sent, at most most of them."""
+        kept = (cls.of(image.url, image.media_type) for image in images)
+        return tuple(image for image in kept if image is not None)[:most]
+
+
 @dataclass(frozen=True)
 class ChatMessage:
     """One message in the model's message array."""
@@ -56,6 +87,8 @@ class ChatMessage:
     at: datetime | None = None
     tool_call_id: str = ""
     tool_calls: tuple[ToolCall, ...] = ()
+    #: Images attached to a user turn. Never stored: the links a platform issues expire.
+    images: tuple[Attachment, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -110,7 +110,7 @@ class PromptBuilder:
         replied = reply_block(ctx.reply_to)
         if replied:
             messages.append(ChatMessage(speaker=Speaker.SYSTEM, content=replied))
-        if message:
-            messages.append(ChatMessage(speaker=Speaker.USER, content=message))
+        if message or ctx.images:
+            messages.append(ChatMessage(speaker=Speaker.USER, content=message, images=ctx.images))
         messages.extend(tool_messages(outcomes))
         return messages
