@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from engine.core.config import Memory
 from engine.core.protocols import ConversationSource, DocumentStore, Embedder, OrgContextStore
 from engine.core.types import ChatMessage, RecallHit, RequestContext
+from engine.memory.org_context import render
+from engine.memory.recall import recall
+from engine.memory.triggers import wants_recall
 
 
 @dataclass(frozen=True)
@@ -37,4 +40,9 @@ class MemoryManager:
 
     async def build(self, ctx: RequestContext, message: str) -> Context:
         """The last conversation_limit messages, the org's facts, and recall if triggered."""
-        raise NotImplementedError
+        history = await self._conversation.recent(ctx.channel, self._memory.conversation_limit)
+        facts = await self._org_context.facts(ctx.org_id)
+        recalled: list[RecallHit] = []
+        if wants_recall(message, self._memory.recall_triggers):
+            recalled = await recall(ctx, message, self._memory, self._embedder, self._documents)
+        return Context(history=history, org_facts=render(facts), recalled=recalled)

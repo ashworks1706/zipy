@@ -20,7 +20,7 @@ chat workspace shows it, not when its code exists.
 - [ ] LiteLLM chat client per model role with spend in Usage; structlog with org and member bound
 - [ ] Gateway: org and role resolution, rate limit, admin command dispatch, reply splitting
 - [ ] Discord platform: mentions and DMs to Inbound, install to WorkspaceInstalled, history, send
-- [ ] Orchestrator loop with conversation memory and org facts, no tools yet
+- [x] Orchestrator loop with conversation memory and org facts, and tool calls
 - [ ] `@Zipy remember`, `@Zipy status`; budget and rate limit enforced before the model call
 - [ ] LangFuse traces for every model call; Sentry for errors
 
@@ -28,7 +28,7 @@ chat workspace shows it, not when its code exists.
 
 - [ ] Credential vault (Fernet) and the credentials repository
 - [ ] Google OAuth: signed state, DM link, callback, token refresh worker
-- [ ] Executor: permission, credential, validation, audit
+- [x] Executor: permission, credential, validation, audit
 - [ ] Calendar tool: list, free slots, create; update and delete behind confirmation
 - [ ] Confirmation prompts: Discord buttons, typed answers for platforms without, expiry, cleanup
 - [ ] Drive tool: search and list folder, read-only scope
