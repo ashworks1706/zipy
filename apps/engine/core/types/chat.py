@@ -36,6 +36,16 @@ class ToolCall:
     arguments: dict[str, Any]
 
 
+def wire_name(qualified_name: str) -> str:
+    """The function name sent to the model, which may not contain a dot."""
+    return qualified_name.replace(".", "__")
+
+
+def from_wire(name: str) -> str:
+    """The qualified name of a function name the model called."""
+    return name.replace("__", ".", 1)
+
+
 @dataclass(frozen=True)
 class ChatMessage:
     """One message in the model's message array."""

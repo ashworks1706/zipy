@@ -16,6 +16,7 @@ from engine.core.plugins import discover, match
 from engine.core.protocols import WorkspaceStore
 from engine.core.types import ChannelRef, ChatMessage, ConfigError, OrgId
 from engine.gateway.gateway import Gateway
+from engine.gateway.messages import Text
 from engine.platforms.base import BasePlatform
 
 PlatformClass = type[BasePlatform[Any]]
@@ -68,4 +69,8 @@ class Platforms:
 
     async def notify(self, org_id: OrgId, text: str) -> None:
         """Notifier: post to the notice channel of every enabled workspace of the org."""
-        raise NotImplementedError
+        for workspace in await self._workspaces.of_org(org_id):
+            platform = self.enabled.get(workspace.ref.platform)
+            if platform is None or workspace.notice_channel is None:
+                continue
+            await platform.send(Text(channel=workspace.notice_channel, text=text))

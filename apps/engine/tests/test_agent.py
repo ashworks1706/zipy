@@ -494,3 +494,34 @@ def test_recalled_chunks_are_a_separate_labelled_system_message():
 def test_an_empty_message_adds_no_user_turn():
     messages = build(Context(history=[], org_facts="", recalled=[]), message="")
     assert all(m.speaker is not Speaker.USER for m in messages)
+
+
+async def test_calls_costing_less_than_a_cent_still_reach_the_spend(ctx, cfg):
+    # A cheap model costs a fraction of a cent a call. Rounding each one to whole cents would
+    # leave the spend at zero forever and the budget would never bite.
+    answer = Completion(text="ok", usage=Usage(10, 5, 0.2))
+    agent, _, orgs, _ = orchestrator(ctx, cfg, [answer, answer, answer], budget_cents=100)
+    for _ in range(3):
+        await agent.handle(ctx, "hello", "discord-markdown")
+    assert orgs.orgs[ctx.org_id].spent_cents == pytest.approx(0.6)
+
+
+def test_every_tool_names_what_it_acted_on_for_the_audit_log():
+    # The audit trail records a target; an empty one leaves every entry looking alike.
+    from engine.core.config import load as load_config
+    from engine.tools.registry import Registry as ToolRegistry
+
+    registry = ToolRegistry(load_config().tools)
+    named = {
+        "calendar.update_event": {"event_id": "e1"},
+        "calendar.create_event": {"title": "Exec board", "start": "2026-09-15T15:00:00Z"},
+        "drive.list_folder": {"folder": "Sponsorship"},
+        "notion.get_page": {"page_id": "p1"},
+        "search.web_search": {"query": "asu robotics"},
+    }
+    for qualified_name, arguments in named.items():
+        tool_name, action = registry.resolve(qualified_name)
+        cls = registry.tool_class(tool_name)
+        params = cls.actions[action].params.model_validate(arguments)
+        tool = cls(registry.settings_for(tool_name))
+        assert tool.target(action, params), f"{qualified_name} records no target"
