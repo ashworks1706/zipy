@@ -22,12 +22,16 @@ the chat app the org already uses (Discord today, Slack next) and works the org'
 Calendar, Drive, Notion and Zoom accounts, so officers stop juggling six tabs and nothing breaks
 when an officer graduates.
 
+<img width="2372" height="1258" alt="image" src="https://github.com/user-attachments/assets/a5b9ff46-a09a-4129-81b9-8142251d953f" />
+
+
 ```
 @Zipy when's the deadline for the next budget request?
 @Zipy add an event next Tuesday 6pm, intro to LLMs workshop, CPCOM 210, invite sarah@asu.edu
 @Zipy what did we decide about sponsorships in the last exec meeting?
 @Zipy remember our budget tracker is the Notion database called Finance Tracker
 ```
+
 
 ## How it works
 
