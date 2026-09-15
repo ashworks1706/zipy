@@ -9,7 +9,7 @@ from typing import Any, ClassVar
 from pydantic import BaseModel
 
 from engine.core.types import Document, ProviderAuth
-from engine.tools.base import Action, BaseTool, require_auth
+from engine.tools.base import Action, BaseTool, first_set, require_auth
 from engine.tools.zoom import schemas as s
 from engine.tools.zoom.client import ZoomClient
 
@@ -33,6 +33,10 @@ class ZoomTool(BaseTool[s.ZoomSettings]):
         ),
     }
 
+    def target(self, action: str, params: BaseModel) -> str:  # noqa: ARG002
+        """The meeting or topic an action acts on."""
+        return first_set(params, "meeting_id", "topic")
+
     async def execute(self, action: str, params: BaseModel, auth: ProviderAuth | None) -> BaseModel:
         client = ZoomClient(require_auth(auth, self.provider), self.settings)
         handlers: dict[str, Callable[[Any], Awaitable[BaseModel]]] = {
@@ -45,4 +49,5 @@ class ZoomTool(BaseTool[s.ZoomSettings]):
         self, auth: ProviderAuth | None, since: datetime | None, source_id: str = ""
     ) -> AsyncIterator[Document]:
         """Documents changed since the time, or the one named by source_id."""
-        raise NotImplementedError
+        client = ZoomClient(require_auth(auth, self.provider), self.settings)
+        return client.documents(since, source_id)
