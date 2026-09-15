@@ -33,7 +33,7 @@ class Splash(Screen[None]):
         with Middle(), Center():
             yield Static(id="logo")
         with Center():
-            yield Static("collaborative agents for team logistics", id="tagline")
+            yield Static("agent harness for team operations", id="tagline")
 
     def on_mount(self) -> None:
         self._show()
