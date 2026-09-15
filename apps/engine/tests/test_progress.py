@@ -2,10 +2,23 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 
-from engine.core.types import Progress, ProgressStyle, progress
+import discord
+import pytest
+
+from engine.core.types import (
+    ChannelRef,
+    Progress,
+    ProgressStyle,
+    WorkspaceRef,
+    ZipyError,
+    progress,
+)
+from engine.gateway.messages import Outbound, Text
 from engine.platforms.cards import ANSWERING, BULLET, THINKING, Card
+from engine.platforms.discord.turn import Turn
 
 STYLE = ProgressStyle()
 
@@ -212,3 +225,140 @@ def test_a_turn_with_no_images_still_sends_a_plain_string():
 
     body = to_wire(ChatMessage(speaker=Speaker.USER, content="hi"))
     assert body["content"] == "hi"
+
+
+# ---------------------------------------------------------------- the turn
+
+
+class FakeMessage:
+    """Enough of discord.Message to record what the card was edited to."""
+
+    def __init__(self, refuse_edit: bool = False) -> None:
+        self.edits: list[str] = []
+        self._refuse_edit = refuse_edit
+
+    async def edit(self, content: str) -> None:
+        if self._refuse_edit:
+            raise discord.DiscordException("edit refused")
+        self.edits.append(content)
+
+
+class FakeChannel:
+    """Enough of a messageable to post the card, or to refuse it."""
+
+    def __init__(self, refuse: bool = False, refuse_edit: bool = False) -> None:
+        self.posted: list[str] = []
+        self.message = FakeMessage(refuse_edit)
+        self._refuse = refuse
+
+    async def send(self, content: str) -> FakeMessage:
+        if self._refuse:
+            raise discord.DiscordException("channel refused")
+        self.posted.append(content)
+        return self.message
+
+
+def turn_for(channel: FakeChannel, sent: list[Outbound] | None = None) -> Turn:
+    async def send(one: Outbound) -> None:
+        (sent if sent is not None else []).append(one)
+
+    # No gap, so the editor redraws as soon as the card changes.
+    return Turn(channel, 0, send)
+
+
+def text(body: str) -> Text:
+    return Text(ChannelRef(WorkspaceRef("discord", "g1"), "c1"), body)
+
+
+async def test_the_card_is_posted_before_the_work_starts():
+    channel = FakeChannel()
+    started: list[str] = []
+
+    async def work(watcher):
+        started.append(channel.posted[0] if channel.posted else "")
+        return [text("done")]
+
+    assert await turn_for(channel).run(work) is True
+    assert started and THINKING in started[0], "the member sees the turn begin"
+
+
+async def test_the_answer_replaces_the_card():
+    channel = FakeChannel()
+
+    async def work(watcher):
+        return [text("Friday at 5.")]
+
+    await turn_for(channel).run(work)
+
+    assert channel.message.edits, "the card was edited at the end"
+    assert channel.message.edits[-1] == "Friday at 5."
+
+
+async def test_progress_during_the_work_reaches_the_card():
+    channel = FakeChannel()
+
+    async def work(watcher):
+        update = progress("tool_started", {"id": "c1", "action": "drive.search_files"}, STYLE)
+        assert update is not None
+        watcher(update)
+        # Let the editor wake and redraw before the work finishes.
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        return [text("found it")]
+
+    await turn_for(channel).run(work)
+
+    shown = "\n".join(channel.message.edits)
+    assert "drive.search_files" in shown, "the step was drawn while the work ran"
+
+
+async def test_a_channel_that_refuses_the_card_says_so_rather_than_failing():
+    channel = FakeChannel(refuse=True)
+    ran = []
+
+    async def work(watcher):
+        ran.append(True)
+        return [text("done")]
+
+    assert await turn_for(channel).run(work) is False
+    assert ran == [], "the caller answers instead; the work is not run twice"
+
+
+async def test_outbounds_the_card_cannot_carry_are_sent_on_their_own():
+    channel = FakeChannel()
+    sent: list[Outbound] = []
+    second = text("and another thing")
+
+    async def work(watcher):
+        return [text("first"), second]
+
+    await turn_for(channel, sent).run(work)
+
+    assert channel.message.edits[-1] == "first"
+    assert sent == [second], "the rest posts separately"
+
+
+async def test_a_card_that_cannot_be_edited_still_posts_the_answer():
+    channel = FakeChannel(refuse_edit=True)
+    sent: list[Outbound] = []
+    answer = text("Friday at 5.")
+
+    async def work(watcher):
+        return [answer]
+
+    await turn_for(channel, sent).run(work)
+
+    assert sent == [answer], "the answer is not lost when the edit fails"
+
+
+async def test_the_editor_stops_when_the_work_raises():
+    channel = FakeChannel()
+
+    async def work(watcher):
+        raise ZipyError("the gateway gave up")
+
+    with pytest.raises(ZipyError):
+        await turn_for(channel).run(work)
+
+    # A leaked editor task would keep redrawing after the turn ended.
+    assert all(task.done() for task in asyncio.all_tasks() - {asyncio.current_task()})
