@@ -1,10 +1,11 @@
 """The background workers: the scheduler, cleanup, token refresh, ingestion and the spend reset."""
 
 import asyncio
+import math
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pytest
 from pydantic import BaseModel, SecretStr
@@ -20,6 +21,7 @@ from engine.core.doubles import (
     MemoryNotifier,
     MemoryOrgs,
     MemoryQueue,
+    NoLimit,
 )
 from engine.core.types import (
     ActionType,
@@ -175,7 +177,9 @@ def credential(expires_at: datetime | None) -> MemoryCredentials:
     return store
 
 
-def ingestion(credentials: MemoryCredentials, store: MemoryDocuments) -> Ingestion:
+def ingestion(
+    credentials: MemoryCredentials, store: MemoryDocuments, limiter: Any = None
+) -> Ingestion:
     """An ingestion worker over the fake tools."""
     return Ingestion(
         registry=registry(),
@@ -183,6 +187,7 @@ def ingestion(credentials: MemoryCredentials, store: MemoryDocuments) -> Ingesti
         credentials=credentials,
         embedder=FixedEmbedder([0.1]),
         documents=store,
+        limiter=limiter if limiter is not None else NoLimit(),
     )
 
 
@@ -356,6 +361,29 @@ async def test_a_sync_job_ingests_every_document_of_the_tool():
     assert {chunk.source_id for chunk in store.chunks} == {"d1", "d2"}
     assert {chunk.org_id for chunk in store.chunks} == {ORG}
     assert {chunk.source for chunk in store.chunks} == {"diary"}
+
+
+async def test_a_sync_spends_one_of_the_provider_budget_for_each_document():
+    limiter = NoLimit()
+    await ingestion(credential(None), MemoryDocuments(), limiter).run(
+        Job(kind=sync_job("diary"), org_id=ORG)
+    )
+    # Two documents, so the sync paces itself twice rather than fetching the page at once.
+    assert limiter.taken == [(ORG, "google"), (ORG, "google")]
+
+
+async def test_a_sync_waits_as_long_as_it_needs_to():
+    budgets: list[float] = []
+
+    class Recording:
+        async def acquire(self, org_id: OrgId, provider: str, max_wait: float) -> None:  # noqa: ARG002 - protocol signature
+            budgets.append(max_wait)
+
+    await ingestion(credential(None), MemoryDocuments(), Recording()).run(
+        Job(kind=sync_job("diary"), org_id=ORG)
+    )
+    # Nobody is waiting on a reply, so a sync never gives up on the budget.
+    assert budgets and all(budget == math.inf for budget in budgets)
 
 
 async def test_a_document_job_ingests_only_the_document_it_names():

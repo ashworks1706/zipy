@@ -167,6 +167,12 @@ class RateLimiter(Protocol):
     async def allow(self, org_id: OrgId, member: MemberRef) -> bool: ...
 
 
+class ProviderLimiter(Protocol):
+    """How often one org may call one provider."""
+
+    async def acquire(self, org_id: OrgId, provider: str, max_wait: float) -> None: ...
+
+
 class JobQueue(Protocol):
     """Background work handed from the API and the gateway to the workers."""
 

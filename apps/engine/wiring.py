@@ -24,7 +24,7 @@ from engine.auth.providers.registry import Providers
 from engine.core.config import Config, PlatformSettings
 from engine.core.protocols import JobQueue, TraceSink
 from engine.core.types import ChannelRef, ChatMessage, ConfigError
-from engine.data.cache import RedisQueue, RedisRateLimiter
+from engine.data.cache import RedisProviderLimiter, RedisQueue, RedisRateLimiter
 from engine.data.crypto import Vault
 from engine.data.db import create_engine, sessions
 from engine.data.repos.audit import PgAudit
@@ -178,6 +178,7 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
     providers = Providers(config.providers, config.api.public_url)
 
     conversations = Conversations()
+    provider_limiter = RedisProviderLimiter(config.data, config.rate_limit)
     memory = MemoryManager(
         memory=config.memory,
         conversation=conversations,
@@ -191,7 +192,16 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
         memory=memory,
         prompts=PromptBuilder(system_template(config.agent.system_template), config.app.name),
         registry=registry,
-        executor=Executor(registry, config.permissions, credentials, tool_config, audit, trace),
+        executor=Executor(
+            registry,
+            config.permissions,
+            credentials,
+            tool_config,
+            audit,
+            trace,
+            provider_limiter,
+            config.rate_limit,
+        ),
         orgs=orgs,
         credentials=credentials,
         tool_config=tool_config,
@@ -213,7 +223,9 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
     platforms = Platforms(selected(config, only), gateway, workspaces)
     conversations.bind(platforms)
 
-    ingestion = Ingestion(registry, config.memory, credentials, embedder, documents)
+    ingestion = Ingestion(
+        registry, config.memory, credentials, embedder, documents, provider_limiter
+    )
     workers = config.workers
     scheduler = Scheduler(
         [

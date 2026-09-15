@@ -108,6 +108,19 @@ monthly_cents = 200
 [rate_limit]
 # Messages per member per minute, per org.
 per_member_per_minute = 10
+# Longest a tool call waits for an outbound call to come under the limit before it fails.
+# A worker sync waits as long as it needs to.
+provider_max_wait_seconds = 5.0
+
+# Outbound calls to one provider, per org. Applies to model-driven tool calls and to the
+# document syncs the workers run, so one org's backlog cannot spend another org's quota.
+[rate_limit.provider]
+per_minute = 60
+burst = 10
+
+# Per-provider overrides, keyed by the name of a [providers.*] table. A provider with no entry
+# uses [rate_limit.provider].
+[rate_limit.providers]
 
 [workers]
 token_refresh_minutes = 45

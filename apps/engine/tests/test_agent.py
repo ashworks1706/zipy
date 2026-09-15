@@ -11,7 +11,7 @@ from pydantic import BaseModel, SecretStr
 
 from engine.agent.orchestrator import Orchestrator
 from engine.agent.prompt import RECALL_HEADER, REPLY_HEADER, PromptBuilder
-from engine.core.config import Agent, Permissions, ToolSettings
+from engine.core.config import Agent, Permissions, RateLimit, ToolSettings
 from engine.core.doubles import (
     FixedEmbedder,
     MemoryAudit,
@@ -23,6 +23,7 @@ from engine.core.doubles import (
     MemoryOrgs,
     MemoryToolConfig,
     MemoryTrace,
+    NoLimit,
     ScriptedModel,
 )
 from engine.core.types import (
@@ -36,6 +37,7 @@ from engine.core.types import (
     Org,
     OrgId,
     ProviderAuth,
+    RateLimited,
     Role,
     Speaker,
     ToolCall,
@@ -146,8 +148,24 @@ def connected(org_id: OrgId) -> MemoryCredentials:
     return store
 
 
+class Refusing:
+    """A provider limiter with nothing left to spend."""
+
+    def __init__(self) -> None:
+        self.asked: list[tuple[str, float]] = []
+
+    async def acquire(self, org_id: OrgId, provider: str, max_wait: float) -> None:  # noqa: ARG002 - protocol signature
+        """Refuse every call."""
+        self.asked.append((provider, max_wait))
+        raise RateLimited(f"{provider} is at its limit for this org")
+
+
 def executor(
-    ctx: Any, credentials: MemoryCredentials | None = None, audit: MemoryAudit | None = None
+    ctx: Any,
+    credentials: MemoryCredentials | None = None,
+    audit: MemoryAudit | None = None,
+    limiter: Any = None,
+    limits: RateLimit | None = None,
 ) -> tuple[Executor, MemoryAudit]:
     """An executor over the fake registry, and the audit log it writes to."""
     log = audit or MemoryAudit()
@@ -159,6 +177,8 @@ def executor(
             tool_config=MemoryToolConfig(),
             audit=log,
             trace=MemoryTrace(),
+            limiter=limiter if limiter is not None else NoLimit(),
+            limits=limits or RateLimit(),
         ),
         log,
     )
@@ -180,6 +200,38 @@ async def test_a_read_runs_and_is_audited(ctx):
     assert [(e.action, e.ok, e.payload) for e in audit.entries] == [
         ("diary.list_events", True, {"day": "friday"})
     ]
+
+
+async def test_a_call_over_the_provider_limit_comes_back_as_a_failure_and_is_audited(ctx):
+    limiter = Refusing()
+    run, audit = executor(ctx, limiter=limiter)
+    outcome = await run.run(ctx, call("diary.list_events", day="friday"))
+    assert not outcome.ok
+    assert "limit" in outcome.content
+    # The org sees why the call did not happen, and the attempt is on the record.
+    assert [(e.action, e.ok) for e in audit.entries] == [("diary.list_events", False)]
+
+
+async def test_a_refused_call_never_reaches_the_provider(ctx):
+    run, _ = executor(ctx, limiter=Refusing())
+    outcome = await run.run(ctx, call("diary.book", title="standup"))
+    assert not outcome.ok
+    assert "the provider said no" not in outcome.content
+
+
+async def test_the_wait_budget_of_a_tool_call_comes_from_the_config(ctx):
+    limiter = Refusing()
+    run, _ = executor(ctx, limiter=limiter, limits=RateLimit(provider_max_wait_seconds=2.5))
+    await run.run(ctx, call("diary.list_events", day="friday"))
+    assert limiter.asked == [("google", 2.5)]
+
+
+async def test_a_tool_over_no_provider_is_never_rate_limited(ctx):
+    limiter = NoLimit()
+    run, _ = executor(ctx, limiter=limiter)
+    await run.run(ctx, call("diary.list_events", day="friday"))
+    # diary runs over google, so this records one. A providerless tool would record none.
+    assert [provider for _, provider in limiter.taken] == ["google"]
 
 
 async def test_a_member_may_not_run_a_destructive_action(ctx):

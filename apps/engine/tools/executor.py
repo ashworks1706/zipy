@@ -6,8 +6,14 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, ValidationError
 
-from engine.core.config import Permissions
-from engine.core.protocols import AuditLog, CredentialStore, ToolConfigStore, TraceSink
+from engine.core.config import Permissions, RateLimit
+from engine.core.protocols import (
+    AuditLog,
+    CredentialStore,
+    ProviderLimiter,
+    ToolConfigStore,
+    TraceSink,
+)
 from engine.core.types import (
     AuditEntry,
     PermissionDenied,
@@ -33,6 +39,8 @@ class Executor:
         tool_config: ToolConfigStore,
         audit: AuditLog,
         trace: TraceSink,
+        limiter: ProviderLimiter,
+        limits: RateLimit,
     ) -> None:
         self._registry = registry
         self._permissions = permissions
@@ -40,6 +48,8 @@ class Executor:
         self._tool_config = tool_config
         self._audit = audit
         self._trace = trace
+        self._limiter = limiter
+        self._limits = limits
 
     async def run(self, ctx: RequestContext, call: ToolCall) -> ToolOutcome:
         """Execute one call and record it.
@@ -64,6 +74,11 @@ class Executor:
             )
             tool, spec, params = await self._prepare(ctx, tool_name, action, call)
             target = tool.target(action, params)
+            provider = type(tool).provider
+            if provider:
+                await self._limiter.acquire(
+                    ctx.org_id, provider, self._limits.provider_max_wait_seconds
+                )
             result = await tool.execute(action, params, await self._auth(ctx, type(tool)))
             if not isinstance(result, spec.result):
                 raise ToolError(f"{action_name} returned {type(result).__name__}")

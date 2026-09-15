@@ -10,7 +10,7 @@ from pydantic import BaseModel, SecretStr
 
 from engine.agent.orchestrator import Orchestrator
 from engine.agent.prompt import PromptBuilder
-from engine.core.config import Agent, Data, Permissions, ToolSettings
+from engine.core.config import Agent, Data, Permissions, RateLimit, ToolSettings
 from engine.core.doubles import (
     AllowAll,
     FixedEmbedder,
@@ -24,6 +24,7 @@ from engine.core.doubles import (
     MemoryToolConfig,
     MemoryTrace,
     MemoryWorkspaces,
+    NoLimit,
     ScriptedModel,
 )
 from engine.core.types import (
@@ -254,6 +255,8 @@ def stack(
             tool_config=tool_config,
             audit=MemoryAudit(),
             trace=MemoryTrace(),
+            limiter=NoLimit(),
+            limits=RateLimit(),
         ),
         orgs=orgs,
         credentials=credentials,

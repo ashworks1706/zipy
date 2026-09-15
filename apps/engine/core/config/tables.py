@@ -113,10 +113,40 @@ class Budget(_Table):
     monthly_cents: int = 200
 
 
+class ProviderRate(_Table):
+    """Calls one org may make to one provider."""
+
+    per_minute: int = 60
+    burst: int = 10
+
+    @model_validator(mode="after")
+    def _check(self) -> ProviderRate:
+        if self.per_minute <= 0:
+            raise ConfigError("a provider rate per_minute must be above 0")
+        if self.burst < 1:
+            raise ConfigError("a provider rate burst must be at least 1")
+        return self
+
+
 class RateLimit(_Table):
-    """Message rate per member."""
+    """Message rate per member, and outbound call rate per org and provider."""
 
     per_member_per_minute: int = 10
+    provider: ProviderRate = ProviderRate()
+    providers: dict[str, ProviderRate] = {}
+    provider_max_wait_seconds: float = 5.0
+
+    def for_provider(self, provider: str) -> ProviderRate:
+        """The rate for one provider, its own when it has one."""
+        return self.providers.get(provider, self.provider)
+
+    @model_validator(mode="after")
+    def _check(self) -> RateLimit:
+        if self.per_member_per_minute <= 0:
+            raise ConfigError("rate_limit.per_member_per_minute must be above 0")
+        if self.provider_max_wait_seconds < 0:
+            raise ConfigError("rate_limit.provider_max_wait_seconds must not be negative")
+        return self
 
 
 class Workers(_Table):
