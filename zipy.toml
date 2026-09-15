@@ -32,6 +32,9 @@ max_iterations = 8
 confirmation_ttl_secs = 120
 # The Jinja2 template for the system prompt, under apps/engine/agent/templates.
 system_template = "system.md.j2"
+# Images of one message sent to the model. The model has to be one that reads images; see
+# deploy/inference/README.md. 0 sends none.
+max_images = 4
 
 # ---------------------------------------------------------------- models
 #
@@ -137,6 +140,9 @@ sentry_traces_sample_rate = 0.1
 [platforms.discord]
 enabled = true
 message_limit = 2000
+# Shortest gap between edits of the one message a turn is written into. Discord rate limits
+# edits, so a shorter gap is not a faster card.
+edit_every_ms = 1500
 
 [platforms.slack]
 enabled = false

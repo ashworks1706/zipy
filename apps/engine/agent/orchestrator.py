@@ -145,12 +145,14 @@ class Orchestrator:
                 raise BudgetExceeded(
                     f"{org.name} has spent its {org.budget_cents} cent monthly budget"
                 )
+            self._trace.event(ctx, "model_started", {"turn": turn})
             completion = await self._model.complete(ctx, messages, schemas)
             usage = _total(usage, completion.usage)
             spent += completion.usage.cost_cents
             await self._orgs.add_spend(ctx.org_id, completion.usage.cost_cents)
             self._trace.event(ctx, "model_call", self._call_event(turn, completion))
             if not completion.tool_calls:
+                self._trace.event(ctx, "answer_draft", {"text": completion.text})
                 self._trace.event(ctx, "reply", {"turns": turn, "tools": ran})
                 return AgentReply(text=completion.text, usage=usage)
             runnable, held = self._split(completion.tool_calls)

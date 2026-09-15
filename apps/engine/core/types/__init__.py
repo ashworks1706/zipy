@@ -4,6 +4,7 @@ from engine.core.types.chat import (
     ActionType,
     AgentReply,
     AgentResult,
+    Attachment,
     ChatMessage,
     Completion,
     NeedsConfirmation,
@@ -40,6 +41,7 @@ from engine.core.types.identity import (
     WorkspaceRef,
 )
 from engine.core.types.org import FactCategory, Org, OrgFact, OrgToolConfig, Workspace
+from engine.core.types.progress import Progress, ProgressStyle, progress
 from engine.core.types.records import (
     AuditEntry,
     Chunk,
@@ -53,6 +55,7 @@ __all__ = [
     "ActionType",
     "AgentReply",
     "AgentResult",
+    "Attachment",
     "AuditEntry",
     "BudgetExceeded",
     "ChannelRef",
@@ -77,6 +80,8 @@ __all__ = [
     "PendingConfirmation",
     "PermissionDenied",
     "PlatformError",
+    "Progress",
+    "ProgressStyle",
     "ProviderAuth",
     "RateLimited",
     "RecallHit",
@@ -93,5 +98,6 @@ __all__ = [
     "WorkspaceRef",
     "ZipyError",
     "from_wire",
+    "progress",
     "wire_name",
 ]

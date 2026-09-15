@@ -44,6 +44,7 @@ from engine.platforms.registry import Platforms
 from engine.telemetry import logging as log_setup
 from engine.telemetry import sentry
 from engine.telemetry.metrics import Metrics
+from engine.telemetry.progress import ProgressSink
 from engine.telemetry.trace import Fanout, JsonlTrace
 from engine.tools.executor import Executor
 from engine.tools.registry import Registry
@@ -126,6 +127,8 @@ def trace_sink(config: Config) -> TraceSink:
     langfuse = LangfuseTrace(config.telemetry)
     if langfuse.enabled:
         sinks.append(langfuse)
+    # Last, so a watcher sees a line only once the event is recorded.
+    sinks.append(ProgressSink())
     return Fanout(sinks)
 
 

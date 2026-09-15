@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import asyncio
+import contextlib
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, ClassVar, cast
 
 import discord
@@ -10,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, SecretStr
 
 from engine.core.config import Budget
 from engine.core.types import (
+    Attachment,
     ChannelRef,
     ChatMessage,
     MemberRef,
@@ -29,6 +32,7 @@ from engine.gateway.messages import (
     WorkspaceInstalled,
 )
 from engine.platforms.base import BasePlatform
+from engine.platforms.cards import Card
 from engine.platforms.discord.render import confirm_embed, confirm_view, parse_custom_id
 from engine.platforms.routing import (
     Arrival,
@@ -49,6 +53,8 @@ class DiscordSettings(BaseModel):
 
     token: SecretStr = SecretStr("")
     message_limit: int = 2000
+    #: Shortest gap between edits of the card while a turn runs.
+    edit_every_ms: int = 1500
 
 
 def intents() -> discord.Intents:
@@ -148,8 +154,71 @@ class DiscordPlatform(BasePlatform[DiscordSettings]):
             received_at=message.created_at,
             platform_roles=roles_of(message.author),
             reply_to=quoted,
+            images=attachments(message.attachments),
         )
-        await self._to_gateway(self.gateway.message(inbound, self.capabilities))
+        await self._answer(inbound, channel)
+
+    async def _answer(self, inbound: Inbound, channel: discord.abc.Messageable) -> None:
+        """Run the turn in one message, edited as the engine reports what it is doing.
+
+        The card is posted before the engine starts so the member sees the turn begin, and the
+        answer replaces it. A card that cannot be posted falls back to answering when it is done.
+        """
+        card = Card()
+        posted = await self._begin(channel, card)
+        if posted is None:
+            await self._to_gateway(self.gateway.message(inbound, self.capabilities))
+            return
+        stop = asyncio.Event()
+        editor = asyncio.create_task(self._editing(posted, card, stop))
+        try:
+            outbound = await self.gateway.message(inbound, self.capabilities, card.apply)
+        except ZipyError as exc:
+            log.error("discord event failed", error=str(exc))
+            outbound = []
+        finally:
+            stop.set()
+            await editor
+        await self._finish(posted, card, outbound)
+
+    async def _begin(self, channel: discord.abc.Messageable, card: Card) -> discord.Message | None:
+        """The card message, posted empty. None when the channel refused it."""
+        try:
+            return await channel.send(card.running())
+        except discord.DiscordException as exc:
+            log.warning("discord card not posted", error=str(exc))
+            return None
+
+    async def _editing(self, posted: discord.Message, card: Card, stop: asyncio.Event) -> None:
+        """Edit the card while the turn runs, no more often than the configured gap."""
+        gap = self.settings.edit_every_ms / 1000
+        while not stop.is_set():
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(stop.wait(), timeout=gap)
+            if not card.dirty:
+                continue
+            card.dirty = False
+            try:
+                await posted.edit(content=card.running())
+            except discord.DiscordException as exc:
+                log.warning("discord card not edited", error=str(exc))
+                return
+
+    async def _finish(
+        self, posted: discord.Message, card: Card, outbound: Sequence[Outbound]
+    ) -> None:
+        """Put the answer on the card. Anything that is not the first text posts as its own."""
+        rest = list(outbound)
+        first = next((one for one in rest if isinstance(one, Text)), None)
+        if first is not None:
+            rest.remove(first)
+            try:
+                await posted.edit(content=card.finished(first.text))
+            except discord.DiscordException as exc:
+                log.warning("discord card not finished", error=str(exc))
+                rest.insert(0, first)
+        for one in rest:
+            await self.send(one)
 
     async def _open_thread(self, message: discord.Message, text: str) -> discord.Thread | None:
         """The thread the answer lives in, opened from message. None answers in the channel."""
@@ -318,3 +387,9 @@ def roles_of(author: discord.User | discord.Member) -> tuple[str, ...]:
     if not isinstance(author, discord.Member):
         return ()
     return tuple(role.name for role in author.roles)
+
+
+def attachments(uploaded: Iterable[discord.Attachment]) -> tuple[Attachment, ...]:
+    """The images of a message. Anything Discord does not call an image is dropped."""
+    found = (Attachment.of(one.url, one.content_type or "") for one in uploaded)
+    return tuple(one for one in found if one is not None)

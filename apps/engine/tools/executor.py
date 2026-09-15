@@ -57,6 +57,11 @@ class Executor:
         try:
             tool_name, action = self._registry.resolve(call.name)
             action_name = qualified(tool_name, action)
+            self._trace.event(
+                ctx,
+                "tool_started",
+                {"id": call.id, "action": action_name, "arguments": dict(call.arguments)},
+            )
             tool, spec, params = await self._prepare(ctx, tool_name, action, call)
             target = tool.target(action, params)
             result = await tool.execute(action, params, await self._auth(ctx, type(tool)))
@@ -121,5 +126,11 @@ class Executor:
         self._trace.event(
             ctx,
             "tool_call",
-            {"action": action or call.name, "target": target, "ok": ok, "error": error},
+            {
+                "id": call.id,
+                "action": action or call.name,
+                "target": target,
+                "ok": ok,
+                "error": error,
+            },
         )

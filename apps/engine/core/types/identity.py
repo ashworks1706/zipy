@@ -7,10 +7,15 @@ strings; Zipy never interprets them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import NewType
+from typing import TYPE_CHECKING, NewType
+
+if TYPE_CHECKING:
+    from engine.core.types.chat import Attachment
+    from engine.core.types.progress import Progress
 
 OrgId = NewType("OrgId", str)
 
@@ -65,3 +70,8 @@ class RequestContext:
     received_at: datetime
     #: The message of Zipy's this one replies to. Empty when it replies to nothing.
     reply_to: str = ""
+    #: Images attached to the member's message.
+    images: tuple[Attachment, ...] = ()
+    #: Where live progress goes while this request runs. None when nobody is watching.
+    #: Excluded from equality: two contexts differing only in who is watching are the same request.
+    watcher: Callable[[Progress], None] | None = field(default=None, compare=False)
