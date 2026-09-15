@@ -12,6 +12,8 @@ from engine.core.types.chat import (
     ToolCall,
     ToolOutcome,
     Usage,
+    from_wire,
+    wire_name,
 )
 from engine.core.types.errors import (
     BudgetExceeded,
@@ -90,4 +92,6 @@ __all__ = [
     "Workspace",
     "WorkspaceRef",
     "ZipyError",
+    "from_wire",
+    "wire_name",
 ]

@@ -8,7 +8,7 @@ from typing import Any, ClassVar
 from pydantic import BaseModel
 
 from engine.core.types import ProviderAuth
-from engine.tools.base import Action, BaseTool
+from engine.tools.base import Action, BaseTool, first_set
 from engine.tools.search import schemas as s
 from engine.tools.search.client import SearchClient
 
@@ -25,6 +25,10 @@ class SearchTool(BaseTool[s.SearchSettings]):
             "Find student organizations on the campus portal.", s.CampusOrgsParams, s.Hits
         ),
     }
+
+    def target(self, action: str, params: BaseModel) -> str:  # noqa: ARG002
+        """What was searched for."""
+        return first_set(params, "query", "keywords")
 
     async def execute(
         self,
