@@ -530,8 +530,14 @@ being written in the file. `.env` holds only secrets and per-machine URLs. `zipy
 resolved configuration with secrets masked; `zipy plugins` checks every plugin against its table.
 
 **Model roles.** `[models.chat]` runs the loop, `[models.summary]` condenses transcripts and long
-results, `[models.embedding]` feeds recall. Each is any LiteLLM model string with its own key,
-fallbacks and limits. Swapping provider or model is a config change.
+results, `[models.embedding]` feeds recall. Each is any LiteLLM model string with its own
+`api_base`, key, fallbacks and limits. Swapping provider or model is a config change.
+
+The committed defaults are the `llama-server` instances `just model` starts, so a clone answers
+with no model account; `api_base` is what selects them. `deploy/inference/README.md` covers the
+servers and how a role is pointed at a hosted provider. `models.embedding.dimensions` is the one
+role that is not free to change: it must equal `EMBEDDING_DIMENSIONS` in `engine/data/tables.py`,
+the width of the pgvector column, and `test_data.py` holds the two together.
 
 **config_version.** A top-level integer, bumped only when a table changes shape so that an older
 file would be misread. A mismatched file fails at load with the version this Zipy reads; the
@@ -775,7 +781,7 @@ and the Release workflow verifies every version against the tag before publishin
 | Validation | Pydantic v2 for config, tool params and results, plugin settings | everywhere |
 | Chat platforms | discord.py; Slack Events API (planned); a terminal platform | `engine/platforms/*` |
 | HTTP server | FastAPI + uvicorn, in the platforms' event loop | `engine/api` |
-| Models | LiteLLM to any provider; Qwen on OpenRouter or SiliconFlow by default | `engine/llm`, `[models.*]` |
+| Models | LiteLLM to any provider; a local `llama-server` by default, see `deploy/inference` | `engine/llm`, `[models.*]` |
 | Prompts | Jinja2 templates | `engine/agent/templates` |
 | Integrations | google-api-python-client, notion-client, httpx, BeautifulSoup | `engine/tools/*`, `engine/auth/providers/*` |
 | Database | PostgreSQL 16, SQLAlchemy 2 async, asyncpg | `engine/data` |

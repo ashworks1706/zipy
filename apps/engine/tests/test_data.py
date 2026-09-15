@@ -17,6 +17,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import OperationalError
 
 from engine.core.config import Data, RateLimit
+from engine.core.config import load as load_config
 from engine.core.types import (
     AuditEntry,
     ChannelRef,
@@ -607,3 +608,9 @@ async def test_jobs_leave_the_queue_in_the_order_they_arrived(data):
     assert (first.kind, first.payload) == ("sync:drive", {"n": 1})
     assert (second.kind, second.payload) == ("document:notion", {"n": 2})
     assert await queue.next() is None
+
+
+def test_the_committed_embedding_width_is_the_width_of_the_column():
+    """pgvector fixes the width in the column type, so a drifted zipy.toml would fail at insert."""
+    load_config.cache_clear()
+    assert load_config().models["embedding"].dimensions == EMBEDDING_DIMENSIONS

@@ -1,5 +1,6 @@
-# The Zipy stack on one box: zipy, postgres with pgvector, redis, and under the observe profile
-# langfuse, prometheus, grafana and uptime-kuma.
+# The Zipy stack on one box: zipy, postgres with pgvector, redis, under the model profile the two
+# llama-server instances that serve the model roles, and under the observe profile langfuse,
+# prometheus, grafana and uptime-kuma.
 # Every port binds to loopback. just up starts postgres and redis for local development; zipy
 # itself runs from source with just serve, or here under the app profile. Chat platforms are
 # plugins inside zipy, not services.
@@ -18,6 +19,11 @@ services:
       ZIPY_DATA__DATABASE_URL: postgresql+asyncpg://zipy:${ZIPY_POSTGRES_PASSWORD:-zipy}@postgres:5432/zipy
       ZIPY_DATA__REDIS_URL: redis://redis:6379/0
       ZIPY_TELEMETRY__LANGFUSE_HOST: http://langfuse:3000
+      # The model profile's llama-server, under the names compose gives it. A value in .env wins,
+      # so pointing a role at a hosted provider takes only that one variable.
+      ZIPY_MODELS__CHAT__API_BASE: ${ZIPY_MODELS__CHAT__API_BASE:-http://chat:8000/v1}
+      ZIPY_MODELS__SUMMARY__API_BASE: ${ZIPY_MODELS__SUMMARY__API_BASE:-http://chat:8000/v1}
+      ZIPY_MODELS__EMBEDDING__API_BASE: ${ZIPY_MODELS__EMBEDDING__API_BASE:-http://embed:8001/v1}
     ports: ["127.0.0.1:8080:8080"]
     volumes: [zipydata:/var/lib/zipy]
     depends_on:
@@ -122,6 +128,77 @@ services:
     ports: ["127.0.0.1:3001:3001"]
     restart: unless-stopped
 
+  # One llama-server per model role, so a fresh clone needs no hosted model account. Started by
+  # just model. The default image is CPU-only and runs anywhere; just model-gpu adds the CUDA
+  # image and a card. GGUFs download on first run into the modelcache volume.
+  chat:
+    profiles: [model]
+    image: ${ZIPY_LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    command:
+      - -hf
+      - ${ZIPY_CHAT_GGUF:-Qwen/Qwen3-4B-GGUF:Q4_K_M}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --alias
+      - ${ZIPY_CHAT_ALIAS:-zipy-chat}
+      # Total across slots: each of --parallel N slots gets ctx-size / N.
+      - --ctx-size
+      - ${ZIPY_CHAT_CTX:-16384}
+      - --parallel
+      - ${ZIPY_CHAT_PARALLEL:-2}
+      # Tool calls come from the model's own chat template.
+      - --jinja
+      - --n-gpu-layers
+      - ${ZIPY_CHAT_NGL:-0}
+      - --metrics
+    volumes: [modelcache:/root/.cache/llama.cpp]
+    ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 60
+      start_period: 600s
+    restart: unless-stopped
+
+  embed:
+    profiles: [model]
+    image: ${ZIPY_LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    command:
+      - -hf
+      - ${ZIPY_EMBED_GGUF:-Qwen/Qwen3-Embedding-0.6B-GGUF:Q8_0}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8001"
+      - --alias
+      - ${ZIPY_EMBED_ALIAS:-zipy-embed}
+      - --embeddings
+      - --pooling
+      - last
+      - --ctx-size
+      - ${ZIPY_EMBED_CTX:-4096}
+      - --parallel
+      - ${ZIPY_EMBED_PARALLEL:-2}
+      - --batch-size
+      - "1024"
+      - --ubatch-size
+      - "1024"
+      - --n-gpu-layers
+      - ${ZIPY_EMBED_NGL:-0}
+      - --metrics
+    volumes: [modelcache:/root/.cache/llama.cpp]
+    ports: ["127.0.0.1:8001:8001"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 60
+      start_period: 600s
+    restart: unless-stopped
+
 volumes:
   zipydata:
   pgdata:
@@ -129,3 +206,4 @@ volumes:
   kumadata:
   promdata:
   grafanadata:
+  modelcache:

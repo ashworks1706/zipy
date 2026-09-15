@@ -32,7 +32,7 @@ secret() {
   fi
 }
 secret ZIPY_PLATFORMS__DISCORD__TOKEN "discord cannot connect"
-secret ZIPY_MODELS__CHAT__API_KEY "no model calls"
+secret ZIPY_MODELS__CHAT__API_KEY "unset uses the local llama-server"
 secret ZIPY_DATA__FERNET_KEY "run: just fernet-key"
 secret ZIPY_PROVIDERS__GOOGLE__CLIENT_ID "google tools cannot connect"
 secret ZIPY_PROVIDERS__NOTION__CLIENT_ID "notion tools cannot connect"
@@ -53,6 +53,8 @@ port() {
 }
 port  "postgres"    5432 "run: just up"
 port  "redis"       6379 "run: just up"
+probe "chat model"  "http://127.0.0.1:8000/health" "run: just model"
+probe "embed model" "http://127.0.0.1:8001/health" "run: just model"
 probe "zipy"        "http://127.0.0.1:8080/health" "run: just serve"
 probe "metrics"     "http://127.0.0.1:8080/metrics" "run: just serve"
 probe "langfuse"    "http://127.0.0.1:3000/api/public/health" "run: just up langfuse"

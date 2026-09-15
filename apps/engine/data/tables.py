@@ -16,7 +16,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Must equal models.embedding.dimensions in zipy.toml; a change is a migration and a re-embed.
-EMBEDDING_DIMENSIONS = 1536
+# test_data.py holds the two to each other.
+EMBEDDING_DIMENSIONS = 1024
 
 ID = String(64)
 

@@ -138,6 +138,23 @@ down:
 logs *SERVICES:
     {{compose}} --profile '*' logs -f --tail 200 {{SERVICES}}
 
+# ---------- the model layer ----------
+
+# llama-server for chat (:8000) and embeddings (:8001) on the CPU; GGUFs download on first run
+model *ARGS:
+    {{compose}} --profile model up -d {{ARGS}} chat embed
+
+# The same two servers on an NVIDIA card, with every layer offloaded to it
+model-gpu *ARGS:
+    ZIPY_CHAT_NGL="${ZIPY_CHAT_NGL:-99}" ZIPY_EMBED_NGL="${ZIPY_EMBED_NGL:-99}" \
+      {{compose}} -f deploy/compose.gpu.yml --profile model up -d {{ARGS}} chat embed
+
+# Stop and remove the model servers, keeping the downloaded GGUFs
+model-down:
+    {{compose}} --profile model rm -sf chat embed
+
+# ---------- deployment ----------
+
 # Production: the published image and every service, from the prod overlay
 prod-up:
     {{compose}} -f deploy/compose.prod.yml --profile '*' up -d

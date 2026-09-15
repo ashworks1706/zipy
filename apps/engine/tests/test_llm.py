@@ -501,6 +501,16 @@ async def test_embedding_sends_the_batch_and_the_dimensions(monkeypatch, ctx):
     assert vectors == [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
 
 
+async def test_a_server_that_ignores_the_requested_dimensions_is_an_error(monkeypatch, ctx):
+    recorder = Recorder(FakeEmbeddings([{"index": 0, "embedding": [1, 2, 3, 4]}]))
+    embed = embedder(monkeypatch, recorder)
+
+    with pytest.raises(ModelError) as caught:
+        await embed.embed(ctx.org_id, ["a"])
+
+    assert "4 dimensions, not 3" in str(caught.value)
+
+
 async def test_embeddings_come_back_in_input_order(monkeypatch, ctx):
     recorder = Recorder(
         FakeEmbeddings([{"index": 1, "embedding": [4, 5, 6]}, {"index": 0, "embedding": [1, 2, 3]}])
