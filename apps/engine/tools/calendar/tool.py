@@ -8,7 +8,7 @@ from typing import Any, ClassVar
 from pydantic import BaseModel
 
 from engine.core.types import ProviderAuth
-from engine.tools.base import Action, BaseTool, require_auth
+from engine.tools.base import Action, BaseTool, first_set, require_auth
 from engine.tools.calendar import schemas as s
 from engine.tools.calendar.client import CalendarClient
 
@@ -29,6 +29,10 @@ class CalendarTool(BaseTool[s.CalendarSettings]):
         "update_event": Action("Change an existing event.", s.UpdateEventParams, s.Event),
         "delete_event": Action("Delete an event.", s.DeleteEventParams, s.Done),
     }
+
+    def target(self, action: str, params: BaseModel) -> str:  # noqa: ARG002
+        """The event an action acts on, or what it searched for."""
+        return first_set(params, "event_id", "title", "query")
 
     async def execute(self, action: str, params: BaseModel, auth: ProviderAuth | None) -> BaseModel:
         client = CalendarClient(require_auth(auth, self.provider), self.settings)

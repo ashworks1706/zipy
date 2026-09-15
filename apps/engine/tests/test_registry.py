@@ -6,8 +6,7 @@ import pytest
 
 from engine.agent.classifier import needs_confirmation
 from engine.core.config import ToolSettings
-from engine.core.types import ActionType, ConfigError, OrgToolConfig, ToolCall
-from engine.tools.base import wire_name
+from engine.core.types import ActionType, ConfigError, OrgToolConfig, ToolCall, wire_name
 from engine.tools.registry import Registry
 
 

@@ -52,6 +52,8 @@ class Agent(_Table):
     max_iterations: int = 8
     confirmation_ttl_secs: int = 120
     system_template: str = "system.md.j2"
+    #: Images of one message sent to the model. 0 sends none.
+    max_images: int = 4
 
     @model_validator(mode="after")
     def _check(self) -> Agent:
