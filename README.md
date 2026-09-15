@@ -22,7 +22,7 @@ the chat app the org already uses (Discord today, Slack next) and works the org'
 Calendar, Drive, Notion and Zoom accounts, so officers stop juggling six tabs and nothing breaks
 when an officer graduates.
 
-<img width="2372" height="1258" alt="image" src="https://github.com/user-attachments/assets/a5b9ff46-a09a-4129-81b9-8142251d953f" />
+<img width="1671" height="833" alt="image" src="https://github.com/user-attachments/assets/7a2c95a6-5387-4702-89e4-3ebb247d259a" />
 
 
 ```
