@@ -1,1 +1,1 @@
-"""Zipy, the AI officer for student orgs."""
+"""Zipy, an agent harness for team operations."""

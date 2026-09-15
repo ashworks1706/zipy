@@ -32,32 +32,49 @@ max_iterations = 8
 confirmation_ttl_secs = 120
 # The Jinja2 template for the system prompt, under apps/engine/agent/templates.
 system_template = "system.md.j2"
+# Images of one message sent to the model. The model has to be one that reads images; see
+# deploy/inference/README.md. 0 sends none.
+max_images = 4
 
 # ---------------------------------------------------------------- models
 #
 # One table per job the engine gives a model, each any LiteLLM model string. Change provider or
 # model here; keys live in .env as ZIPY_MODELS__<ROLE>__API_KEY. fallbacks are tried in order.
+#
+# The defaults are the llama-server that just model starts, so a fresh clone answers with no
+# hosted account. api_base is what selects it; set ZIPY_MODELS__<ROLE>__API_BASE and
+# ZIPY_MODELS__<ROLE>__API_KEY in .env to send a role to a hosted provider instead, and
+# ZIPY_MODELS__<ROLE>__MODEL to name its model. See deploy/inference/README.md.
+# api_key is not a secret here: llama-server accepts any string and the OpenAI-compatible
+# client requires one.
 
 [models.chat]
 # Runs the tool-calling loop.
-model = "openrouter/qwen/qwen3-32b"
+model = "openai/zipy-chat"
+api_base = "http://127.0.0.1:8000/v1"
+api_key = "local"
 fallbacks = []
 temperature = 0.2
 max_tokens = 1024
-timeout_secs = 60.0
+timeout_secs = 120.0
 
 [models.summary]
-# Condenses transcripts and long tool results.
-model = "openrouter/qwen/qwen3-8b"
+# Condenses transcripts and long tool results. The same server as chat; one model is loaded.
+model = "openai/zipy-chat"
+api_base = "http://127.0.0.1:8000/v1"
+api_key = "local"
 fallbacks = []
 temperature = 0.1
 max_tokens = 1024
-timeout_secs = 120.0
+timeout_secs = 180.0
 
 [models.embedding]
-# Feeds semantic recall. dimensions must match the documents table; a change is a re-embed.
-model = "openai/text-embedding-3-small"
-dimensions = 1536
+# Feeds semantic recall. dimensions must match data/tables.py EMBEDDING_DIMENSIONS; a change is
+# a migration and a re-embed.
+model = "openai/zipy-embed"
+api_base = "http://127.0.0.1:8001/v1"
+api_key = "local"
+dimensions = 1024
 
 [memory]
 # The last N messages of the conversation, read from the platform, given to the model.
@@ -123,6 +140,9 @@ sentry_traces_sample_rate = 0.1
 [platforms.discord]
 enabled = true
 message_limit = 2000
+# Shortest gap between edits of the one message a turn is written into. Discord rate limits
+# edits, so a shorter gap is not a faster card.
+edit_every_ms = 1500
 
 [platforms.slack]
 enabled = false

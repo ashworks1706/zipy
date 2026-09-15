@@ -1,8 +1,10 @@
 # Zipy — agent guide
 
-A self-hosted AI operations officer for university student orgs. It lives in the org's chat
-workspace (Discord today, Slack and others as plugins) and reads and writes the org's Google
-Calendar, Drive, Notion and Zoom through one agent with many tools.
+An agent harness for team operations, built first for university student orgs. Zipy owns the
+loop, the tool layer, the permissions, the memory and the traces; a chat workspace (Discord
+today, Slack and others as plugins) is one surface onto it, and `apps/cli` is the other, where
+agents, tools, providers and knowledge are configured. Tools reach the org's Google Calendar,
+Drive, Notion and Zoom through one agent.
 
 Read `docs/ROADMAP.md` for what is being built in what order, and `docs/ARCHITECTURE.md` for the
 layers, plugins, data model, request lifecycle and invariants. Do not contradict them; propose an
