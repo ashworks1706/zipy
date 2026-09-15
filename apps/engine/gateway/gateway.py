@@ -145,7 +145,12 @@ class Gateway:
                 event.channel, started, "unlinked", [Text(event.channel, UNLINKED)]
             )
         ctx = await self._context(
-            workspace, event.channel, event.member, event.display_name, event.received_at
+            workspace,
+            event.channel,
+            event.member,
+            event.display_name,
+            event.received_at,
+            event.reply_to,
         )
         logger = bind(ctx)
         if not await self._rate_limiter.allow(ctx.org_id, ctx.member):
@@ -222,6 +227,7 @@ class Gateway:
         member: MemberRef,
         display_name: str,
         received_at: datetime,
+        reply_to: str = "",
     ) -> RequestContext:
         """The context of one request: its org, its member's role, and a new request id."""
         return RequestContext(
@@ -232,6 +238,7 @@ class Gateway:
             display_name=display_name,
             request_id=uuid4().hex,
             received_at=received_at,
+            reply_to=reply_to,
         )
 
     async def _admin(

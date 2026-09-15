@@ -425,11 +425,25 @@ sequenceDiagram
 ```
 
 
-**Step 1: Platform event** (`platforms/<name>/platform.py`). The platform receives a mention, a
-direct message, or a reply in a thread Zipy is in, and hands the gateway an `Inbound`: the
-conversation (`ChannelRef`: platform, workspace, channel, thread), the sender (`MemberRef`), their
-display name and the text. Buttons become an `InboundAnswer`. Installation becomes a
-`WorkspaceInstalled`.
+**Step 1: Platform event** (`platforms/<name>/platform.py`). The platform receives a message and
+`platforms/routing.py` says whether it is one Zipy answers:
+
+| Arrival | Trigger | Where the answer goes |
+|---|---|---|
+| direct message | `DIRECT` | the same channel |
+| mention or reply to Zipy in a channel | `OPENING` | a thread opened from the message |
+| reply to a Zipy message in a thread | `REPLY` | that thread |
+| any other message in a thread | none | nowhere; Zipy stays quiet |
+
+A thread is the conversation. Inside one, only a reply to something Zipy said continues it, so
+people talk in the thread without Zipy answering every line, and a reply to a person or to another
+bot is never a turn. The message replied to rides the `Inbound` as `reply_to` and reaches the
+prompt as its own system message under `REPLY_HEADER`, so the model knows which of its own answers
+is being followed up rather than inferring it from history.
+
+The platform hands the gateway an `Inbound`: the conversation (`ChannelRef`: platform, workspace,
+channel, thread), the sender (`MemberRef`), their display name, the text and `reply_to`. Buttons
+become an `InboundAnswer`. Installation becomes a `WorkspaceInstalled`.
 
 **Step 2: Org, role and limits** (`gateway/gateway.py`). The gateway looks up the workspace to
 find the org; an unlinked workspace gets setup instructions. It looks up the member's role; an

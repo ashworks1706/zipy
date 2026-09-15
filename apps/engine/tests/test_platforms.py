@@ -37,6 +37,15 @@ from engine.platforms.discord import render as discord_render
 from engine.platforms.local.platform import WORKSPACE, LocalPlatform, LocalSettings
 from engine.platforms.local.protocol import decode
 from engine.platforms.registry import Platforms, check, platform_classes
+from engine.platforms.routing import (
+    THREAD_NAME_FALLBACK,
+    THREAD_NAME_MAX,
+    Arrival,
+    Trigger,
+    quoted_reply,
+    thread_name,
+    trigger,
+)
 from engine.platforms.slack import platform as slack_platform
 from engine.platforms.slack import render as slack_render
 
@@ -543,3 +552,46 @@ async def test_slack_says_what_is_missing_instead_of_half_sending():
         await platform.recent(channel, 10)
     with pytest.raises(PlatformError, match="slack sdk"):
         await platform.run()
+
+
+# ---------------------------------------------------------------- routing
+
+
+def test_a_thread_answers_a_reply_and_stays_quiet_for_everything_else():
+    in_thread = lambda mentions, replies: trigger(  # noqa: E731
+        Arrival(in_thread=True, mentions_bot=mentions, replies_to_bot=replies)
+    )
+
+    assert in_thread(False, True) is Trigger.REPLY
+    assert in_thread(True, True) is Trigger.REPLY
+    # People talk in the thread without Zipy answering every line.
+    assert in_thread(False, False) is None
+    # A mention alone is not the reply the thread continues on.
+    assert in_thread(True, False) is None
+
+
+def test_addressing_zipy_in_a_channel_opens_a_thread():
+    assert trigger(Arrival(mentions_bot=True)) is Trigger.OPENING
+    assert trigger(Arrival(replies_to_bot=True)) is Trigger.OPENING
+    assert trigger(Arrival()) is None
+
+
+def test_every_direct_message_is_a_turn():
+    assert trigger(Arrival(direct=True)) is Trigger.DIRECT
+
+
+def test_a_thread_name_is_one_line_within_the_limit_and_never_empty():
+    assert thread_name("  when is\n the next meeting? ") == "when is the next meeting?"
+    assert thread_name("   ") == THREAD_NAME_FALLBACK
+    long = thread_name("x" * 300)
+    assert len(long) == THREAD_NAME_MAX
+    assert long.endswith("...")
+
+
+def test_only_a_reply_to_zipys_own_words_is_quoted_back():
+    assert quoted_reply("9", "  The exec sync is Friday.  ", "9") == "The exec sync is Friday."
+    # A reply to a person is theirs, not a turn for Zipy.
+    assert quoted_reply("10", "what do you think?", "9") == ""
+    # A reply to nothing, and to a message that carries no text.
+    assert quoted_reply(None, "text", "9") == ""
+    assert quoted_reply("9", "   ", "9") == ""

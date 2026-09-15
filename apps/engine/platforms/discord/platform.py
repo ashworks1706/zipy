@@ -30,6 +30,13 @@ from engine.gateway.messages import (
 )
 from engine.platforms.base import BasePlatform
 from engine.platforms.discord.render import confirm_embed, confirm_view, parse_custom_id
+from engine.platforms.routing import (
+    Arrival,
+    Trigger,
+    quoted_reply,
+    thread_name,
+    trigger,
+)
 from engine.telemetry.logging import get
 
 log = get("platforms.discord")
@@ -109,24 +116,73 @@ class DiscordPlatform(BasePlatform[DiscordSettings]):
             raise PlatformError(f"discord connection failed: {exc}") from exc
 
     async def on_message(self, message: discord.Message) -> None:
-        """A mention, a direct message, or a reply in a thread Zipy is in."""
+        """A direct message, a mention that opens a thread, or a reply to Zipy inside one."""
         me = self._client.user
         if me is None or message.author.bot or message.author.id == me.id:
             return
         direct = isinstance(message.channel, discord.DMChannel)
-        if not direct and not self._addressed(message, me.id):
+        quoted = await self._quoted(message, me.id)
+        reason = trigger(
+            Arrival(
+                direct=direct,
+                in_thread=isinstance(message.channel, discord.Thread),
+                mentions_bot=any(one.id == me.id for one in message.mentions),
+                replies_to_bot=bool(quoted),
+            )
+        )
+        if reason is None:
             return
+        text = strip_mention(message.content, me.id)
+        channel = message.channel
+        if reason is Trigger.OPENING:
+            opened = await self._open_thread(message, text)
+            if opened is not None:
+                channel = opened
         workspace = str(message.guild.id) if message.guild else f"dm-{message.author.id}"
         inbound = Inbound(
-            channel=channel_ref(workspace, message.channel, str(message.channel.id)),
+            channel=channel_ref(workspace, channel, str(channel.id)),
             member=MemberRef(platform=self.name, user_id=str(message.author.id)),
             display_name=message.author.display_name,
-            text=strip_mention(message.content, me.id),
+            text=text,
             direct=direct,
             received_at=message.created_at,
             platform_roles=roles_of(message.author),
+            reply_to=quoted,
         )
         await self._to_gateway(self.gateway.message(inbound, self.capabilities))
+
+    async def _open_thread(self, message: discord.Message, text: str) -> discord.Thread | None:
+        """The thread the answer lives in, opened from message. None answers in the channel."""
+        try:
+            return await message.create_thread(name=thread_name(text))
+        except discord.DiscordException as exc:
+            log.warning("discord thread not opened", error=str(exc))
+            return None
+
+    async def _quoted(self, message: discord.Message, me: int) -> str:
+        """The text of the Zipy message this one replies to, or empty.
+
+        A reply to a person, or to another bot, is not a turn: the thread belongs to everyone in it.
+        """
+        reference = message.reference
+        if reference is None:
+            return ""
+        replied = reference.resolved
+        if replied is None and reference.message_id is not None:
+            replied = await self._fetch_reference(message, reference.message_id)
+        if not isinstance(replied, discord.Message):
+            return ""
+        return quoted_reply(str(replied.author.id), replied.content, str(me))
+
+    async def _fetch_reference(
+        self, message: discord.Message, message_id: int
+    ) -> discord.Message | None:
+        """The replied-to message the gateway did not resolve. None when it cannot be read."""
+        try:
+            return await message.channel.fetch_message(message_id)
+        except discord.DiscordException as exc:
+            log.warning("discord reply target unreadable", error=str(exc))
+            return None
 
     async def on_guild_join(self, guild: discord.Guild) -> None:
         """Zipy was added to a server."""
@@ -198,11 +254,6 @@ class DiscordPlatform(BasePlatform[DiscordSettings]):
             raise PlatformError(f"discord history failed for {channel.channel_id}: {exc}") from exc
         messages.reverse()
         return messages
-
-    def _addressed(self, message: discord.Message, me: int) -> bool:
-        if any(mentioned.id == me for mentioned in message.mentions):
-            return True
-        return isinstance(message.channel, discord.Thread) and message.channel.me is not None
 
     async def _to_gateway(self, call: Any) -> None:
         try:

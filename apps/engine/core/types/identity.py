@@ -63,3 +63,5 @@ class RequestContext:
     display_name: str
     request_id: str
     received_at: datetime
+    #: The message of Zipy's this one replies to. Empty when it replies to nothing.
+    reply_to: str = ""

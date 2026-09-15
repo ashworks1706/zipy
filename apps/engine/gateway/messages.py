@@ -31,6 +31,8 @@ class Inbound:
     direct: bool
     received_at: datetime
     platform_roles: tuple[str, ...] = ()
+    #: The message of Zipy's this one replies to. Empty when it replies to nothing.
+    reply_to: str = ""
 
 
 class Answer(StrEnum):
