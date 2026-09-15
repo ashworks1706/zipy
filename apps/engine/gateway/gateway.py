@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from datetime import datetime
 from uuid import uuid4
 
@@ -19,6 +20,7 @@ from engine.core.protocols import (
 )
 from engine.core.types import (
     AgentResult,
+    Attachment,
     ChannelRef,
     ConfigError,
     FactCategory,
@@ -27,6 +29,7 @@ from engine.core.types import (
     Org,
     OrgFact,
     OrgToolConfig,
+    Progress,
     RequestContext,
     Role,
     StoreError,
@@ -132,7 +135,12 @@ class Gateway:
         self._rate_limiter = rate_limiter
         self._metrics = metrics
 
-    async def message(self, event: Inbound, capabilities: Capabilities) -> list[Outbound]:
+    async def message(
+        self,
+        event: Inbound,
+        capabilities: Capabilities,
+        watcher: Callable[[Progress], None] | None = None,
+    ) -> list[Outbound]:
         """Resolve org and role, rate limit, then an admin command or the agent.
 
         A workspace with no org gets setup instructions. A confirmation becomes a ConfirmPrompt;
@@ -145,7 +153,14 @@ class Gateway:
                 event.channel, started, "unlinked", [Text(event.channel, UNLINKED)]
             )
         ctx = await self._context(
-            workspace, event.channel, event.member, event.display_name, event.received_at
+            workspace,
+            event.channel,
+            event.member,
+            event.display_name,
+            event.received_at,
+            event.reply_to,
+            watcher,
+            Attachment.accepted(event.images, self._config.agent.max_images),
         )
         logger = bind(ctx)
         if not await self._rate_limiter.allow(ctx.org_id, ctx.member):
@@ -222,6 +237,9 @@ class Gateway:
         member: MemberRef,
         display_name: str,
         received_at: datetime,
+        reply_to: str = "",
+        watcher: Callable[[Progress], None] | None = None,
+        images: tuple[Attachment, ...] = (),
     ) -> RequestContext:
         """The context of one request: its org, its member's role, and a new request id."""
         return RequestContext(
@@ -232,6 +250,9 @@ class Gateway:
             display_name=display_name,
             request_id=uuid4().hex,
             received_at=received_at,
+            reply_to=reply_to,
+            watcher=watcher,
+            images=images,
         )
 
     async def _admin(

@@ -425,11 +425,45 @@ sequenceDiagram
 ```
 
 
-**Step 1: Platform event** (`platforms/<name>/platform.py`). The platform receives a mention, a
-direct message, or a reply in a thread Zipy is in, and hands the gateway an `Inbound`: the
-conversation (`ChannelRef`: platform, workspace, channel, thread), the sender (`MemberRef`), their
-display name and the text. Buttons become an `InboundAnswer`. Installation becomes a
+**Step 1: Platform event** (`platforms/<name>/platform.py`). The platform receives a message and
+`platforms/routing.py` says whether it is one Zipy answers:
+
+| Arrival | Trigger | Where the answer goes |
+|---|---|---|
+| direct message | `DIRECT` | the same channel |
+| mention or reply to Zipy in a channel | `OPENING` | a thread opened from the message |
+| reply to a Zipy message in a thread | `REPLY` | that thread |
+| any other message in a thread | none | nowhere; Zipy stays quiet |
+
+A thread is the conversation. Inside one, only a reply to something Zipy said continues it, so
+people talk in the thread without Zipy answering every line, and a reply to a person or to another
+bot is never a turn. The message replied to rides the `Inbound` as `reply_to` and reaches the
+prompt as its own system message under `REPLY_HEADER`, so the model knows which of its own answers
+is being followed up rather than inferring it from history.
+
+The platform hands the gateway an `Inbound`: the conversation (`ChannelRef`: platform, workspace,
+channel, thread), the sender (`MemberRef`), their display name, the text, `reply_to` and the
+`images` attached to it. Buttons become an `InboundAnswer`. Installation becomes a
 `WorkspaceInstalled`.
+
+**Live progress.** A platform may pass a watcher to `Gateway.message`; it lands on
+`RequestContext.watcher`, and `ProgressSink` (one of the fan-out's sinks, built once at startup)
+renders each trace event through `core/types/progress.py` and hands the line to it. The model
+client and the tool executor need no wiring of their own because the sink reads the watcher off
+the context. The engine writes the text of every line; a platform displays what it is given and
+keeps no copy of the event names. A line carrying a `slot` replaces the earlier line in that
+slot, a `clear` removes one, and a `draft` line is the answer so far rather than a step.
+
+`platforms/cards.py` collects those lines into the one message a turn lives in. Discord posts the
+card before the engine starts, edits it no more often than `platforms.discord.edit_every_ms`
+while the turn runs, and replaces it with the answer at the end. A card that cannot be posted
+falls back to answering once the turn is done.
+
+**Images.** Up to `agent.max_images` attachments the platform calls an image ride the `Inbound`
+and reach the model as `image_url` parts beside the text. The gateway filters them again in
+`Attachment.accepted`, because a platform plugin is not trusted to have done it. Only the link
+travels, so the model server fetches it, and history stores none of them: the link a platform
+issues expires. Whether the model reads them is a property of the model, not the harness.
 
 **Step 2: Org, role and limits** (`gateway/gateway.py`). The gateway looks up the workspace to
 find the org; an unlinked workspace gets setup instructions. It looks up the member's role; an

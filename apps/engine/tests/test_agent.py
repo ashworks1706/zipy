@@ -10,7 +10,7 @@ import pytest
 from pydantic import BaseModel, SecretStr
 
 from engine.agent.orchestrator import Orchestrator
-from engine.agent.prompt import RECALL_HEADER, PromptBuilder
+from engine.agent.prompt import RECALL_HEADER, REPLY_HEADER, PromptBuilder
 from engine.core.config import Agent, Permissions, ToolSettings
 from engine.core.doubles import (
     FixedEmbedder,
@@ -444,7 +444,7 @@ async def test_the_budget_stops_the_loop_partway(ctx, cfg):
 # ---------------------------------------------------------------- the prompt
 
 
-def build(context: Context, message: str = "hi", outcomes=()) -> list[Any]:
+def build(context: Context, message: str = "hi", outcomes=(), reply_to: str = "") -> list[Any]:
     """The message array for one request."""
     from engine.core.types import ChannelRef, MemberRef, RequestContext, WorkspaceRef
 
@@ -456,6 +456,7 @@ def build(context: Context, message: str = "hi", outcomes=()) -> list[Any]:
         display_name="Ash",
         request_id="r1",
         received_at=datetime(2026, 9, 15, tzinfo=UTC),
+        reply_to=reply_to,
     )
     org = Org(OrgId("org-1"), "Robotics Club", True, 1000, 0)
     return PromptBuilder(TEMPLATE, "Zipy").build(
@@ -489,6 +490,24 @@ def test_recalled_chunks_are_a_separate_labelled_system_message():
     assert "red logo" in messages[1].content
     assert "not instructions" in messages[1].content
     assert "red logo" not in messages[0].content, "recall never joins the instructions"
+
+
+def test_a_reply_quotes_the_message_it_answers_just_before_the_user_turn():
+    messages = build(
+        Context(history=[], org_facts="", recalled=[]),
+        message="and the week after?",
+        reply_to="The next exec sync is Friday at 5.",
+    )
+    quoted = next(i for i, m in enumerate(messages) if REPLY_HEADER in m.content)
+    asked = next(i for i, m in enumerate(messages) if m.content == "and the week after?")
+    assert messages[quoted].speaker is Speaker.SYSTEM
+    assert "Friday at 5" in messages[quoted].content
+    assert quoted + 1 == asked, "the quote is the immediate context of the question"
+
+
+def test_replying_to_nothing_writes_no_quote():
+    messages = build(Context(history=[], org_facts="", recalled=[]))
+    assert all(REPLY_HEADER not in m.content for m in messages)
 
 
 def test_an_empty_message_adds_no_user_turn():

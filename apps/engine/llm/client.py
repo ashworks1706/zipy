@@ -74,9 +74,25 @@ def _tool_call_wire(call: ToolCall) -> dict[str, Any]:
     }
 
 
+def image_parts(message: ChatMessage) -> list[dict[str, Any]]:
+    """The content array of a turn carrying images: the text, then one part per image."""
+    parts: list[dict[str, Any]] = []
+    if message.content:
+        parts.append({"type": "text", "text": message.content})
+    parts.extend({"type": "image_url", "image_url": {"url": image.url}} for image in message.images)
+    return parts
+
+
 def to_wire(message: ChatMessage) -> dict[str, Any]:
-    """One ChatMessage as an OpenAI-style message dict."""
-    body: dict[str, Any] = {"role": message.speaker.value, "content": message.content}
+    """One ChatMessage as an OpenAI-style message dict.
+
+    A user turn with images carries a content array rather than a string, which is the shape
+    every OpenAI-compatible server reads them in.
+    """
+    content: Any = message.content
+    if message.images and message.speaker is Speaker.USER:
+        content = image_parts(message)
+    body: dict[str, Any] = {"role": message.speaker.value, "content": content}
     if message.speaker is Speaker.TOOL:
         body["tool_call_id"] = message.tool_call_id
         if message.name:

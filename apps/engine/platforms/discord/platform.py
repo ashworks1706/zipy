@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import asyncio
+import contextlib
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, ClassVar, cast
 
 import discord
@@ -10,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, SecretStr
 
 from engine.core.config import Budget
 from engine.core.types import (
+    Attachment,
     ChannelRef,
     ChatMessage,
     MemberRef,
@@ -29,7 +32,15 @@ from engine.gateway.messages import (
     WorkspaceInstalled,
 )
 from engine.platforms.base import BasePlatform
+from engine.platforms.cards import Card
 from engine.platforms.discord.render import confirm_embed, confirm_view, parse_custom_id
+from engine.platforms.routing import (
+    Arrival,
+    Trigger,
+    quoted_reply,
+    thread_name,
+    trigger,
+)
 from engine.telemetry.logging import get
 
 log = get("platforms.discord")
@@ -42,6 +53,8 @@ class DiscordSettings(BaseModel):
 
     token: SecretStr = SecretStr("")
     message_limit: int = 2000
+    #: Shortest gap between edits of the card while a turn runs.
+    edit_every_ms: int = 1500
 
 
 def intents() -> discord.Intents:
@@ -109,24 +122,136 @@ class DiscordPlatform(BasePlatform[DiscordSettings]):
             raise PlatformError(f"discord connection failed: {exc}") from exc
 
     async def on_message(self, message: discord.Message) -> None:
-        """A mention, a direct message, or a reply in a thread Zipy is in."""
+        """A direct message, a mention that opens a thread, or a reply to Zipy inside one."""
         me = self._client.user
         if me is None or message.author.bot or message.author.id == me.id:
             return
         direct = isinstance(message.channel, discord.DMChannel)
-        if not direct and not self._addressed(message, me.id):
+        quoted = await self._quoted(message, me.id)
+        reason = trigger(
+            Arrival(
+                direct=direct,
+                in_thread=isinstance(message.channel, discord.Thread),
+                mentions_bot=any(one.id == me.id for one in message.mentions),
+                replies_to_bot=bool(quoted),
+            )
+        )
+        if reason is None:
             return
+        text = strip_mention(message.content, me.id)
+        channel = message.channel
+        if reason is Trigger.OPENING:
+            opened = await self._open_thread(message, text)
+            if opened is not None:
+                channel = opened
         workspace = str(message.guild.id) if message.guild else f"dm-{message.author.id}"
         inbound = Inbound(
-            channel=channel_ref(workspace, message.channel, str(message.channel.id)),
+            channel=channel_ref(workspace, channel, str(channel.id)),
             member=MemberRef(platform=self.name, user_id=str(message.author.id)),
             display_name=message.author.display_name,
-            text=strip_mention(message.content, me.id),
+            text=text,
             direct=direct,
             received_at=message.created_at,
             platform_roles=roles_of(message.author),
+            reply_to=quoted,
+            images=attachments(message.attachments),
         )
-        await self._to_gateway(self.gateway.message(inbound, self.capabilities))
+        await self._answer(inbound, channel)
+
+    async def _answer(self, inbound: Inbound, channel: discord.abc.Messageable) -> None:
+        """Run the turn in one message, edited as the engine reports what it is doing.
+
+        The card is posted before the engine starts so the member sees the turn begin, and the
+        answer replaces it. A card that cannot be posted falls back to answering when it is done.
+        """
+        card = Card()
+        posted = await self._begin(channel, card)
+        if posted is None:
+            await self._to_gateway(self.gateway.message(inbound, self.capabilities))
+            return
+        stop = asyncio.Event()
+        editor = asyncio.create_task(self._editing(posted, card, stop))
+        try:
+            outbound = await self.gateway.message(inbound, self.capabilities, card.apply)
+        except ZipyError as exc:
+            log.error("discord event failed", error=str(exc))
+            outbound = []
+        finally:
+            stop.set()
+            await editor
+        await self._finish(posted, card, outbound)
+
+    async def _begin(self, channel: discord.abc.Messageable, card: Card) -> discord.Message | None:
+        """The card message, posted empty. None when the channel refused it."""
+        try:
+            return await channel.send(card.running())
+        except discord.DiscordException as exc:
+            log.warning("discord card not posted", error=str(exc))
+            return None
+
+    async def _editing(self, posted: discord.Message, card: Card, stop: asyncio.Event) -> None:
+        """Edit the card while the turn runs, no more often than the configured gap."""
+        gap = self.settings.edit_every_ms / 1000
+        while not stop.is_set():
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(stop.wait(), timeout=gap)
+            if not card.dirty:
+                continue
+            card.dirty = False
+            try:
+                await posted.edit(content=card.running())
+            except discord.DiscordException as exc:
+                log.warning("discord card not edited", error=str(exc))
+                return
+
+    async def _finish(
+        self, posted: discord.Message, card: Card, outbound: Sequence[Outbound]
+    ) -> None:
+        """Put the answer on the card. Anything that is not the first text posts as its own."""
+        rest = list(outbound)
+        first = next((one for one in rest if isinstance(one, Text)), None)
+        if first is not None:
+            rest.remove(first)
+            try:
+                await posted.edit(content=card.finished(first.text))
+            except discord.DiscordException as exc:
+                log.warning("discord card not finished", error=str(exc))
+                rest.insert(0, first)
+        for one in rest:
+            await self.send(one)
+
+    async def _open_thread(self, message: discord.Message, text: str) -> discord.Thread | None:
+        """The thread the answer lives in, opened from message. None answers in the channel."""
+        try:
+            return await message.create_thread(name=thread_name(text))
+        except discord.DiscordException as exc:
+            log.warning("discord thread not opened", error=str(exc))
+            return None
+
+    async def _quoted(self, message: discord.Message, me: int) -> str:
+        """The text of the Zipy message this one replies to, or empty.
+
+        A reply to a person, or to another bot, is not a turn: the thread belongs to everyone in it.
+        """
+        reference = message.reference
+        if reference is None:
+            return ""
+        replied = reference.resolved
+        if replied is None and reference.message_id is not None:
+            replied = await self._fetch_reference(message, reference.message_id)
+        if not isinstance(replied, discord.Message):
+            return ""
+        return quoted_reply(str(replied.author.id), replied.content, str(me))
+
+    async def _fetch_reference(
+        self, message: discord.Message, message_id: int
+    ) -> discord.Message | None:
+        """The replied-to message the gateway did not resolve. None when it cannot be read."""
+        try:
+            return await message.channel.fetch_message(message_id)
+        except discord.DiscordException as exc:
+            log.warning("discord reply target unreadable", error=str(exc))
+            return None
 
     async def on_guild_join(self, guild: discord.Guild) -> None:
         """Zipy was added to a server."""
@@ -199,11 +324,6 @@ class DiscordPlatform(BasePlatform[DiscordSettings]):
         messages.reverse()
         return messages
 
-    def _addressed(self, message: discord.Message, me: int) -> bool:
-        if any(mentioned.id == me for mentioned in message.mentions):
-            return True
-        return isinstance(message.channel, discord.Thread) and message.channel.me is not None
-
     async def _to_gateway(self, call: Any) -> None:
         try:
             for outbound in await call:
@@ -267,3 +387,9 @@ def roles_of(author: discord.User | discord.Member) -> tuple[str, ...]:
     if not isinstance(author, discord.Member):
         return ()
     return tuple(role.name for role in author.roles)
+
+
+def attachments(uploaded: Iterable[discord.Attachment]) -> tuple[Attachment, ...]:
+    """The images of a message. Anything Discord does not call an image is dropped."""
+    found = (Attachment.of(one.url, one.content_type or "") for one in uploaded)
+    return tuple(one for one in found if one is not None)
