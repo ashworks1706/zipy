@@ -1,9 +1,10 @@
 # Architecture
 
-How Zipy is structured, how a request flows through it, and how it grows. Read the README first;
-this assumes you know what Zipy does. The dependency rule below is enforced by the import-linter
-contracts in the root `pyproject.toml` and by `apps/engine/tests/test_plugins.py`; changing a rule
-means changing the doc and the check in the same commit.
+How Zipy is structured, how a request flows through it, and how it grows. Read the README and
+[USER_STORIES.md](USER_STORIES.md) first; this assumes you know what Zipy does. The dependency
+rule below is enforced by the import-linter contracts in the root `pyproject.toml` and by
+`apps/engine/tests/test_plugins.py`; changing a rule means changing the doc and the check in the
+same commit.
 
 
 ## Design principles
@@ -424,11 +425,45 @@ sequenceDiagram
 ```
 
 
-**Step 1: Platform event** (`platforms/<name>/platform.py`). The platform receives a mention, a
-direct message, or a reply in a thread Zipy is in, and hands the gateway an `Inbound`: the
-conversation (`ChannelRef`: platform, workspace, channel, thread), the sender (`MemberRef`), their
-display name and the text. Buttons become an `InboundAnswer`. Installation becomes a
+**Step 1: Platform event** (`platforms/<name>/platform.py`). The platform receives a message and
+`platforms/routing.py` says whether it is one Zipy answers:
+
+| Arrival | Trigger | Where the answer goes |
+|---|---|---|
+| direct message | `DIRECT` | the same channel |
+| mention or reply to Zipy in a channel | `OPENING` | a thread opened from the message |
+| reply to a Zipy message in a thread | `REPLY` | that thread |
+| any other message in a thread | none | nowhere; Zipy stays quiet |
+
+A thread is the conversation. Inside one, only a reply to something Zipy said continues it, so
+people talk in the thread without Zipy answering every line, and a reply to a person or to another
+bot is never a turn. The message replied to rides the `Inbound` as `reply_to` and reaches the
+prompt as its own system message under `REPLY_HEADER`, so the model knows which of its own answers
+is being followed up rather than inferring it from history.
+
+The platform hands the gateway an `Inbound`: the conversation (`ChannelRef`: platform, workspace,
+channel, thread), the sender (`MemberRef`), their display name, the text, `reply_to` and the
+`images` attached to it. Buttons become an `InboundAnswer`. Installation becomes a
 `WorkspaceInstalled`.
+
+**Live progress.** A platform may pass a watcher to `Gateway.message`; it lands on
+`RequestContext.watcher`, and `ProgressSink` (one of the fan-out's sinks, built once at startup)
+renders each trace event through `core/types/progress.py` and hands the line to it. The model
+client and the tool executor need no wiring of their own because the sink reads the watcher off
+the context. The engine writes the text of every line; a platform displays what it is given and
+keeps no copy of the event names. A line carrying a `slot` replaces the earlier line in that
+slot, a `clear` removes one, and a `draft` line is the answer so far rather than a step.
+
+`platforms/cards.py` collects those lines into the one message a turn lives in. Discord posts the
+card before the engine starts, edits it no more often than `platforms.discord.edit_every_ms`
+while the turn runs, and replaces it with the answer at the end. A card that cannot be posted
+falls back to answering once the turn is done.
+
+**Images.** Up to `agent.max_images` attachments the platform calls an image ride the `Inbound`
+and reach the model as `image_url` parts beside the text. The gateway filters them again in
+`Attachment.accepted`, because a platform plugin is not trusted to have done it. Only the link
+travels, so the model server fetches it, and history stores none of them: the link a platform
+issues expires. Whether the model reads them is a property of the model, not the harness.
 
 **Step 2: Org, role and limits** (`gateway/gateway.py`). The gateway looks up the workspace to
 find the org; an unlinked workspace gets setup instructions. It looks up the member's role; an
@@ -529,8 +564,14 @@ being written in the file. `.env` holds only secrets and per-machine URLs. `zipy
 resolved configuration with secrets masked; `zipy plugins` checks every plugin against its table.
 
 **Model roles.** `[models.chat]` runs the loop, `[models.summary]` condenses transcripts and long
-results, `[models.embedding]` feeds recall. Each is any LiteLLM model string with its own key,
-fallbacks and limits. Swapping provider or model is a config change.
+results, `[models.embedding]` feeds recall. Each is any LiteLLM model string with its own
+`api_base`, key, fallbacks and limits. Swapping provider or model is a config change.
+
+The committed defaults are the `llama-server` instances `just model` starts, so a clone answers
+with no model account; `api_base` is what selects them. `deploy/inference/README.md` covers the
+servers and how a role is pointed at a hosted provider. `models.embedding.dimensions` is the one
+role that is not free to change: it must equal `EMBEDDING_DIMENSIONS` in `engine/data/tables.py`,
+the width of the pgvector column, and `test_data.py` holds the two together.
 
 **config_version.** A top-level integer, bumped only when a table changes shape so that an older
 file would be misread. A mismatched file fails at load with the version this Zipy reads; the
@@ -774,7 +815,7 @@ and the Release workflow verifies every version against the tag before publishin
 | Validation | Pydantic v2 for config, tool params and results, plugin settings | everywhere |
 | Chat platforms | discord.py; Slack Events API (planned); a terminal platform | `engine/platforms/*` |
 | HTTP server | FastAPI + uvicorn, in the platforms' event loop | `engine/api` |
-| Models | LiteLLM to any provider; Qwen on OpenRouter or SiliconFlow by default | `engine/llm`, `[models.*]` |
+| Models | LiteLLM to any provider; a local `llama-server` by default, see `deploy/inference` | `engine/llm`, `[models.*]` |
 | Prompts | Jinja2 templates | `engine/agent/templates` |
 | Integrations | google-api-python-client, notion-client, httpx, BeautifulSoup | `engine/tools/*`, `engine/auth/providers/*` |
 | Database | PostgreSQL 16, SQLAlchemy 2 async, asyncpg | `engine/data` |

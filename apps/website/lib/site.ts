@@ -3,7 +3,7 @@ export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:30
 
 export const REPO_URL = "https://github.com/ashworks1706/zipy";
 
-export const TAGLINE = "The AI officer for student orgs";
+export const TAGLINE = "Agent harness for team operations";
 
 export const DESCRIPTION =
-  "Zipy is an open-source, self-hosted AI operations officer for university student organizations. It lives in the chat app your org already uses and works your Google Calendar, Drive, Notion and Zoom from one message.";
+  "Zipy is an open-source, self-hosted agent harness for team operations. Configure agents, their tools, MCP servers and knowledge from one console, and run them in the chat your team already uses.";

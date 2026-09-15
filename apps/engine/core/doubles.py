@@ -105,10 +105,10 @@ class MemoryOrgs:
 
     async def add_spend(self, org_id: OrgId, cents: float) -> None:
         org = self.orgs[org_id]
-        self.orgs[org_id] = replace(org, spent_cents=org.spent_cents + round(cents))
+        self.orgs[org_id] = replace(org, spent_cents=org.spent_cents + cents)
 
     async def reset_spend(self) -> None:
-        self.orgs = {k: replace(o, spent_cents=0) for k, o in self.orgs.items()}
+        self.orgs = {k: replace(o, spent_cents=0.0) for k, o in self.orgs.items()}
 
 
 @dataclass

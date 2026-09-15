@@ -1,7 +1,7 @@
 [project]
 name = "engine"
 version = "0.1.0"
-description = "Zipy: the gateway, agent, tools and memory, platform and provider plugins, workers"
+description = "The harness: the gateway, agent loop, tools and memory, plugins, workers"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 dependencies = [

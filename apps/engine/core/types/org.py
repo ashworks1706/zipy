@@ -16,7 +16,7 @@ class Org:
     name: str
     setup_complete: bool
     budget_cents: int
-    spent_cents: int
+    spent_cents: float
 
 
 @dataclass(frozen=True)

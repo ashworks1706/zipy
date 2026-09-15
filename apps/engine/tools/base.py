@@ -10,7 +10,7 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from engine.core.types import CredentialError, Document, ProviderAuth
+from engine.core.types import CredentialError, Document, ProviderAuth, wire_name
 
 
 @dataclass(frozen=True)
@@ -58,19 +58,18 @@ class BaseTool[S: BaseModel](ABC):
         raise NotImplementedError
 
 
+def first_set(params: BaseModel, *names: str) -> str:
+    """The first of the named fields carrying a value, as text. Empty when none does."""
+    for name in names:
+        value = getattr(params, name, None)
+        if value:
+            return str(value)
+    return ""
+
+
 def qualified(tool: str, action: str) -> str:
     """The name the orchestrator, audit log and zipy.toml use: calendar.create_event."""
     return f"{tool}.{action}"
-
-
-def wire_name(qualified_name: str) -> str:
-    """The function name sent to the model, which may not contain a dot."""
-    return qualified_name.replace(".", "__")
-
-
-def from_wire(name: str) -> str:
-    """The qualified name of a function name the model called."""
-    return name.replace("__", ".", 1)
 
 
 def require_auth(auth: ProviderAuth | None, provider: str) -> ProviderAuth:
