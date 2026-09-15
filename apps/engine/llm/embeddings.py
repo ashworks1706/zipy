@@ -12,15 +12,23 @@ from engine.core.types import ModelError, OrgId
 from engine.llm.client import provider_error
 
 
-def vectors_of(response: Any, expected: int, model: str) -> list[list[float]]:
-    """The embeddings of a response, in input order. A short or empty answer is a ModelError."""
+def vectors_of(response: Any, expected: int, model: str, width: int = 0) -> list[list[float]]:
+    """The embeddings of a response, in input order. A short or empty answer is a ModelError.
+
+    A width other than zero is the number of dimensions every vector must have. A server that
+    ignores the requested dimensions fails here rather than at the insert.
+    """
     rows = list(getattr(response, "data", None) or [])
     if len(rows) != expected:
         raise ModelError(
             f"{model} returned {len(rows)} embeddings for {expected} texts", retryable=False
         )
     ordered = sorted(rows, key=lambda row: int(_field(row, "index", 0) or 0))
-    return [[float(value) for value in _field(row, "embedding", ())] for row in ordered]
+    vectors = [[float(value) for value in _field(row, "embedding", ())] for row in ordered]
+    wrong = next((len(vector) for vector in vectors if width and len(vector) != width), None)
+    if wrong is not None:
+        raise ModelError(f"{model} returned {wrong} dimensions, not {width}", retryable=False)
+    return vectors
 
 
 def _field(row: Any, key: str, default: Any) -> Any:
@@ -53,7 +61,7 @@ class LiteLlmEmbedder:
             raise provider_error(
                 self._role.model, exc, self._role.api_key.get_secret_value()
             ) from exc
-        return vectors_of(response, len(batch), self._role.model)
+        return vectors_of(response, len(batch), self._role.model, self._role.dimensions)
 
     def _request(self, batch: list[str]) -> dict[str, Any]:
         """The keyword arguments of one litellm embedding call."""

@@ -13,4 +13,6 @@ __pycache__
 .claude
 docs
 apps/cli
+# The lockfile is checked against every workspace member, so the manifest goes in.
+!apps/cli/pyproject.toml
 apps/website

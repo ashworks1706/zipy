@@ -1,7 +1,9 @@
 # Deploy
 
-One box, one compose file. 1-2 cores, 2-4 GB RAM, 20 GB disk. No GPU: inference is a
-pay-per-token API.
+One box, one compose file. 1-2 cores, 2-4 GB RAM, 20 GB disk with a hosted model, and a
+further 4 GB of RAM and 5 GB of disk to run the models locally, which is the default. See
+[inference](inference/README.md) for the model layer and how to point a role at a provider
+instead.
 
 | Service | Image | Profile | Port |
 |---|---|---|---|
@@ -12,12 +14,15 @@ pay-per-token API.
 | uptime-kuma | `louislam/uptime-kuma:1` | observe | 3001 |
 | prometheus | `prom/prometheus:v3.1.0`, scraping zipy `/metrics` | observe | 9090 |
 | grafana | `grafana/grafana:11.5.1`, the provisioned Zipy dashboard | observe | 3002 |
+| chat | `ghcr.io/ggml-org/llama.cpp:server`, the chat and summary model | model | 8000 |
+| embed | `ghcr.io/ggml-org/llama.cpp:server`, the embedding model | model | 8001 |
 
 ## Local
 
 ```
 just bootstrap          # .env, hooks, dependencies
 just up                 # postgres and redis
+just model              # llama-server for chat and embeddings, on the CPU
 just migrate            # tables
 just serve              # every enabled platform, the HTTP server and the workers, from source
 just up langfuse prometheus grafana uptime-kuma

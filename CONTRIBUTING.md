@@ -1,6 +1,6 @@
 # Contributing
 
-Zipy is collaborative agents for team logistics. Read [AGENTS.md](AGENTS.md) for the commands,
+Zipy is an agent harness for team operations. Read [AGENTS.md](AGENTS.md) for the commands,
 the dependency rule and the rules every change follows, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 before changing a boundary. Both apply to people and to coding agents alike.
 

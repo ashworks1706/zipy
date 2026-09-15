@@ -2,7 +2,7 @@
   <img width="1921" height="418" alt="image" src="https://github.com/user-attachments/assets/eea84b08-15c5-407b-9888-10521b8a0145" />
 </p>
 
-<p align="center"><b>Collaborative agents for team logistics</b></p>
+<p align="center"><b>Agent harness for team operations</b></p>
 
 <p align="center">
     <a href="https://github.com/ashworks1706/zipy/actions/workflows/ci.yml"><img src="https://github.com/ashworks1706/zipy/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -17,10 +17,14 @@
     <a href="docs/ROADMAP.md">Roadmap</a>
 </p>
 
-Zipy is an open-source, self-hosted team of agents for student organizations. It lives in
-the chat app the org already uses (Discord today, Slack next) and works the org's shared Google
-Calendar, Drive, Notion and Zoom accounts, so officers stop juggling six tabs and nothing breaks
-when an officer graduates.
+Zipy is an open-source, self-hosted agent harness for team operations: the loop, the tool
+layer, the permissions, the memory and the traces that a team's agents need, with the chat app
+as one surface rather than the product.
+
+A team configures its agents, their tools, providers and knowledge once, and talks to them where
+it already works (Discord today, Slack next), against the org's shared Google Calendar, Drive,
+Notion and Zoom accounts. Nothing breaks when an officer graduates. Built first for university
+student orgs, which have the turnover to prove it.
 
 <img width="1671" height="833" alt="image" src="https://github.com/user-attachments/assets/7a2c95a6-5387-4702-89e4-3ebb247d259a" />
 
@@ -38,8 +42,9 @@ when an officer graduates.
 1. A platform plugin hands the message to the gateway, which finds the org and the sender's role.
 2. Zipy gathers the recent conversation, the org's remembered facts, and, for questions about the
    past, matching transcripts and pages.
-3. One agent picks tools (`calendar.create_event`, `notion.query_database`, ...) through LiteLLM,
-   on a cheap hosted model; no GPU.
+3. The harness runs the loop: one agent picks tools (`calendar.create_event`,
+   `notion.query_database`, ...) through LiteLLM, against the local `llama-server` by default or
+   any hosted model.
 4. Reads and creates run at once. Updates and deletes wait for a confirm button.
 5. Credentials never reach the model, every action is audited, and every step is traced.
 
@@ -50,10 +55,16 @@ Needs [just](https://just.systems), [uv](https://docs.astral.sh/uv), Node 22 and
 ```
 just bootstrap     # .env, git hooks, dependencies
 just up            # postgres and redis
+just model         # llama-server for chat and embeddings; no model account needed
 just migrate       # tables
 just serve         # every enabled platform, the HTTP server, the workers
 just chat          # or talk to Zipy in the terminal, no chat app needed
+just console       # every recipe, its logs, the stack and a chat, in one screen
 ```
+
+`just model` downloads two small GGUFs and serves them on the CPU, which is why a fresh clone
+answers without an API key. `just model-gpu` puts them on a card, and any role can be pointed at
+a hosted provider with one variable. See [deploy/inference](deploy/inference/README.md).
 
 ## Contributing
 

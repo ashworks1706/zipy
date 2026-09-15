@@ -26,9 +26,10 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   keywords: [
-    "collaborative agents",
-    "team logistics",
+    "agent harness",
+    "team operations",
     "AI agents",
+    "MCP",
     "student organizations",
     "Discord bot",
     "Slack bot",

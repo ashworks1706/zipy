@@ -1,0 +1,18 @@
+# GPU overlay for the model profile: the CUDA llama-server image and one card for each role.
+# Used by just model-gpu, which layers it over deploy/compose.yml and sets the
+# n-gpu-layers of each role.
+name: zipy
+
+x-gpu: &gpu
+  image: ${ZIPY_LLAMA_GPU_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - { driver: nvidia, count: 1, capabilities: [gpu] }
+
+services:
+  chat:
+    <<: *gpu
+  embed:
+    <<: *gpu
