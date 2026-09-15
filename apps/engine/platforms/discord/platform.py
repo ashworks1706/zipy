@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any, ClassVar, cast
 
 import discord
@@ -32,8 +30,8 @@ from engine.gateway.messages import (
     WorkspaceInstalled,
 )
 from engine.platforms.base import BasePlatform
-from engine.platforms.cards import Card
 from engine.platforms.discord.render import confirm_embed, confirm_view, parse_custom_id
+from engine.platforms.discord.turn import Turn
 from engine.platforms.routing import (
     Arrival,
     Trigger,
@@ -156,69 +154,18 @@ class DiscordPlatform(BasePlatform[DiscordSettings]):
             reply_to=quoted,
             images=attachments(message.attachments),
         )
-        await self._answer(inbound, channel)
-
-    async def _answer(self, inbound: Inbound, channel: discord.abc.Messageable) -> None:
-        """Run the turn in one message, edited as the engine reports what it is doing.
-
-        The card is posted before the engine starts so the member sees the turn begin, and the
-        answer replaces it. A card that cannot be posted falls back to answering when it is done.
-        """
-        card = Card()
-        posted = await self._begin(channel, card)
-        if posted is None:
+        turn = Turn(channel, self.settings.edit_every_ms, self.send)
+        shown = await turn.run(lambda watcher: self._run(inbound, watcher))
+        if not shown:
             await self._to_gateway(self.gateway.message(inbound, self.capabilities))
-            return
-        stop = asyncio.Event()
-        editor = asyncio.create_task(self._editing(posted, card, stop))
+
+    async def _run(self, inbound: Inbound, watcher: Callable[..., None]) -> list[Outbound]:
+        """The gateway's answer for one message. A failure is written, not raised at the turn."""
         try:
-            outbound = await self.gateway.message(inbound, self.capabilities, card.apply)
+            return await self.gateway.message(inbound, self.capabilities, watcher)
         except ZipyError as exc:
             log.error("discord event failed", error=str(exc))
-            outbound = []
-        finally:
-            stop.set()
-            await editor
-        await self._finish(posted, card, outbound)
-
-    async def _begin(self, channel: discord.abc.Messageable, card: Card) -> discord.Message | None:
-        """The card message, posted empty. None when the channel refused it."""
-        try:
-            return await channel.send(card.running())
-        except discord.DiscordException as exc:
-            log.warning("discord card not posted", error=str(exc))
-            return None
-
-    async def _editing(self, posted: discord.Message, card: Card, stop: asyncio.Event) -> None:
-        """Edit the card while the turn runs, no more often than the configured gap."""
-        gap = self.settings.edit_every_ms / 1000
-        while not stop.is_set():
-            with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(stop.wait(), timeout=gap)
-            if not card.dirty:
-                continue
-            card.dirty = False
-            try:
-                await posted.edit(content=card.running())
-            except discord.DiscordException as exc:
-                log.warning("discord card not edited", error=str(exc))
-                return
-
-    async def _finish(
-        self, posted: discord.Message, card: Card, outbound: Sequence[Outbound]
-    ) -> None:
-        """Put the answer on the card. Anything that is not the first text posts as its own."""
-        rest = list(outbound)
-        first = next((one for one in rest if isinstance(one, Text)), None)
-        if first is not None:
-            rest.remove(first)
-            try:
-                await posted.edit(content=card.finished(first.text))
-            except discord.DiscordException as exc:
-                log.warning("discord card not finished", error=str(exc))
-                rest.insert(0, first)
-        for one in rest:
-            await self.send(one)
+            return []
 
     async def _open_thread(self, message: discord.Message, text: str) -> discord.Thread | None:
         """The thread the answer lives in, opened from message. None answers in the channel."""
