@@ -11,12 +11,13 @@ from typing import Any
 from uuid import UUID
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Index, LargeBinary, String, Text, func
+from sqlalchemy import DateTime, Double, ForeignKey, Index, LargeBinary, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Must equal models.embedding.dimensions in zipy.toml; a change is a migration and a re-embed.
-EMBEDDING_DIMENSIONS = 1536
+# test_data.py holds the two to each other.
+EMBEDDING_DIMENSIONS = 1024
 
 ID = String(64)
 
@@ -34,7 +35,7 @@ class OrgRow(Base):
     name: Mapped[str] = mapped_column(String(200))
     setup_complete: Mapped[bool] = mapped_column(default=False)
     budget_cents: Mapped[int]
-    spent_cents: Mapped[int] = mapped_column(default=0)
+    spent_cents: Mapped[float] = mapped_column(Double, default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

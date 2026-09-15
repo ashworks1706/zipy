@@ -12,8 +12,9 @@
   --fg: #ece8ef;
   --fg-dim: #8e8397;
   /* --font-blocks covers only U+2500-259F; every other glyph comes from --font-mono. */
-  --mono: var(--font-mono), var(--font-blocks), ui-monospace, SFMono-Regular, Menlo, Monaco,
-    Consolas, "Liberation Mono", "Courier New", monospace;
+  --mono:
+    var(--font-mono), var(--font-blocks), ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 html,
@@ -60,9 +61,11 @@ code {
 
 .cli-animation {
   font-family: var(--mono);
-  /* 59 columns at a 0.6em advance are 35.4em wide, capped at 18px; vw is the fallback for cqi. */
-  font-size: min(18px, calc((100vw - 2.5rem) / 35.4));
-  font-size: min(18px, calc(100cqi / 35.4));
+  /* The size before the script measures the glyphs that rendered. 59 columns at a 0.68em
+     advance is the widest monospace fallback worth planning for, so this only ever undershoots
+     and the script grows it to the real fit. vw is the fallback for cqi. */
+  font-size: min(18px, calc((100vw - 2.5rem) / 40.2));
+  font-size: min(18px, calc(100cqi / 40.2));
   line-height: 1.05;
   white-space: pre;
   color: var(--accent);
@@ -75,6 +78,30 @@ code {
 .cli-animation.is-settled {
   text-shadow: 0 0 28px rgba(255, 0, 159, 0.35);
   transition: text-shadow 0.5s ease;
+}
+
+.cli-stage {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* Measured, never shown. It carries the full logo so the blank frames do not shrink the fit, and
+   its size is fixed so a webfont swapping in changes its width and the script measures again. */
+.cli-probe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  min-height: 0;
+  font-size: 100px;
+  /* Zero sized and clipped, so the measured logo adds nothing to the page's scrollable area.
+     scrollWidth still reports the width the text wants. */
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .landing-tagline {
@@ -113,7 +140,9 @@ code {
   border: 1px solid transparent;
   padding: 0.5rem 0.95rem;
   color: var(--fg-dim);
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .landing-link:hover {

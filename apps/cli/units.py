@@ -71,6 +71,8 @@ def adhoc(args: Sequence[str]) -> Unit:
 SERVICES = (
     ("postgres", "orgs, workspaces, credentials, context, documents, audit"),
     ("redis", "rate limits and the job queue"),
+    ("chat", "the local chat model, at :8000"),
+    ("embed", "the local embedding model, at :8001"),
     ("langfuse", "model and tool traces, at :3000"),
     ("prometheus", "the metrics history the dashboards read, at :9090"),
     ("grafana", "dashboards over prometheus, at :3002"),
@@ -92,6 +94,8 @@ def catalog() -> list[Unit]:
         _unit(Group.SETUP, "doctor", "tools, secrets, services"),
         _unit(Group.SETUP, "setup", "install every app"),
         _unit(Group.SETUP, "migrate", "apply database migrations"),
+        _unit(Group.SETUP, "model", "the local chat and embedding servers, on the CPU"),
+        _unit(Group.SETUP, "model-gpu", "the same two servers on an NVIDIA card"),
         _unit(Group.GATE, "check", "the Python apps and the website"),
         _unit(Group.GATE, "check-python", "format, lint, layering, types, tests"),
         _unit(Group.GATE, "fmt", "format in place"),

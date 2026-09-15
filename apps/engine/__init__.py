@@ -1,1 +1,1 @@
-"""Zipy, collaborative agents for team logistics."""
+"""Zipy, an agent harness for team operations."""

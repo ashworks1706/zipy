@@ -1,7 +1,7 @@
 [project]
 name = "cli"
 version = "0.1.0"
-description = "The developer console: every just recipe, its logs, and the state of the stack"
+description = "The console: every just recipe, its logs, and the state of the stack"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 dependencies = [
