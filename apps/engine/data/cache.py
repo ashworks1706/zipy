@@ -1,7 +1,8 @@
-"""Redis: the per-user rate limiter and the background job queue."""
+"""Redis: the per-member and per-provider rate limiters, and the background job queue."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -9,8 +10,8 @@ from typing import Any
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
-from engine.core.config import Data, RateLimit
-from engine.core.types import ConfigError, Job, MemberRef, OrgId, StoreError
+from engine.core.config import Data, ProviderRate, RateLimit
+from engine.core.types import ConfigError, Job, MemberRef, OrgId, RateLimited, StoreError
 
 QUEUE_KEY = "zipy:jobs"
 
@@ -79,6 +80,89 @@ class RedisRateLimiter:
         except RedisError as exc:
             raise StoreError(f"the rate limiter failed: {exc}") from exc
         return int(used) <= self._limit
+
+
+def bucket_key(org_id: OrgId, provider: str) -> str:
+    """The token bucket key for one org and one provider."""
+    return f"zipy:provider:{org_id}:{provider}"
+
+
+def refilled(tokens: float, elapsed: float, rate: ProviderRate) -> float:
+    """Tokens after elapsed seconds, capped at the burst."""
+    gained = max(0.0, elapsed) * rate.per_minute / 60.0
+    return float(min(float(rate.burst), tokens + gained))
+
+
+def wait_for(tokens: float, rate: ProviderRate) -> float:
+    """Seconds until a whole token is there. 0 when one is there now."""
+    if tokens >= 1.0:
+        return 0.0
+    return float((1.0 - tokens) * 60.0 / rate.per_minute)
+
+
+# Refills the bucket from the time of the last call, spends one token when a whole one is there,
+# and answers with the seconds to wait when none is. Held in one script so a bucket shared by
+# several workers is spent once per call.
+TAKE = """
+local tokens = tonumber(redis.call('hget', KEYS[1], 'tokens'))
+local updated = tonumber(redis.call('hget', KEYS[1], 'updated'))
+local now = tonumber(ARGV[1])
+local per_minute = tonumber(ARGV[2])
+local burst = tonumber(ARGV[3])
+local ttl = tonumber(ARGV[4])
+if tokens == nil or updated == nil then
+  tokens = burst
+  updated = now
+end
+local gained = math.max(0, now - updated) * per_minute / 60.0
+tokens = math.min(burst, tokens + gained)
+local wait = 0
+if tokens >= 1 then
+  tokens = tokens - 1
+else
+  wait = (1 - tokens) * 60.0 / per_minute
+end
+redis.call('hset', KEYS[1], 'tokens', tokens, 'updated', now)
+redis.call('expire', KEYS[1], ttl)
+return tostring(wait)
+"""
+
+
+class RedisProviderLimiter:
+    """A token bucket per org and provider, shared by every process."""
+
+    def __init__(self, data: Data, limits: RateLimit) -> None:
+        self._redis = _client(data)
+        self._limits = limits
+        self._take = self._redis.register_script(TAKE)
+
+    async def acquire(self, org_id: OrgId, provider: str, max_wait: float) -> None:
+        """Spend one token, waiting up to max_wait. Past it the call is RateLimited."""
+        rate = self._limits.for_provider(provider)
+        waited = 0.0
+        while True:
+            wait = await self._take_one(org_id, provider, rate)
+            if wait <= 0.0:
+                return
+            if waited + wait > max_wait:
+                raise RateLimited(
+                    f"{provider} is at {rate.per_minute} calls a minute for this org; "
+                    f"the next one is {wait:.1f}s away"
+                )
+            await asyncio.sleep(wait)
+            waited += wait
+
+    async def _take_one(self, org_id: OrgId, provider: str, rate: ProviderRate) -> float:
+        """Seconds to wait before the call may go out. 0 when a token was spent."""
+        ttl = max(1, int(60.0 * rate.burst / rate.per_minute) + WINDOW_SECONDS)
+        try:
+            answer = await self._take(
+                keys=[bucket_key(org_id, provider)],
+                args=[datetime.now(UTC).timestamp(), rate.per_minute, rate.burst, ttl],
+            )
+        except RedisError as exc:
+            raise StoreError(f"the {provider} rate limiter failed: {exc}") from exc
+        return float(answer)
 
 
 class RedisQueue:

@@ -6,11 +6,12 @@ named in the payload. Neither needs code here for a new tool.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from typing import Any
 
 from engine.core.config import Memory
-from engine.core.protocols import CredentialStore, DocumentStore, Embedder
+from engine.core.protocols import CredentialStore, DocumentStore, Embedder, ProviderLimiter
 from engine.core.types import CredentialError, IngestError, Job, ProviderAuth
 from engine.memory.ingest.pipeline import ingest
 from engine.telemetry.logging import get
@@ -56,12 +57,14 @@ class Ingestion:
         credentials: CredentialStore,
         embedder: Embedder,
         documents: DocumentStore,
+        limiter: ProviderLimiter,
     ) -> None:
         self._registry = registry
         self._memory = memory
         self._credentials = credentials
         self._embedder = embedder
         self._documents = documents
+        self._limiter = limiter
 
     async def run(self, job: Job) -> None:
         """Fetch the job's documents from the tool and replace their chunks."""
@@ -76,8 +79,12 @@ class Ingestion:
         auth = await self._auth(job, type(tool))
         stored = 0
         seen = 0
+        provider = type(tool).provider
         async for document in tool.documents(auth, since, source_id):
             seen += 1
+            # A sync paces itself rather than failing: it holds no member waiting on a reply.
+            if provider:
+                await self._limiter.acquire(job.org_id, provider, math.inf)
             stored += await ingest(
                 job.org_id, document, self._memory, self._embedder, self._documents
             )

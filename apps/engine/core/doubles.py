@@ -276,6 +276,22 @@ class AllowAll:
 
 
 @dataclass
+class NoLimit:
+    """A provider limiter that never waits and never refuses."""
+
+    taken: list[tuple[OrgId, str]] = field(default_factory=list)
+
+    async def acquire(
+        self,
+        org_id: OrgId,
+        provider: str,
+        max_wait: float,  # noqa: ARG002 - the double spends no time
+    ) -> None:
+        """Record the call and allow it."""
+        self.taken.append((org_id, provider))
+
+
+@dataclass
 class MemoryQueue:
     """Jobs held in a deque."""
 

@@ -6,6 +6,7 @@ at: ZIPY_TEST_DATABASE_URL when it is set, otherwise ZIPY_DATA__DATABASE_URL.
 """
 
 import os
+import time
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -16,7 +17,7 @@ from redis.asyncio import Redis
 from sqlalchemy import select, text
 from sqlalchemy.exc import OperationalError
 
-from engine.core.config import Data, RateLimit
+from engine.core.config import Data, ProviderRate, RateLimit
 from engine.core.config import load as load_config
 from engine.core.types import (
     AuditEntry,
@@ -31,6 +32,7 @@ from engine.core.types import (
     OrgToolConfig,
     PendingConfirmation,
     ProviderAuth,
+    RateLimited,
     Role,
     StoreError,
     ToolCall,
@@ -39,11 +41,15 @@ from engine.core.types import (
 )
 from engine.data.cache import (
     QUEUE_KEY,
+    RedisProviderLimiter,
     RedisQueue,
     RedisRateLimiter,
+    bucket_key,
     decode_job,
     encode_job,
     rate_key,
+    refilled,
+    wait_for,
 )
 from engine.data.crypto import Vault
 from engine.data.db import create_engine, org_uuid, sessions, store_errors
@@ -62,6 +68,8 @@ DATABASE_URL = os.environ.get(
     os.environ.get("ZIPY_DATA__DATABASE_URL", "postgresql+asyncpg://zipy:zipy@127.0.0.1:5432/zipy"),
 )
 REDIS_URL = os.environ.get("ZIPY_DATA__REDIS_URL", "redis://127.0.0.1:6379/0")
+
+BUCKET_ORG = OrgId("bucket-org-1")
 
 MINUTE = datetime(2026, 9, 15, 12, 30, 0, tzinfo=UTC)
 
@@ -167,6 +175,79 @@ def test_members_orgs_and_platforms_count_separately():
         rate_key(org, MemberRef("slack", "u1"), MINUTE),
     }
     assert len(keys) == 4
+
+
+# ---------------------------------------------------------------- the provider token bucket
+
+
+def test_a_bucket_is_its_own_per_org_and_per_provider():
+    org, other = OrgId("org-1"), OrgId("org-2")
+    keys = {
+        bucket_key(org, "notion"),
+        bucket_key(other, "notion"),
+        bucket_key(org, "google"),
+    }
+    assert len(keys) == 3
+
+
+def test_a_bucket_refills_at_the_configured_rate():
+    rate = ProviderRate(per_minute=60, burst=10)
+    # 60 a minute is one a second.
+    assert refilled(0.0, 1.0, rate) == pytest.approx(1.0)
+    assert refilled(0.0, 5.0, rate) == pytest.approx(5.0)
+
+
+def test_a_bucket_never_holds_more_than_its_burst():
+    rate = ProviderRate(per_minute=60, burst=10)
+    assert refilled(8.0, 600.0, rate) == pytest.approx(10.0)
+    assert refilled(10.0, 0.0, rate) == pytest.approx(10.0)
+
+
+def test_time_running_backwards_adds_nothing():
+    rate = ProviderRate(per_minute=60, burst=10)
+    assert refilled(4.0, -30.0, rate) == pytest.approx(4.0)
+
+
+def test_a_whole_token_waits_for_nothing_and_a_partial_one_waits():
+    rate = ProviderRate(per_minute=60, burst=10)
+    assert wait_for(1.0, rate) == 0.0
+    assert wait_for(3.5, rate) == 0.0
+    # A quarter of a token short of one, at one a second.
+    assert wait_for(0.75, rate) == pytest.approx(0.25)
+    assert wait_for(0.0, rate) == pytest.approx(1.0)
+
+
+def test_a_slower_provider_waits_longer_for_the_same_shortfall():
+    slow = ProviderRate(per_minute=6, burst=2)
+    fast = ProviderRate(per_minute=60, burst=2)
+    assert wait_for(0.0, slow) > wait_for(0.0, fast)
+
+
+def test_a_provider_with_no_entry_of_its_own_uses_the_default():
+    limits = RateLimit(
+        provider=ProviderRate(per_minute=60, burst=10),
+        providers={"notion": ProviderRate(per_minute=180, burst=20)},
+    )
+    assert limits.for_provider("notion").per_minute == 180
+    assert limits.for_provider("google").per_minute == 60
+
+
+@pytest.mark.parametrize(
+    "rate",
+    [
+        {"per_minute": 0},
+        {"per_minute": -1},
+        {"burst": 0},
+    ],
+)
+def test_a_provider_rate_that_would_never_allow_a_call_is_rejected(rate):
+    with pytest.raises(ConfigError):
+        ProviderRate(**rate)
+
+
+def test_a_negative_wait_budget_is_rejected():
+    with pytest.raises(ConfigError):
+        RateLimit(provider_max_wait_seconds=-1.0)
 
 
 # ---------------------------------------------------------------- the engine and its helpers
@@ -614,3 +695,49 @@ def test_the_committed_embedding_width_is_the_width_of_the_column():
     """pgvector fixes the width in the column type, so a drifted zipy.toml would fail at insert."""
     load_config.cache_clear()
     assert load_config().models["embedding"].dimensions == EMBEDDING_DIMENSIONS
+
+
+@pytest.fixture
+async def bucket(data):
+    """A limiter of 60 calls a minute over a burst of 3, its key cleared."""
+    limits = RateLimit(provider=ProviderRate(per_minute=60, burst=3))
+    limiter = RedisProviderLimiter(data, limits)
+    await limiter._redis.delete(bucket_key(BUCKET_ORG, "notion"))
+    yield limiter
+    await limiter._redis.delete(bucket_key(BUCKET_ORG, "notion"))
+    await limiter._redis.aclose()
+
+
+@pytest.mark.integration
+async def test_a_burst_of_calls_goes_straight_through(bucket):
+    for _ in range(3):
+        await bucket.acquire(BUCKET_ORG, "notion", 0.0)
+
+
+@pytest.mark.integration
+async def test_a_call_past_the_burst_with_no_budget_to_wait_is_refused(bucket):
+    for _ in range(3):
+        await bucket.acquire(BUCKET_ORG, "notion", 0.0)
+    with pytest.raises(RateLimited):
+        await bucket.acquire(BUCKET_ORG, "notion", 0.0)
+
+
+@pytest.mark.integration
+async def test_a_call_past_the_burst_waits_for_the_refill_rather_than_failing(bucket):
+    for _ in range(3):
+        await bucket.acquire(BUCKET_ORG, "notion", 0.0)
+    started = time.monotonic()
+    await bucket.acquire(BUCKET_ORG, "notion", 5.0)
+    # 60 a minute is one a second, so the fourth call comes a second after the third.
+    assert 0.5 <= time.monotonic() - started <= 3.0
+
+
+@pytest.mark.integration
+async def test_one_org_spending_its_budget_leaves_another_orgs_alone(bucket):
+    for _ in range(3):
+        await bucket.acquire(BUCKET_ORG, "notion", 0.0)
+    other = OrgId("bucket-org-2")
+    try:
+        await bucket.acquire(other, "notion", 0.0)
+    finally:
+        await bucket._redis.delete(bucket_key(other, "notion"))
