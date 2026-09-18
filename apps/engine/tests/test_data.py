@@ -797,3 +797,69 @@ def test_member_state_holds_no_text_so_it_cannot_come_to_hold_what_was_said():
             f"member_state.{column.name} can hold text. The state is what behaviour showed, "
             "never what was said; a text column makes that promise unkeepable."
         )
+
+
+@pytest.mark.integration
+async def test_a_held_call_remembers_the_sub_agent_that_asked(factory):
+    from engine.core.types import ChatMessage, Speaker, SubAgent
+    from engine.data.repos.confirmations import PgConfirmations
+
+    orgs, confirmations = PgOrgs(factory), PgConfirmations(factory)
+    soda = await orgs.create("SoDA", 500)
+    channel = ChannelRef(WorkspaceRef("discord", "g1"), "c1")
+    sub = SubAgent(
+        call_id="d1",
+        task="clear the clashes",
+        tools=("calendar",),
+        turns_used=2,
+        messages=(
+            ChatMessage(speaker=Speaker.SYSTEM, content="the task"),
+            ChatMessage(
+                speaker=Speaker.ASSISTANT,
+                content="",
+                tool_calls=(ToolCall(id="c1", name="calendar.list_events", arguments={"d": 7}),),
+            ),
+            ChatMessage(speaker=Speaker.TOOL, content="two events", tool_call_id="c1"),
+        ),
+    )
+    held = PendingConfirmation(
+        id="p1",
+        org_id=soda.org_id,
+        requested_by=MemberRef("discord", "u1"),
+        channel=channel,
+        call=ToolCall(id="c2", name="calendar.update_event", arguments={"id": "e1"}),
+        summary="move it",
+        expires_at=MINUTE + timedelta(minutes=2),
+        sub_agent=sub,
+    )
+
+    await confirmations.put(held)
+    back = await confirmations.take("p1", MINUTE)
+
+    assert back is not None and back.sub_agent is not None
+    assert back.sub_agent == sub, "every field survives the round trip"
+
+
+@pytest.mark.integration
+async def test_a_held_call_the_request_asked_for_holds_no_sub_agent(factory):
+    from engine.data.repos.confirmations import PgConfirmations
+
+    orgs, confirmations = PgOrgs(factory), PgConfirmations(factory)
+    soda = await orgs.create("SoDA", 500)
+    channel = ChannelRef(WorkspaceRef("discord", "g1"), "c1")
+    await confirmations.put(
+        PendingConfirmation(
+            id="p2",
+            org_id=soda.org_id,
+            requested_by=MemberRef("discord", "u1"),
+            channel=channel,
+            call=ToolCall(id="c1", name="calendar.update_event", arguments={}),
+            summary="move it",
+            expires_at=MINUTE + timedelta(minutes=2),
+        )
+    )
+
+    back = await confirmations.take("p2", MINUTE)
+
+    assert back is not None
+    assert back.sub_agent is None

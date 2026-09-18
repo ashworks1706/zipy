@@ -23,13 +23,21 @@ SPINNER = ("◐", "◓", "◑", "◒")
 #: Prefix of one step line. The emoji the engine sends is the only marker a step carries.
 BULLET = "-# "
 
+#: What one level of delegation indents a step by.
+INDENT = "\u2514 "
+
 
 @dataclass
 class _Step:
-    """One step line and the key of the line it replaces, when it replaces one."""
+    """One step line, the key of the line it replaces, and how deep it happened."""
 
     slot: str | None
     text: str
+    depth: int = 0
+
+    def shown(self) -> str:
+        """The line as it reads, indented once per level of delegation."""
+        return f"{INDENT * self.depth}{self.text}"
 
 
 @dataclass
@@ -60,9 +68,9 @@ class Card:
             return True
         if update.clear and update.slot is not None:
             return self._clear(update.slot)
-        return self._push(update.slot, update.text)
+        return self._push(update.slot, update.text, update.depth)
 
-    def _push(self, slot: str | None, text: str) -> bool:
+    def _push(self, slot: str | None, text: str, depth: int = 0) -> bool:
         """Record a step. A slot writes over the line already in that slot."""
         text = text.strip()
         if not text:
@@ -76,7 +84,7 @@ class Card:
                     return True
         if self.lines and self.lines[-1].text == text:
             return False
-        self.lines.append(_Step(slot=slot, text=text))
+        self.lines.append(_Step(slot=slot, text=text, depth=depth))
         return True
 
     def _clear(self, slot: str) -> bool:
@@ -96,14 +104,14 @@ class Card:
     def finished(self, answer: str) -> str:
         """The message once the turn is done, with the steps kept above the answer."""
         text = answer.strip()
-        body = "\n".join(f"{BULLET}{line.text}" for line in self.lines)
+        body = "\n".join(f"{BULLET}{line.shown()}" for line in self.lines)
         if body and text:
             return f"{body}\n\n{text}"
         return text or body or "I have nothing to say about that."
 
     def _body(self, header: str) -> str:
         parts = [header]
-        parts.extend(f"{BULLET}{line.text}" for line in self.lines)
+        parts.extend(f"{BULLET}{line.shown()}" for line in self.lines)
         if self.draft:
             parts.append("")
             parts.append(self.draft)

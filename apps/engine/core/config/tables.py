@@ -55,6 +55,12 @@ class Agent(_Table):
     system_template: str = "system.md.j2"
     #: Images of one message sent to the model. 0 sends none.
     max_images: int = 4
+    # Delegation: the same loop run once on a subtask. Off leaves the tool unoffered.
+    delegate: bool = True
+    # Turns one sub-agent gets. The worst case of a request is max_iterations times this.
+    delegate_max_iterations: int = 6
+    # Sub-agents one request may run, however many turns the parent has.
+    max_delegations: int = 3
 
     @model_validator(mode="after")
     def _check(self) -> Agent:
@@ -62,6 +68,10 @@ class Agent(_Table):
             raise ConfigError("agent.max_iterations must be at least 1")
         if self.confirmation_ttl_secs < 10:
             raise ConfigError("agent.confirmation_ttl_secs must be at least 10")
+        if self.delegate_max_iterations < 1:
+            raise ConfigError("agent.delegate_max_iterations must be at least 1")
+        if self.max_delegations < 1:
+            raise ConfigError("agent.max_delegations must be at least 1")
         return self
 
 
@@ -91,6 +101,33 @@ class ModelRole(_Table):
                 f"models.*.conditioning {self.conditioning.value} has no renderer yet; "
                 f"built so far: {built}"
             )
+        return self
+
+
+class Files(_Table):
+    """Files attached to a message, read into text and stored for recall."""
+
+    enabled: bool = True
+    # Files read from one message. The rest are named and left.
+    max_per_message: int = 5
+    max_bytes: int = 20_000_000
+    # Characters one file yields. A larger file is read up to here, not refused.
+    max_chars: int = 200_000
+    # Characters of the reading that go into this turn's prompt. The whole of it stays searchable.
+    max_prompt_chars: int = 8_000
+    download_timeout_secs: float = 30.0
+    parse_timeout_secs: float = 30.0
+
+    @model_validator(mode="after")
+    def _check(self) -> Files:
+        if self.max_per_message < 1:
+            raise ConfigError("files.max_per_message must be at least 1")
+        if self.max_bytes < 1 or self.max_chars < 1:
+            raise ConfigError("files.max_bytes and max_chars must be positive")
+        if self.max_prompt_chars > self.max_chars:
+            raise ConfigError("files.max_prompt_chars cannot exceed files.max_chars")
+        if self.download_timeout_secs <= 0 or self.parse_timeout_secs <= 0:
+            raise ConfigError("files.download_timeout_secs and parse_timeout_secs must be positive")
         return self
 
 

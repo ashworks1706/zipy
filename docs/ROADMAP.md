@@ -31,6 +31,9 @@ The stand-in proves the code, not that the provider agrees with it.
 - [ ] Zoom provider webhook to document jobs; Drive and Notion documents() and periodic sync
 - [ ] Summary model role for transcripts; retention pruning
 - [ ] Cross-tool digests: "what's happening this week", exec meeting rundown
+- [x] Attached files read into text and stored for recall: pdf, docx, pptx, xlsx, csv, json, zip
+- [x] One level of delegation: a named subtask, a subset of the tools, its own turn limit, and a
+      destructive call inside it suspends and resumes
 
 ## v0.6 Benchmark
 
@@ -75,7 +78,8 @@ limits the adaptation.
 - A general assistant: essays, images, trivia
 - Replacing Notion or Google Calendar as the system of record
 - A hosted SaaS, pricing, or an enterprise tier
-- Sub-agents per integration
+- Sub-agents per integration, a specialist agent per tool, or any agent that exists before a
+  request. One level of delegation on a named subtask is in; a fleet of standing agents is not.
 - Storing chat history from any platform. The runtime keeps none: memory reads history back off
   the platform, and collaboration state records what behaviour showed rather than what was said.
   A training dataset is the one thing that holds conversation text, and it is not the runtime: it

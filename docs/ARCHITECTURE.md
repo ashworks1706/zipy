@@ -24,10 +24,24 @@ plugin folder and one config table; the agent, tools and memory do not change.
 `zipy.toml`, discovered at startup. A folder without a table or a table without a folder fails at
 startup. The plugin declares the third-party libraries it owns; nothing else imports them.
 
-**One agent, many tools, not many agents.** The model is the router. It receives a message, the
-tools available to this org with their schemas, and decides what to call. One orchestrator loops:
-call a tool, read the result, decide whether to call another, until done (at most
-`agent.max_iterations`). No sub-agents. This keeps the system flat and debuggable.
+**One agent, many tools, and one level of delegation.** The model is the router. It receives a
+message, the tools available to this org with their schemas, and decides what to call. One
+orchestrator loops: call a tool, read the result, decide whether to call another, until done (at
+most `agent.max_iterations`).
+
+A destructive call inside a sub-agent stops two levels. What the parent was doing is rebuilt from
+the platform's history and the result the sub-agent goes on to produce, the way a resumed request
+already is; the sub-agent's own messages are the part nothing else holds, so they wait on the
+pending confirmation with its task, its tools and the turns it had taken. The row is deleted when
+the answer comes and swept when it expires, so that holds a conversation for as long as a
+confirmation waits and no longer.
+
+`delegate` is the one tool that runs that same loop again, once, on a subtask. There are no
+specialist agents per integration and no agent that exists before a request: a sub-agent is the
+same loop with a task, a named subset of the parent's tools, and its own turn limit, and it is
+never offered `delegate` itself. Two levels, bounded at `max_iterations` squared, one code path,
+one trace format. That bound is the reason this is allowed at all; anything deeper stops being
+something a person can read a trace of.
 
 **Credentials never touch the model.** The model sees tool names and parameter schemas. The
 executor fetches and decrypts the org's token internally. The model never sees a key, a token or
@@ -66,6 +80,7 @@ flowchart LR
         google["Google Calendar, Drive"]
         notion["Notion"]
         zoom["Zoom"]
+        github["GitHub"]
     end
 
     subgraph infra["Data and models"]
@@ -92,6 +107,7 @@ flowchart LR
     tools <--> google
     tools <--> notion
     tools <--> zoom
+    tools <--> github
     zoom -- webhooks --> api
     api --> redis --> workers
     workers --> tools
@@ -797,6 +813,35 @@ A bad answer becomes a case without hand-writing TOML. `zipy traces` lists the r
 `zipy eval-add <request-id> --id <case-id>` drafts one: the trace gives the question, the actions
 that ran and whether anything waited for a confirmation, and `contains` is left empty for the
 reviewer to say what the answer should have carried.
+
+
+## Attached files
+
+An image reaches the model as a link, because every OpenAI-compatible server fetches a URL and the
+bytes stay with the platform. Everything else is downloaded and read into text.
+
+```
+attachment ──► download (capped) ──► parser for its media type ──► Document, source upload
+                                                                        │
+                                              ┌─────────────────────────┴───────────┐
+                                              ▼                                     ▼
+                                   chunked, embedded, stored              a capped extract in
+                                   so recall answers later                this turn's prompt
+```
+
+`memory/ingest/parsers` holds one parser per media type and `core/types.FILE_MEDIA_TYPES` names
+what the gateway accepts; a test holds the two together, so a type accepted on the way in and
+unreadable on the way out cannot exist. A type nothing handles is dropped at the gateway without a
+word, as it always was.
+
+Parsing runs in this process, in a worker thread under a deadline. The limits are about what comes
+out rather than what went in: `files.max_bytes` on the download, `files.max_chars` on the reading,
+and for archives a cap on entries, on each entry unpacked, and on all of them together. A nested
+archive is named and not opened. A file that cannot be read becomes one line saying so rather than
+a failed request, because the rest of the message is still worth answering.
+
+This is proportionate to the threat, which is a member of the org uploading something, not model
+output. It is not a substitute for a sandbox: no parser runs what it reads, and none should.
 
 
 ## Inference tiers

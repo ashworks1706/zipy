@@ -17,7 +17,7 @@ from engine.core.types import RequestContext
 
 def record(ctx: RequestContext, name: str, data: dict[str, Any], at: datetime) -> dict[str, Any]:
     """One trace event as the JSON object every sink writes."""
-    return {
+    record: dict[str, Any] = {
         "at": at.isoformat(),
         "request_id": ctx.request_id,
         "org_id": ctx.org_id,
@@ -29,6 +29,10 @@ def record(ctx: RequestContext, name: str, data: dict[str, Any], at: datetime) -
         "event": name,
         "data": data,
     }
+    if ctx.depth or ctx.parent:
+        record["depth"] = ctx.depth
+        record["parent"] = ctx.parent
+    return record
 
 
 class JsonlTrace:

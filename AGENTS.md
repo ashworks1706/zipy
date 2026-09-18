@@ -206,7 +206,10 @@ change. Reject a bad combination at load rather than clamping it at use.
 - Permissions are checked at execution, against the action type, not when the message arrives.
 - Every model call, tool call, confirmation and reply emits a trace event through `TraceSink`, and
   counts in `Metrics`. Metric labels are plugin, role and outcome names, never an org id.
-- One agent, many tools. No sub-agents; the orchestrator is the only thing that coordinates tools.
+- One agent, many tools, and one level of delegation. `delegate` runs the same orchestrator loop on
+  a subtask with a subset of the parent's tools and its own turn limit, and is never offered to a
+  sub-agent. No specialist agent per integration, and no agent that exists before a request. The
+  orchestrator is still the only thing that coordinates tools; it just may call itself once.
 - No global mutable state. Per-request data travels in `RequestContext`.
 - No silent fallbacks: a missing credential, template, key or table is an error that says what is
   missing. A platform without a capability (buttons, threads) degrades as the gateway says, not

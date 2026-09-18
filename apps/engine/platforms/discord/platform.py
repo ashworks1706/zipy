@@ -337,6 +337,11 @@ def roles_of(author: discord.User | discord.Member) -> tuple[str, ...]:
 
 
 def attachments(uploaded: Iterable[discord.Attachment]) -> tuple[Attachment, ...]:
-    """The images of a message. Anything Discord does not call an image is dropped."""
-    found = (Attachment.of(one.url, one.content_type or "") for one in uploaded)
+    """What a message carried. A media type nothing here handles is dropped.
+
+    The gateway splits these into the images a model is shown and the files that are read.
+    """
+    found = (
+        Attachment.of(one.url, one.content_type or "", one.filename, one.size) for one in uploaded
+    )
     return tuple(one for one in found if one is not None)

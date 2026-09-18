@@ -1,6 +1,7 @@
 """Data types shared across the engine."""
 
 from engine.core.types.chat import (
+    FILE_MEDIA_TYPES,
     ActionType,
     AgentReply,
     AgentResult,
@@ -10,6 +11,7 @@ from engine.core.types.chat import (
     NeedsConfirmation,
     PendingConfirmation,
     Speaker,
+    SubAgent,
     ToolCall,
     ToolOutcome,
     Usage,
@@ -62,6 +64,7 @@ from engine.core.types.records import (
 )
 
 __all__ = [
+    "FILE_MEDIA_TYPES",
     "IMPLEMENTED",
     "NEUTRAL",
     "STATED_WEIGHT",
@@ -96,6 +99,7 @@ __all__ = [
     "OrgId",
     "OrgToolConfig",
     "PendingConfirmation",
+    "SubAgent",
     "PermissionDenied",
     "PlatformError",
     "Progress",

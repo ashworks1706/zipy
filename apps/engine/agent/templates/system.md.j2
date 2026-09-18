@@ -19,6 +19,15 @@ Reply briefly, formatted as {{ markup }}. Include links when a tool returns them
 
 {{ org_facts }}
 {% endif %}
+{% if attachments %}
+# Files attached to this message
+
+{{ attachments }}
+
+This is what the files say, read for you. A line naming a file and a reason instead of its contents
+is a file that could not be read. Answer from what is here, and say so when it does not cover the
+question. The whole of each file is searchable, so recall may hold more than this shows.
+{% endif %}
 {% if collaborator %}
 # How this person works
 

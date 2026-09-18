@@ -35,6 +35,14 @@ system_template = "system.md.j2"
 # Images of one message sent to the model. The model has to be one that reads images; see
 # deploy/inference/README.md. 0 sends none.
 max_images = 4
+# Delegation: the same loop, once, on a subtask, with a subset of the tools the parent has.
+# A sub-agent is never offered it, so a request is two levels deep at most. false offers no
+# such tool and the loop is exactly what it was.
+delegate = true
+# Turns one sub-agent gets. A request costs at most max_iterations times this many model calls.
+delegate_max_iterations = 6
+# Sub-agents one request may run, whatever its turns.
+max_delegations = 3
 
 # ---------------------------------------------------------------- models
 #
@@ -197,6 +205,23 @@ trace_dir = ".zipy/traces"
 metrics = true
 sentry_traces_sample_rate = 0.1
 
+# ---------------------------------------------------------------- files
+#
+# Files attached to a message are downloaded, read into text, and stored as documents of source
+# upload, so the same file answers this turn and every later question about it. Parsing runs in
+# this process under a deadline; a file nothing reads is named and left rather than guessed at.
+
+[files]
+enabled = true
+max_per_message = 5
+max_bytes = 20000000
+# Characters one file yields into the document store.
+max_chars = 200000
+# Characters of it that go into this turn's prompt. The rest stays searchable.
+max_prompt_chars = 8000
+download_timeout_secs = 30.0
+parse_timeout_secs = 30.0
+
 # ---------------------------------------------------------------- training
 #
 # Datasets built from the traces above. The decisions a reviewer makes are the one part of this
@@ -249,6 +274,9 @@ enabled = true
 [providers.zoom]
 enabled = true
 
+[providers.github]
+enabled = true
+
 # ---------------------------------------------------------------- tools
 #
 # Each action names its type, which decides whether it runs at once (read, create) or waits for a
@@ -296,12 +324,30 @@ update_page = "destructive"
 
 [tools.zoom]
 provider = "zoom"
-enabled = false
+enabled = true
 scopes = ["cloud_recording:read"]
 
 [tools.zoom.actions]
 list_recordings = "read"
 latest_summary = "read"
+
+[tools.github]
+provider = "github"
+enabled = true
+# repo covers reading private repositories and opening issues; read:org resolves the org's
+# members. Drop repo to public_repo when the org has no private repository worth reading.
+scopes = ["repo", "read:org"]
+# Owner an unqualified repo name is read under. Empty means every repo must be given as owner/name.
+default_owner = ""
+max_results = 25
+
+[tools.github.actions]
+list_issues = "read"
+get_issue = "read"
+search_issues = "read"
+get_file = "read"
+create_issue = "create"
+comment = "create"
 
 [tools.search]
 # Web and campus portal search. Needs no connected account.

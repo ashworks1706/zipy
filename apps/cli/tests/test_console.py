@@ -258,7 +258,9 @@ def test_enter_runs_the_selected_unit_and_streams_its_output(cfg, tmp_path):
     async def scenario() -> None:
         app = _app(cfg, tmp_path, *_tasks("echo first", "echo second"))
         async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.press("j", "enter")
+            await pilot.press("j")
+            await _until(pilot, lambda: app.selected == 1)
+            await pilot.press("enter")
             await _until(pilot, lambda: app.states[1].status is Status.OK)
             texts = [line.text for line in app.states[1].logs.window(0, 10)]
             assert "second" in texts and texts[-1] == "exited with code 0"
@@ -279,7 +281,11 @@ def test_x_stops_a_running_unit_and_a_failure_is_marked(cfg, tmp_path):
             await pilot.press("x")
             await _until(pilot, lambda: not app.runner.owns("sleep 30"))
             assert app.states[0].status is Status.IDLE
-            await pilot.press("j", "enter")
+            # Two presses in one call can be read before the first has moved the cursor, and
+            # enter would then run the unit already selected.
+            await pilot.press("j")
+            await _until(pilot, lambda: app.selected == 1)
+            await pilot.press("enter")
             await _until(pilot, lambda: app.states[1].status is Status.FAILED)
             assert app.states[1].code == 2
 
@@ -377,7 +383,11 @@ def test_zipy_chat_starts_with_the_console_and_answers_in_the_chat(cfg, tmp_path
         app = _app(cfg, tmp_path, unit)
         async with app.run_test(size=(140, 30)) as pilot:
             await _until(pilot, lambda: app.transcript.ready)
-            await pilot.press("i", *"exec board?", "enter")
+            # The keys after a mode change can be read before it has happened, and would then
+            # go to the pane that was focused rather than the chat.
+            await pilot.press("i")
+            await _until(pilot, lambda: app.key_mode is Mode.CHAT)
+            await pilot.press(*"exec board?", "enter")
             assert app.key_mode is Mode.CHAT
             await _until(pilot, lambda: not app.transcript.waiting)
             assert [(t.role, t.text) for t in app.transcript.turns] == [
@@ -390,7 +400,10 @@ def test_zipy_chat_starts_with_the_console_and_answers_in_the_chat(cfg, tmp_path
             await _until(pilot, lambda: app.transcript.pending is not None)
             await pilot.press(*"more", "enter")
             assert "holding an action" in app.notice
-            await pilot.press("ctrl+u", "escape", "a")
+            await pilot.press("ctrl+u")
+            await pilot.press("escape")
+            await _until(pilot, lambda: app.key_mode is not Mode.CHAT)
+            await pilot.press("a")
             await _until(pilot, lambda: app.transcript.turns[-1].text == "deleted")
             assert app.transcript.pending is None
 

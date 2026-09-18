@@ -32,14 +32,19 @@ def test_every_plugin_kind_is_discovered():
     names = {package: set(discover(package, module, base)) for package, module, base in KINDS}
     assert names == {
         "engine.platforms": {"discord", "local", "slack"},
-        "engine.auth.providers": {"google", "notion", "zoom"},
-        "engine.tools": {"calendar", "drive", "notion", "zoom", "search"},
+        "engine.auth.providers": {"github", "google", "notion", "zoom"},
+        "engine.tools": {"calendar", "drive", "github", "notion", "zoom", "search"},
     }
 
 
 def test_platforms_and_providers_match_the_committed_config(cfg):
     check(cfg.platforms, platform_classes())
-    assert Providers(cfg.providers, cfg.api.public_url).enabled == ["google", "notion", "zoom"]
+    assert Providers(cfg.providers, cfg.api.public_url).enabled == [
+        "github",
+        "google",
+        "notion",
+        "zoom",
+    ]
 
 
 def test_every_tool_provider_is_a_provider_plugin():

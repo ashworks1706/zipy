@@ -326,14 +326,12 @@ class MemoryQueue:
 
 @dataclass
 class MemoryTrace:
-    """Trace events held in a list."""
+    """Trace events held in a list, with the level each was raised at."""
 
     events: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+    #: One entry per event: its name, the depth it came from, and the delegate call it was under.
+    levels: list[tuple[str, int, str]] = field(default_factory=list)
 
-    def event(
-        self,
-        ctx: RequestContext,  # noqa: ARG002 - protocol signature
-        name: str,
-        data: dict[str, Any],
-    ) -> None:
+    def event(self, ctx: RequestContext, name: str, data: dict[str, Any]) -> None:
         self.events.append((name, data))
+        self.levels.append((name, ctx.depth, ctx.parent))

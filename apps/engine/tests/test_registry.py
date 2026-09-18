@@ -11,7 +11,14 @@ from engine.tools.registry import Registry
 
 
 def test_the_committed_config_matches_every_tool(cfg):
-    assert Registry(cfg.tools).names == ["calendar", "drive", "notion", "search", "zoom"]
+    assert Registry(cfg.tools).names == [
+        "calendar",
+        "drive",
+        "github",
+        "notion",
+        "search",
+        "zoom",
+    ]
 
 
 def test_a_table_without_a_plugin_fails_at_startup(cfg):
@@ -38,11 +45,20 @@ def test_only_connected_and_enabled_tools_are_offered(cfg):
     assert registry.available(frozenset({"google"}), off) == ["calendar", "search"]
 
 
-def test_zoom_is_offered_once_an_org_enables_it(cfg):
+def test_an_org_that_turns_a_tool_off_is_not_offered_it(cfg):
+    """The file says on; an org override is what decides for that org."""
     registry = Registry(cfg.tools)
-    on = {"zoom": OrgToolConfig("zoom", enabled=True, overrides={})}
-    assert "zoom" in registry.available(frozenset({"zoom"}), on)
-    assert "zoom" not in registry.available(frozenset({"zoom"}), {})
+    off = {"zoom": OrgToolConfig("zoom", enabled=False, overrides={})}
+    assert "zoom" in registry.available(frozenset({"zoom"}), {})
+    assert "zoom" not in registry.available(frozenset({"zoom"}), off)
+
+
+def test_a_tool_whose_provider_is_not_connected_is_not_offered(cfg):
+    registry = Registry(cfg.tools)
+    assert "github" not in registry.available(frozenset(), {})
+    assert "github" in registry.available(frozenset({"github"}), {})
+    # search needs no account, so it is there either way.
+    assert "search" in registry.available(frozenset(), {})
 
 
 def test_an_org_override_is_merged_over_the_file(cfg):
@@ -60,7 +76,7 @@ def test_an_unknown_override_key_is_rejected(cfg):
 
 
 def test_syncing_tools_are_the_ones_that_produce_documents(cfg):
-    assert Registry(cfg.tools).syncing() == ["drive", "notion"]
+    assert Registry(cfg.tools).syncing() == ["drive", "notion", "zoom"]
 
 
 def test_function_names_round_trip_without_dots(cfg):

@@ -198,6 +198,7 @@ class Gateway:
             event.reply_to,
             watcher,
             Attachment.accepted(event.images, self._config.agent.max_images),
+            Attachment.readable(event.images, self._config.files.max_per_message),
         )
         logger = bind(ctx)
         if not await self._rate_limiter.allow(ctx.org_id, ctx.member):
@@ -281,6 +282,7 @@ class Gateway:
         reply_to: str = "",
         watcher: Callable[[Progress], None] | None = None,
         images: tuple[Attachment, ...] = (),
+        files: tuple[Attachment, ...] = (),
     ) -> RequestContext:
         """The context of one request: its org, its member's role, and a new request id."""
         return RequestContext(
@@ -294,6 +296,7 @@ class Gateway:
             reply_to=reply_to,
             watcher=watcher,
             images=images,
+            files=files,
         )
 
     async def _admin(

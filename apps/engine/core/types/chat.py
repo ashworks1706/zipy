@@ -47,34 +47,63 @@ def from_wire(name: str) -> str:
     return name.replace("__", ".", 1)
 
 
-#: Media types a model is sent. Anything else is dropped rather than guessed at.
+#: Media types a model is sent as an image. Anything else is dropped rather than guessed at.
 IMAGE_MEDIA_TYPES = ("image/png", "image/jpeg", "image/gif", "image/webp")
+
+#: Media types read into text. memory/ingest/parsers holds one parser per entry.
+FILE_MEDIA_TYPES = (
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "application/json",
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/zip",
+    "application/x-zip-compressed",
+)
 
 
 @dataclass(frozen=True)
 class Attachment:
-    """One image attached to a member's message.
+    """One file attached to a member's message.
 
-    The link is what reaches the model, not the bytes: the platform holds them and every
+    An image reaches the model as a link, not as bytes: the platform holds them and every
     OpenAI-compatible server fetches a URL. A server with no route to the host sees no image.
+    Every other type is downloaded and read into text instead.
     """
 
     url: str
     media_type: str
+    name: str = ""
+    #: What the platform said it weighs. Zero when it said nothing.
+    size: int = 0
+
+    @property
+    def is_image(self) -> bool:
+        """Whether this one goes to the model as an image rather than being read."""
+        return self.media_type in IMAGE_MEDIA_TYPES
 
     @classmethod
-    def of(cls, url: str, media_type: str) -> Attachment | None:
-        """An attachment, or None when the media type is not one a model is sent."""
+    def of(cls, url: str, media_type: str, name: str = "", size: int = 0) -> Attachment | None:
+        """An attachment, or None when nothing here handles the media type."""
         kind = media_type.split(";")[0].strip().lower()
-        if not url or kind not in IMAGE_MEDIA_TYPES:
+        if not url or kind not in IMAGE_MEDIA_TYPES + FILE_MEDIA_TYPES:
             return None
-        return cls(url=url, media_type=kind)
+        return cls(url=url, media_type=kind, name=name, size=size)
 
     @classmethod
     def accepted(cls, images: Sequence[Attachment], most: int) -> tuple[Attachment, ...]:
-        """The attachments a model is sent, at most most of them."""
-        kept = (cls.of(image.url, image.media_type) for image in images)
-        return tuple(image for image in kept if image is not None)[:most]
+        """The images a model is sent, at most most of them."""
+        kept = (cls.of(i.url, i.media_type, i.name, i.size) for i in images)
+        return tuple(i for i in kept if i is not None and i.is_image)[:most]
+
+    @classmethod
+    def readable(cls, attached: Sequence[Attachment], most: int) -> tuple[Attachment, ...]:
+        """The files read into text, at most most of them."""
+        kept = (cls.of(f.url, f.media_type, f.name, f.size) for f in attached)
+        return tuple(f for f in kept if f is not None and not f.is_image)[:most]
 
 
 @dataclass(frozen=True)
@@ -119,6 +148,24 @@ class ToolOutcome:
 
 
 @dataclass(frozen=True)
+class SubAgent:
+    """Enough of a sub-agent to take it up again after someone answers its confirmation.
+
+    The parent is not here. What the parent was doing is rebuilt from the platform's history and
+    the result this run goes on to produce, exactly as a resumed request already is; a sub-agent's
+    own messages are the part nothing else holds.
+    """
+
+    #: The delegate call the parent is waiting on.
+    call_id: str
+    task: str
+    tools: tuple[str, ...] = ()
+    messages: tuple[ChatMessage, ...] = ()
+    #: Turns it had already taken, so it resumes with what it had left.
+    turns_used: int = 0
+
+
+@dataclass(frozen=True)
 class PendingConfirmation:
     """A destructive call waiting for an answer from someone allowed to give it."""
 
@@ -129,6 +176,8 @@ class PendingConfirmation:
     call: ToolCall
     summary: str
     expires_at: datetime
+    #: The sub-agent that asked, when a sub-agent did. None when the request itself did.
+    sub_agent: SubAgent | None = None
 
 
 @dataclass(frozen=True)
@@ -137,6 +186,8 @@ class AgentReply:
 
     text: str
     usage: Usage = field(default_factory=Usage)
+    #: The actions this run made, in order, without repeats. A delegating parent reads them back.
+    ran: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

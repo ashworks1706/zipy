@@ -195,3 +195,7 @@ class PendingConfirmationRow(Base):
     parameters: Mapped[dict[str, Any]] = mapped_column(JSONB)
     summary: Mapped[str] = mapped_column(Text)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    # The sub-agent that asked, when one did: its task, tools, turns and messages so far. Null
+    # when the request itself asked. The row is deleted when the answer comes and swept when it
+    # expires, so this holds a conversation for as long as a confirmation waits and no longer.
+    sub_agent: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)

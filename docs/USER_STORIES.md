@@ -121,6 +121,40 @@ Calls `calendar.list_events` and `notion.query_database` (both read), optionally
 Calls `calendar.list_events` and `notion.query_database` (read), plus semantic recall for the
 notes. The widest case: three sources, one answer.
 
+## GitHub
+
+### github-open-issues
+> What's still open on the zipy repo?
+
+Calls `github.list_issues` (read). Answers with the numbers, titles and who each is assigned to,
+pull requests marked as such.
+
+### github-issue-detail
+> What did people say on issue 14?
+
+Calls `github.get_issue` (read). Answers with the body and the comments in order.
+
+### github-find-issue
+> Did anyone file something about the flaky CI?
+
+Calls `github.search_issues` (read) across the org's repositories. Answers with the matches, or
+says there are none.
+
+### github-read-file
+> What does the zipy README say about self-hosting?
+
+Calls `github.get_file` (read). Answers from the file, not from memory.
+
+### github-open-one
+> Open an issue on zipy: the gate is failing on the image build.
+
+Calls `github.create_issue` (create). Answers with the number and link of what it opened.
+
+### github-comment
+> Reply on issue 14 that I'm picking it up.
+
+Calls `github.comment` (create). Answers with the link to the comment.
+
 ## Org administration
 
 Admin commands, handled by the gateway. They never reach the agent and call no tool.
