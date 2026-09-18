@@ -66,7 +66,14 @@ test MODE="":
     set -euo pipefail
     case "{{MODE}}" in
       "") uv run pytest -q -m "not integration" ;;
-      integration) uv run pytest -q -m integration -rs ;;
+      integration)
+        # These tests drop every table of this database, so it is never the one zipy runs against.
+        if [ -z "${ZIPY_TEST_DATABASE_URL:-}" ]; then
+          echo "set ZIPY_TEST_DATABASE_URL to a throwaway database, for example"
+          echo "  createdb zipy_test && export ZIPY_TEST_DATABASE_URL=postgresql+asyncpg://zipy:zipy@127.0.0.1:5432/zipy_test"
+          exit 1
+        fi
+        uv run pytest -q -m integration -rs ;;
       *) echo "MODE is integration"; exit 1 ;;
     esac
 
@@ -99,6 +106,20 @@ chat *ARGS:
 # The newest request traces, or one request's events in order
 traces *ARGS:
     uv run zipy traces {{ARGS}}
+
+# The eval cases in evals/, against the configured model. Not part of the gate: it needs a model
+eval *ARGS:
+    uv run zipy eval {{ARGS}}
+
+# ---------- training ----------
+
+# Datasets from real runs: export, verify, review, curate, stats
+data *ARGS:
+    uv run data {{ARGS}}
+
+# Post-training over the curated set. Needs a GPU and `uv sync --extra gpu`
+train *ARGS:
+    uv run train {{ARGS}}
 
 # Apply database migrations up to head
 migrate *ARGS="upgrade head":

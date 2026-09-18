@@ -11,6 +11,7 @@ from engine.agent.orchestrator import Orchestrator
 from engine.auth.state import ConnectState, sign
 from engine.core.config import Budget, Config
 from engine.core.protocols import (
+    CollaborationStore,
     CredentialStore,
     OrgContextStore,
     OrgStore,
@@ -19,10 +20,13 @@ from engine.core.protocols import (
     WorkspaceStore,
 )
 from engine.core.types import (
+    STATED_WEIGHT,
     AgentResult,
     Attachment,
     ChannelRef,
     ConfigError,
+    Dimension,
+    Evidence,
     FactCategory,
     MemberRef,
     NeedsConfirmation,
@@ -32,8 +36,10 @@ from engine.core.types import (
     Progress,
     RequestContext,
     Role,
+    Signal,
     StoreError,
     Workspace,
+    WorkspaceRef,
     ZipyError,
 )
 from engine.gateway.admin import AdminCommand, Verb, parse
@@ -48,6 +54,7 @@ from engine.gateway.messages import (
     WorkspaceInstalled,
 )
 from engine.gateway.render import split
+from engine.memory.collaboration import render as render_collaborator
 from engine.telemetry.logging import bind, get
 from engine.telemetry.metrics import Metrics
 from engine.tools.registry import Registry
@@ -77,8 +84,21 @@ FACT_FORMAT = (
     f"{', '.join(c.value for c in FactCategory)}."
 )
 
-# Every verb but status changes the org, so an admin runs it.
-ADMIN_ONLY = tuple(verb for verb in Verb if verb is not Verb.STATUS)
+#: The verbs that read, or write only the caller's own row. Everything else changes the org.
+OWN = (Verb.STATUS, Verb.PREFER)
+
+ADMIN_ONLY = tuple(verb for verb in Verb if verb not in OWN)
+
+#: How prefer names each end of each dimension.
+DIRECTIONS = {"more": 1.0, "less": 0.0}
+
+PREFER_FORMAT = (
+    "Say prefer more <dimension> or prefer less <dimension>, for example prefer less depth, "
+    f"where dimension is one of {', '.join(d.value for d in Dimension)}. "
+    "prefer on its own shows what I have read about you, and prefer forget drops it."
+)
+
+PREFER_OFF = "Collaboration state is off in this deployment, so there is nothing to set."
 
 
 def _coerce(words: tuple[str, ...]) -> object:
@@ -94,6 +114,21 @@ def _coerce(words: tuple[str, ...]) -> object:
         return float(raw)
     except ValueError:
         return raw
+
+
+def _plural(count: int, noun: str) -> str:
+    """A count and its noun, with the s the count asks for."""
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+def _preference(args: tuple[str, ...]) -> tuple[float, Dimension]:
+    """The target and dimension a prefer command names. Anything else is a ConfigError."""
+    if len(args) != 2:
+        raise ConfigError(f"that is not a preference I can set. {PREFER_FORMAT}")
+    direction, dimension = args[0].lower(), args[1].lower()
+    if direction not in DIRECTIONS or dimension not in tuple(Dimension):
+        raise ConfigError(f"that is not a preference I can set. {PREFER_FORMAT}")
+    return DIRECTIONS[direction], Dimension(dimension)
 
 
 def _fact(args: tuple[str, ...]) -> OrgFact:
@@ -122,6 +157,7 @@ class Gateway:
         credentials: CredentialStore,
         tool_config: ToolConfigStore,
         rate_limiter: RateLimiter,
+        collaboration: CollaborationStore,
         metrics: Metrics | None = None,
     ) -> None:
         self._config = config
@@ -133,6 +169,7 @@ class Gateway:
         self._credentials = credentials
         self._tool_config = tool_config
         self._rate_limiter = rate_limiter
+        self._collaboration = collaboration
         self._metrics = metrics
 
     async def message(
@@ -205,6 +242,10 @@ class Gateway:
             return self._failed(ctx, exc, capabilities)
         logger.info("confirmation answered", answer=event.answer.value)
         return self._rendered(ctx, result, capabilities)
+
+    async def linked(self, workspace: WorkspaceRef) -> bool:
+        """Whether this workspace already belongs to an org."""
+        return await self._workspaces.get(workspace) is not None
 
     async def installed(self, event: WorkspaceInstalled, budget: Budget) -> list[Outbound]:
         """Create an org for a new workspace, link it, make the installer an admin, welcome."""
@@ -294,6 +335,8 @@ class Gateway:
                 return self._texts(ctx.channel, await self._forget(ctx, args), capabilities)
             case Verb.STATUS:
                 return self._texts(ctx.channel, await self._status(ctx), capabilities)
+            case Verb.PREFER:
+                return self._texts(ctx.channel, await self._prefer(ctx, args), capabilities)
 
     def _setup_text(self) -> str:
         """The onboarding steps, naming the providers this Zipy has enabled."""
@@ -389,14 +432,53 @@ class Gateway:
         providers = sorted(name for name, table in self._config.providers.items() if table.enabled)
         missing = [name for name in providers if name not in connected]
         facts = await self._org_context.facts(ctx.org_id)
-        return (
-            f"{org.name}\n"
-            f"Connected: {', '.join(sorted(connected)) or 'nothing yet'}\n"
-            f"Not connected: {', '.join(missing) or 'nothing'}\n"
-            f"Tools: {', '.join(available) or 'none available yet'}\n"
-            f"Facts: {len(facts)}\n"
-            f"Spend: {org.spent_cents} of {org.budget_cents} cents this month"
+        lines = [
+            org.name,
+            f"Connected: {', '.join(sorted(connected)) or 'nothing yet'}",
+            f"Not connected: {', '.join(missing) or 'nothing'}",
+            f"Tools: {', '.join(available) or 'none available yet'}",
+            f"Facts: {len(facts)}",
+            f"Spend: {org.spent_cents} of {org.budget_cents} cents this month",
+        ]
+        if self._config.collaboration.enabled:
+            lines.append(await self._preferences(ctx))
+        return "\n".join(lines)
+
+    async def _prefer(self, ctx: RequestContext, args: tuple[str, ...]) -> str:
+        """Show, set or drop the caller's own collaboration state. Never another person's."""
+        if not self._config.collaboration.enabled:
+            return PREFER_OFF
+        if not args:
+            return await self._preferences(ctx)
+        if len(args) == 1 and args[0].lower() == "forget":
+            await self._collaboration.forget(ctx.org_id, ctx.member)
+            return "Dropped what I had read about how you work."
+        direction, dimension = _preference(args)
+        await self._collaboration.observe(
+            ctx.org_id,
+            ctx.member,
+            [
+                Signal(
+                    dimension=dimension,
+                    target=direction,
+                    evidence=Evidence.STATED_PREFERENCE,
+                    weight=STATED_WEIGHT,
+                )
+            ],
         )
+        return await self._preferences(ctx)
+
+    async def _preferences(self, ctx: RequestContext) -> str:
+        """What the caller's own state currently asks for, in the words the prompt gets."""
+        state = await self._collaboration.state(ctx.org_id, ctx.member)
+        lines = render_collaborator(state, self._config.collaboration.min_observations)
+        read = _plural(state.observations, "observation")
+        if not lines:
+            return (
+                f"I have {read} of how you work, which is not enough to change anything yet.\n"
+                f"{PREFER_FORMAT}"
+            )
+        return f"How I work with you, from {read}:\n{lines}"
 
     def _tool_name(self, args: tuple[str, ...], verb: str) -> str:
         """The tool an admin command names. An unknown tool is a ConfigError."""

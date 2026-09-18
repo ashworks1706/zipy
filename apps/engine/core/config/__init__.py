@@ -29,6 +29,7 @@ from engine.core.config.tables import (
     Api,
     App,
     Budget,
+    Collaboration,
     Data,
     Memory,
     ModelRole,
@@ -51,6 +52,7 @@ __all__ = [
     "Api",
     "App",
     "Budget",
+    "Collaboration",
     "Config",
     "Data",
     "Memory",
@@ -94,6 +96,7 @@ class Config(BaseSettings):
     agent: Agent = Field(default_factory=Agent)
     models: dict[str, ModelRole] = {}
     memory: Memory = Field(default_factory=Memory)
+    collaboration: Collaboration = Field(default_factory=Collaboration)
     budget: Budget = Field(default_factory=Budget)
     rate_limit: RateLimit = Field(default_factory=RateLimit)
     workers: Workers = Field(default_factory=Workers)

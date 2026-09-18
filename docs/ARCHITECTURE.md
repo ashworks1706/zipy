@@ -129,7 +129,8 @@ A package may import any package below it. The arrows show the nearest layer; sk
 downward is allowed, importing upward or sideways is not.
 
 ```
-commands          zipy serve | chat | traces | config | plugins | db
+commands          zipy serve | chat | eval | traces | config | plugins | db
+evals             the eval cases, run against the real loop over fixtures rather than providers
 wiring            the composition root: builds everything, runs platforms + api + workers in one loop
 platforms | api | workers
                   platforms: chat platform plugins (discord, slack, local), translating and rendering
@@ -191,6 +192,11 @@ apps/engine/
 apps/cli/               the developer console over just recipes
   assets/               logo.json, logo-animated.json: the logo animation, ASCII Motion exports
   logo.py, splash.py    the animation the console opens with
+apps/training/          datasets from real runs, and the post-training that reads them
+  core/                 settings and types; imports nothing else in the repo
+  datasets/             export, redact, verify, curate, review, the data command
+  curation/             decisions.jsonl, in source control
+  posttrain/            SFT over the curated set, the train command
 apps/website/           the landing page, Next.js App Router
   app/                  layout, page, not-found, sitemap, robots, icon, fonts
   components/           CliAnimation
@@ -555,7 +561,7 @@ gateway, split to the platform's message limit, and the platform posts it in the
 
 ## Memory
 
-Three layers, each solving a different problem in time.
+Four layers. Three solve a different problem in time; the fourth is who is asking.
 
 **Conversation** is the shortest-lived: the last messages of the current conversation, read from
 the platform on demand. It resolves pronouns and follow-ups ("add that to the calendar"). A
@@ -572,6 +578,23 @@ document is chunked, embedded with `[models.embedding]`, and stored; an updated 
 its old chunks. A question about the past is embedded and searched within the org, and the closest
 chunks are given to the model to answer from. Recall runs only when triggered, so simple requests
 ("add an event Friday 3pm") stay fast and spend no embedding calls.
+
+**Collaboration state** (direction; see `docs/ROADMAP.md` v0.7) is per person rather than per
+period: how much explanation someone wants, how readily they let the agent act, how formally they
+want it worded. It is scores and a count of the observations behind them, in `member_state`, with
+no text column, because it records what behaviour showed and never what was said. That is what
+lets it exist at all while "storing chat history from any platform" stays out of scope. It is
+rendered into the system prompt as instructions rather than numbers, it never overrides a
+permission check or a confirmation, and `collaboration.enabled` is false until the eval suite's
+behaviour axis says it earns its place.
+
+It moves two ways. Answering a confirmation is read as a signal on autonomy: confirming says the
+asking was unnecessary, cancelling says it was not. `@Zipy prefer less depth` states a preference
+outright, and weighs four ordinary observations, so saying it once is felt but does not pin the
+dimension forever. Both go through the same exponential moving average, so no single turn decides
+anything and old observations fade. `@Zipy prefer` shows a person what was read about them in the
+words the prompt gets, and `@Zipy prefer forget` drops it. Nobody writes anybody else's row: an
+admin setting someone else's would be a permission change wearing a preference costume.
 
 
 ## Configuration
@@ -601,7 +624,7 @@ release notes for that version say how to update the file.
 **Per-org overrides** live in `org_tool_config`. `@Zipy config calendar reminder 15` writes
 `{"default_reminder_minutes": 15}` for that org and tool; the registry merges it over the file and
 validates it with the tool's settings model. Orgs never edit `zipy.toml`. Everything they customize
-is an admin command, the same on every platform:
+is a command parsed from the text, the same on every platform:
 
 ```
 @Zipy setup                          onboarding wizard
@@ -612,7 +635,11 @@ is an admin command, the same on every platform:
 @Zipy remember <fact>                store an org fact
 @Zipy forget <key>                   remove an org fact
 @Zipy status                         connections, tools, spend
+@Zipy prefer less depth              set one's own collaboration state
 ```
+
+Everything above `status` changes the org, so an admin runs it. `status` and `prefer` read, and
+`prefer` writes only the caller's own row, so anyone runs them.
 
 
 ## Onboarding
@@ -718,6 +745,66 @@ flowchart LR
 Trace sinks never fail a request: an unwritable trace directory drops the event. Metrics carry no
 org id, because a metrics system is readable by every operator; per-org numbers (spend, usage)
 live in Postgres and are shown to the org with `@Zipy status`.
+
+
+## Evals
+
+`just eval` runs the stories in `docs/USER_STORIES.md` as cases. A case is one message through the
+real gateway, the real orchestrator and the real tool loop, against the configured model. Nothing
+reaches a provider: every tool class is subclassed with its `execute` replaced by the fixture for
+that action from `evals/fixtures.toml`, validated into the result model the plugin declares, so a
+fixture that stops fitting its schema fails the run rather than passing quietly. What the run
+called is read from the audit log the executor writes, not from what the model says it called.
+
+The two axes are never added together.
+
+**Correctness** is a pass or a fail: the actions the run made, the facts the answer carries, and
+whether a destructive call waited for a confirmation. All three come from the case.
+
+**Behaviour** is measured, not judged: how long the answer is, whether it asked rather than acted,
+which tool it reached for first, how many it made. There is no right answer to any of them, which
+is the point.
+
+That separation is what makes the collaboration-state claim checkable. A `[[contrast]]` runs one
+case at both ends of one dimension with everything else held still, and reads two things off it:
+correctness must hold, because a preference is not a permission and changes nothing about what is
+true, and behaviour must move, because a state that changes nothing is not worth keeping. Whether
+`collaboration.enabled` ships on is that table, read per case rather than averaged.
+
+`just eval` is not part of `just check`: it needs a model, and the gate stays fast and hermetic.
+The suite itself is covered by ordinary tests, which run the loop with a scripted model.
+
+A bad answer becomes a case without hand-writing TOML. `zipy traces` lists the recent requests and
+`zipy eval-add <request-id> --id <case-id>` drafts one: the trace gives the question, the actions
+that ran and whether anything waited for a confirmation, and `contains` is left empty for the
+reviewer to say what the answer should have carried.
+
+
+## Training
+
+`apps/training` turns the same traces into a dataset. A `generation` event carries the messages
+sent to the model and the reply that came back, so an example needs no translation to be trained
+on, and nothing here needs a telemetry service.
+
+```
+data export    every generation the traces hold, redacted
+data verify    well-formed, not empty, not duplicated
+data review    keep, drop or fix, one example at a time
+data curate    the training set, from accepted decisions only
+train sft      post-training over that set
+```
+
+An example nobody has reviewed is not training data. That is the whole point of the step: a model
+trained on an unreviewed export learns whatever the current one already does, mistakes included.
+
+The decisions live in `apps/training/curation/decisions.jsonl`, in source control, because an
+export can be run again and produces the same examples while a judgment cannot. Each decision
+carries the fingerprint of the example it judged, so an example that changed underneath is reported
+as stale rather than trained on under a judgment about something else.
+
+`train sft` needs a GPU and the `gpu` extra, which the gate never installs. It writes an adapter;
+what serves one is a question for `[models.chat]` and is not decided in `apps/training`. The app
+imports nothing else in the repo, which the independence contract holds it to.
 
 
 ## Console
@@ -851,11 +938,13 @@ and the Release workflow verifies every version against the tag before publishin
 | Uptime | Uptime Kuma | `deploy/compose.yml` |
 | Console | Textual + Rich; logo animation from ASCII Motion exports | `apps/cli` |
 | Website | Next.js 16 App Router, React 19, Tailwind 4, TypeScript, eslint | `apps/website` |
-| CLI | Typer + Rich: `zipy serve, chat, traces, plugins, config, db` | `engine/commands` |
+| CLI | Typer + Rich: `zipy serve, chat, eval, eval-add, traces, plugins, config, db` | `engine/commands` |
 | Lint and format | ruff | `[tool.ruff]` |
 | Types | mypy `--strict` over both apps | `[tool.mypy]` |
 | Layering | import-linter contracts; grimp-based plugin isolation tests | `[tool.importlinter]`, `tests/test_plugins.py` |
-| Tests | pytest, pytest-asyncio; `integration` marker for Postgres and Redis; eslint and tsc for the website | `apps/**/tests`, `just check-website` |
+| Tests | pytest, pytest-asyncio; `integration` marker for Postgres and Redis, which need ZIPY_TEST_DATABASE_URL because they drop every table; eslint and tsc for the website | `apps/**/tests`, `just check-website` |
+| Evals | the user stories as cases, scored on correctness and behaviour, against the configured model over fixtures; not part of the gate | `evals/`, `engine/evals`, `just eval` |
+| Datasets and training | traces to examples, a committed ledger of keep, drop and fix decisions, Unsloth QLoRA over what was accepted | `apps/training`, `just data`, `just train` |
 | Diagrams | mermaid, rendered by mermaid-cli in `just diagrams` | `docs/ARCHITECTURE.md` |
 | Container | uv base image, non-root, amd64 and arm64 | `deploy/Dockerfile` |
 | Deploy | Docker Compose on one VPS; Caddy or nginx for HTTPS | `deploy/compose.yml`, `deploy/compose.prod.yml` |

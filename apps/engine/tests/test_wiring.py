@@ -32,7 +32,7 @@ def wired(monkeypatch, cfg: Config) -> Config:
 
 def test_the_whole_object_graph_builds_from_the_committed_config(wired):
     parts = assemble(wired)
-    assert sorted(parts.platforms.enabled) == ["discord"]
+    assert sorted(parts.platforms.enabled) == ["local"]
     assert parts.providers is not None
     assert parts.scheduler is not None
     assert parts.consumer is not None
@@ -83,7 +83,7 @@ def test_a_disabled_tool_does_not_widen_the_scopes_it_asks_for(wired):
 def test_a_missing_system_template_is_named(wired):
     with pytest.raises(ConfigError, match="nope.md.j2"):
         system_template("nope.md.j2")
-    assert "operations officer" in system_template(wired.agent.system_template)
+    assert "running operations for" in system_template(wired.agent.system_template)
 
 
 async def test_the_conversation_source_refuses_to_read_before_it_is_bound():

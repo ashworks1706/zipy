@@ -38,7 +38,7 @@ def test_a_plugin_secret_from_the_env_reaches_its_table_and_is_masked(cfg, monke
     [
         ("ZIPY_CONFIG_VERSION", "0", "config_version"),
         ("ZIPY_MEMORY__CHUNK_OVERLAP_TOKENS", "500", "chunk_overlap_tokens"),
-        ("ZIPY_PLATFORMS__DISCORD__ENABLED", "false", "no \\[platforms"),
+        ("ZIPY_PLATFORMS__LOCAL__ENABLED", "false", "no \\[platforms"),
         ("ZIPY_TOOLS__CALENDAR__PROVIDER", "outlook", "outlook"),
     ],
 )

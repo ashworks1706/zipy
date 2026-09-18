@@ -15,6 +15,7 @@ from engine.core.types import (
     ChannelRef,
     ChatMessage,
     Chunk,
+    CollaborationState,
     Completion,
     Job,
     MemberRef,
@@ -27,6 +28,7 @@ from engine.core.types import (
     RecallHit,
     RequestContext,
     Role,
+    Signal,
     Workspace,
     WorkspaceRef,
 )
@@ -87,6 +89,18 @@ class WorkspaceStore(Protocol):
     async def unlink(self, ref: WorkspaceRef) -> None: ...
 
     async def of_org(self, org_id: OrgId) -> list[Workspace]: ...
+
+
+class CollaborationStore(Protocol):
+    """How each person works with the agent. Holds scores and counts, never conversation text."""
+
+    async def state(self, org_id: OrgId, member: MemberRef) -> CollaborationState: ...
+
+    async def observe(
+        self, org_id: OrgId, member: MemberRef, signals: Sequence[Signal]
+    ) -> None: ...
+
+    async def forget(self, org_id: OrgId, member: MemberRef) -> None: ...
 
 
 class OrgContextStore(Protocol):

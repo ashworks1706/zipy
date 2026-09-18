@@ -2,6 +2,7 @@
 
 import json
 import re
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -17,6 +18,26 @@ def _workflow(name: str) -> dict:
 def _recipes() -> set[str]:
     text = (ROOT / "justfile").read_text()
     return set(re.findall(r"^([a-z][\w-]*)(?:\s[^:\n]*)?:(?!=)", text, re.MULTILINE))
+
+
+def _workspace_members() -> list[str]:
+    """Every app the uv workspace holds."""
+    root = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    return root["tool"]["uv"]["workspace"]["members"]
+
+
+def test_the_image_copies_every_workspace_manifest_the_lockfile_is_checked_against():
+    """uv sync --locked re-resolves when a member's pyproject is missing, and then refuses."""
+    dockerfile = (ROOT / "deploy/Dockerfile").read_text()
+    ignore = (ROOT / ".dockerignore").read_text()
+    for member in _workspace_members():
+        assert f"COPY {member}/pyproject.toml" in dockerfile, (
+            f"deploy/Dockerfile does not copy {member}/pyproject.toml; the image build will fail"
+        )
+        if f"\n{member}\n" in f"\n{ignore}":
+            assert f"!{member}/pyproject.toml" in ignore, (
+                f".dockerignore excludes {member} without keeping its pyproject.toml"
+            )
 
 
 def test_the_ci_job_needs_every_other_job_so_none_is_forgotten():
@@ -77,13 +98,15 @@ def test_ci_paths_cover_every_app():
 
 
 def test_every_version_in_the_repo_agrees():
-    engine = re.search(
-        r'^version = "(.*)"', (ROOT / "apps/engine/pyproject.toml").read_text(), re.M
-    )
-    cli = re.search(r'^version = "(.*)"', (ROOT / "apps/cli/pyproject.toml").read_text(), re.M)
-    website = json.loads((ROOT / "apps/website/package.json").read_text())["version"]
-    assert engine and cli
-    assert engine.group(1) == cli.group(1) == website
+    versions = {}
+    for app in ("engine", "cli", "training"):
+        found = re.search(
+            r'^version = "(.*)"', (ROOT / f"apps/{app}/pyproject.toml").read_text(), re.M
+        )
+        assert found, f"apps/{app}/pyproject.toml has no version"
+        versions[app] = found.group(1)
+    versions["website"] = json.loads((ROOT / "apps/website/package.json").read_text())["version"]
+    assert len(set(versions.values())) == 1, versions
 
 
 def test_dependabot_covers_every_ecosystem_in_the_repo():
@@ -92,3 +115,10 @@ def test_dependabot_covers_every_ecosystem_in_the_repo():
         for u in yaml.safe_load((ROOT / ".github/dependabot.yml").read_text())["updates"]
     }
     assert {"uv", "npm", "github-actions", "docker"} <= ecosystems
+
+
+def test_ci_runs_the_python_gate_when_the_eval_cases_change():
+    """The gate holds cases.toml to the stories, so a change to either must run it."""
+    filters = (WORKFLOWS / "ci.yml").read_text()
+    for path in ("evals/**", "docs/USER_STORIES.md"):
+        assert f"'{path}'" in filters, f"no CI path filter covers {path}"

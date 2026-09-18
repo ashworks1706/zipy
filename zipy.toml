@@ -76,6 +76,16 @@ api_base = "http://127.0.0.1:8001/v1"
 api_key = "local"
 dimensions = 1024
 
+# Per-person collaboration state: scores read from how someone works, conditioning the answers
+# they get. Direction, not shipped; see docs/ROADMAP.md v0.7. Off means every prompt is exactly
+# what it would be without it. The state holds scores and a count, never conversation text.
+[collaboration]
+enabled = false
+# Weight of one observation in the moving average.
+alpha = 0.15
+# Observations before the state says anything to the model at all.
+min_observations = 5
+
 [memory]
 # The last N messages of the conversation, read from the platform, given to the model.
 conversation_limit = 20
@@ -145,13 +155,28 @@ trace_dir = ".zipy/traces"
 metrics = true
 sentry_traces_sample_rate = 0.1
 
+# ---------------------------------------------------------------- training
+#
+# Datasets built from the traces above. The decisions a reviewer makes are the one part of this
+# that is in source control: an export can be run again, a judgment cannot.
+
+[training]
+# Generated data: the raw export, the verified set, the curated set, and training outputs.
+data_dir = ".zipy/training"
+# The review decisions, committed.
+decisions_path = "apps/training/curation/decisions.jsonl"
+# Skip traces older than this on export. Zero reads every one.
+max_age_days = 0
+
 # ---------------------------------------------------------------- platforms
 #
 # Chat platforms. Each renders its own formatting and message limit; the gateway fits replies to
 # them. Tokens and signing secrets live in .env as ZIPY_PLATFORMS__<NAME>__<KEY>.
 
+# Off until a token is set: an enabled platform with no credential stops the whole process, and
+# a clone has no token. Turn it on here or with ZIPY_PLATFORMS__DISCORD__ENABLED=true.
 [platforms.discord]
-enabled = true
+enabled = false
 message_limit = 2000
 # Shortest gap between edits of the one message a turn is written into. Discord rate limits
 # edits, so a shorter gap is not a faster card.
@@ -161,9 +186,10 @@ edit_every_ms = 1500
 enabled = false
 message_limit = 3000
 
+# A terminal conversation for development, and the one platform a clone can use before any
+# credential exists. zipy chat runs it whether or not it is enabled here.
 [platforms.local]
-# A terminal conversation for development. zipy chat runs it whether or not it is enabled here.
-enabled = false
+enabled = true
 org_name = "Local dev org"
 member_name = "developer"
 

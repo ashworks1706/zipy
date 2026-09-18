@@ -28,6 +28,7 @@ from engine.data.cache import RedisProviderLimiter, RedisQueue, RedisRateLimiter
 from engine.data.crypto import Vault
 from engine.data.db import create_engine, sessions
 from engine.data.repos.audit import PgAudit
+from engine.data.repos.collaboration import PgCollaboration
 from engine.data.repos.confirmations import PgConfirmations
 from engine.data.repos.credentials import PgCredentials
 from engine.data.repos.documents import PgDocuments
@@ -164,6 +165,7 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
     orgs = PgOrgs(factory)
     workspaces = PgWorkspaces(factory, vault)
     org_context = PgOrgContext(factory)
+    collaboration = PgCollaboration(factory)
     documents = PgDocuments(factory)
     credentials = PgCredentials(factory, vault)
     tool_config = PgToolConfig(factory)
@@ -185,6 +187,8 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
         org_context=org_context,
         embedder=embedder,
         documents=documents,
+        collaboration=collaboration,
+        settings=config.collaboration,
     )
     orchestrator = Orchestrator(
         agent=config.agent,
@@ -218,6 +222,7 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
         credentials=credentials,
         tool_config=tool_config,
         rate_limiter=RedisRateLimiter(config.data, config.rate_limit),
+        collaboration=collaboration,
         metrics=metrics,
     )
     platforms = Platforms(selected(config, only), gateway, workspaces)
