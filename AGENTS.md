@@ -128,7 +128,8 @@ Use the `add-platform` and `add-tool` skills.
 Every replaceable dependency is a protocol in `engine/core/protocols.py` with a double in
 `engine/core/doubles.py`: `ChatModel`, `Embedder`, `ConversationSource`, `Notifier`, `OrgStore`,
 `WorkspaceStore`, `OrgContextStore`, `DocumentStore`, `CredentialStore`, `ToolConfigStore`,
-`AuditLog`, `ConfirmationStore`, `RateLimiter`, `ProviderLimiter`, `JobQueue`, `TraceSink`. A new one gets a protocol
+`AuditLog`, `ConfirmationStore`, `RateLimiter`, `ProviderLimiter`, `JobQueue`, `TraceSink`,
+`CollaborationStore`. A new one gets a protocol
 and a double in the same change.
 
 ## Config

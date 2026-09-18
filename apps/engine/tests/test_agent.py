@@ -15,6 +15,7 @@ from engine.core.config import Agent, Permissions, RateLimit, ToolSettings
 from engine.core.doubles import (
     FixedEmbedder,
     MemoryAudit,
+    MemoryCollaboration,
     MemoryConfirmations,
     MemoryConversation,
     MemoryCredentials,
@@ -311,6 +312,8 @@ def orchestrator(
         org_context=org_context,
         embedder=FixedEmbedder([0.1]),
         documents=MemoryDocuments(),
+        collaboration=MemoryCollaboration(),
+        settings=cfg.collaboration,
     )
     model = ScriptedModel(script=script)
     held = confirmations if confirmations is not None else MemoryConfirmations()
@@ -596,3 +599,23 @@ def test_every_tool_names_what_it_acted_on_for_the_audit_log():
         params = cls.actions[action].params.model_validate(arguments)
         tool = cls(registry.settings_for(tool_name))
         assert tool.target(action, params), f"{qualified_name} records no target"
+
+
+def test_the_collaboration_block_is_absent_until_there_is_something_to_say():
+    """A run with collaboration off is byte for byte a run without the feature."""
+    without = build(Context(history=[], org_facts="", recalled=[]))
+    off = build(Context(history=[], org_facts="", recalled=[], collaborator=""))
+
+    assert off[0].content == without[0].content
+    assert "How this person works" not in off[0].content
+
+
+def test_a_collaboration_block_rides_in_the_system_prompt_and_yields_to_the_rules():
+    asked = "- Answer briefly. Lead with the result."
+    messages = build(Context(history=[], org_facts="", recalled=[], collaborator=asked))
+    system = messages[0].content
+
+    assert "How this person works" in system
+    assert asked in system
+    # It is a preference, not a permission.
+    assert "never override" in system

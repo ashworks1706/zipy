@@ -555,7 +555,7 @@ gateway, split to the platform's message limit, and the platform posts it in the
 
 ## Memory
 
-Three layers, each solving a different problem in time.
+Four layers. Three solve a different problem in time; the fourth is who is asking.
 
 **Conversation** is the shortest-lived: the last messages of the current conversation, read from
 the platform on demand. It resolves pronouns and follow-ups ("add that to the calendar"). A
@@ -572,6 +572,16 @@ document is chunked, embedded with `[models.embedding]`, and stored; an updated 
 its old chunks. A question about the past is embedded and searched within the org, and the closest
 chunks are given to the model to answer from. Recall runs only when triggered, so simple requests
 ("add an event Friday 3pm") stay fast and spend no embedding calls.
+
+**Collaboration state** (direction; see `docs/ROADMAP.md` v0.7) is per person rather than per
+period: how much explanation someone wants, how readily they let the agent act, how formally they
+want it worded. It is scores and a count of the observations behind them, in `member_state`, with
+no text column, because it records what behaviour showed and never what was said. That is what
+lets it exist at all while "storing chat history from any platform" stays out of scope. It is
+rendered into the system prompt as instructions rather than numbers, it never overrides a
+permission check or a confirmation, and `collaboration.enabled` is false until the eval suite's
+behaviour axis says it earns its place. A person can read their own state and delete it; an admin
+cannot set someone else's, because that would be a permission change wearing a preference costume.
 
 
 ## Configuration

@@ -14,6 +14,7 @@ from engine.core.types import (
     ChannelRef,
     ChatMessage,
     Chunk,
+    CollaborationState,
     Completion,
     Job,
     MemberRef,
@@ -26,9 +27,11 @@ from engine.core.types import (
     RecallHit,
     RequestContext,
     Role,
+    Signal,
     Workspace,
     WorkspaceRef,
 )
+from engine.core.types.collaboration import apply_signals
 
 
 @dataclass
@@ -128,6 +131,23 @@ class MemoryWorkspaces:
 
     async def of_org(self, org_id: OrgId) -> list[Workspace]:
         return [w for w in self.links.values() if w.org_id == org_id]
+
+
+@dataclass
+class MemoryCollaboration:
+    """Collaboration state held in a dict."""
+
+    by_member: dict[tuple[OrgId, MemberRef], CollaborationState] = field(default_factory=dict)
+
+    async def state(self, org_id: OrgId, member: MemberRef) -> CollaborationState:
+        return self.by_member.get((org_id, member), CollaborationState(member=member))
+
+    async def observe(self, org_id: OrgId, member: MemberRef, signals: Sequence[Signal]) -> None:
+        current = await self.state(org_id, member)
+        self.by_member[(org_id, member)] = apply_signals(current, signals)
+
+    async def forget(self, org_id: OrgId, member: MemberRef) -> None:
+        self.by_member.pop((org_id, member), None)
 
 
 @dataclass

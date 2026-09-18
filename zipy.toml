@@ -76,6 +76,16 @@ api_base = "http://127.0.0.1:8001/v1"
 api_key = "local"
 dimensions = 1024
 
+# Per-person collaboration state: scores read from how someone works, conditioning the answers
+# they get. Direction, not shipped; see docs/ROADMAP.md v0.7. Off means every prompt is exactly
+# what it would be without it. The state holds scores and a count, never conversation text.
+[collaboration]
+enabled = false
+# Weight of one observation in the moving average.
+alpha = 0.15
+# Observations before the state says anything to the model at all.
+min_observations = 5
+
 [memory]
 # The last N messages of the conversation, read from the platform, given to the model.
 conversation_limit = 20

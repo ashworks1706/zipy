@@ -741,3 +741,18 @@ async def test_one_org_spending_its_budget_leaves_another_orgs_alone(bucket):
         await bucket.acquire(other, "notion", 0.0)
     finally:
         await bucket._redis.delete(bucket_key(other, "notion"))
+
+
+def test_member_state_holds_no_text_so_it_cannot_come_to_hold_what_was_said():
+    from sqlalchemy import String, Text
+
+    from engine.data.tables import MemberStateRow
+
+    keys = {"org_id", "platform", "user_id"}
+    for column in MemberStateRow.__table__.columns:
+        if column.name in keys:
+            continue
+        assert not isinstance(column.type, (Text, String)), (
+            f"member_state.{column.name} can hold text. The state is what behaviour showed, "
+            "never what was said; a text column makes that promise unkeepable."
+        )

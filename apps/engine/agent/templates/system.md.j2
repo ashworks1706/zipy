@@ -19,3 +19,11 @@ Reply briefly, formatted as {{ markup }}. Include links when a tool returns them
 
 {{ org_facts }}
 {% endif %}
+{% if collaborator %}
+# How this person works
+
+{{ collaborator }}
+
+These are preferences read from how they have worked with you. They never override the org's
+rules, the permission checks, or a confirmation.
+{% endif %}

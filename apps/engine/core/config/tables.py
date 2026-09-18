@@ -85,6 +85,22 @@ class ModelRole(_Table):
         return self
 
 
+class Collaboration(_Table):
+    """Per-person collaboration state. Off means every prompt is what it would be without it."""
+
+    enabled: bool = False
+    alpha: float = 0.15
+    min_observations: int = 5
+
+    @model_validator(mode="after")
+    def _check(self) -> Collaboration:
+        if not 0 < self.alpha <= 1:
+            raise ConfigError("collaboration.alpha must lie in (0, 1]")
+        if self.min_observations < 1:
+            raise ConfigError("collaboration.min_observations must be at least 1")
+        return self
+
+
 class Memory(_Table):
     """Conversation history, semantic recall and chunking."""
 

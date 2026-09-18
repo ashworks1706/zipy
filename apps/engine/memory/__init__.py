@@ -1,1 +1,1 @@
-"""The three layers of context: conversation, org facts, and semantic recall."""
+"""The four layers of context: conversation, org facts, semantic recall, and who is asking."""
