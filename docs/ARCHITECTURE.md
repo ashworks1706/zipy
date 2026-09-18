@@ -192,6 +192,11 @@ apps/engine/
 apps/cli/               the developer console over just recipes
   assets/               logo.json, logo-animated.json: the logo animation, ASCII Motion exports
   logo.py, splash.py    the animation the console opens with
+apps/training/          datasets from real runs, and the post-training that reads them
+  core/                 settings and types; imports nothing else in the repo
+  datasets/             export, redact, verify, curate, review, the data command
+  curation/             decisions.jsonl, in source control
+  posttrain/            SFT over the curated set, the train command
 apps/website/           the landing page, Next.js App Router
   app/                  layout, page, not-found, sitemap, robots, icon, fonts
   components/           CliAnimation
@@ -769,6 +774,38 @@ true, and behaviour must move, because a state that changes nothing is not worth
 `just eval` is not part of `just check`: it needs a model, and the gate stays fast and hermetic.
 The suite itself is covered by ordinary tests, which run the loop with a scripted model.
 
+A bad answer becomes a case without hand-writing TOML. `zipy traces` lists the recent requests and
+`zipy eval-add <request-id> --id <case-id>` drafts one: the trace gives the question, the actions
+that ran and whether anything waited for a confirmation, and `contains` is left empty for the
+reviewer to say what the answer should have carried.
+
+
+## Training
+
+`apps/training` turns the same traces into a dataset. A `generation` event carries the messages
+sent to the model and the reply that came back, so an example needs no translation to be trained
+on, and nothing here needs a telemetry service.
+
+```
+data export    every generation the traces hold, redacted
+data verify    well-formed, not empty, not duplicated
+data review    keep, drop or fix, one example at a time
+data curate    the training set, from accepted decisions only
+train sft      post-training over that set
+```
+
+An example nobody has reviewed is not training data. That is the whole point of the step: a model
+trained on an unreviewed export learns whatever the current one already does, mistakes included.
+
+The decisions live in `apps/training/curation/decisions.jsonl`, in source control, because an
+export can be run again and produces the same examples while a judgment cannot. Each decision
+carries the fingerprint of the example it judged, so an example that changed underneath is reported
+as stale rather than trained on under a judgment about something else.
+
+`train sft` needs a GPU and the `gpu` extra, which the gate never installs. It writes an adapter;
+what serves one is a question for `[models.chat]` and is not decided in `apps/training`. The app
+imports nothing else in the repo, which the independence contract holds it to.
+
 
 ## Console
 
@@ -901,12 +938,13 @@ and the Release workflow verifies every version against the tag before publishin
 | Uptime | Uptime Kuma | `deploy/compose.yml` |
 | Console | Textual + Rich; logo animation from ASCII Motion exports | `apps/cli` |
 | Website | Next.js 16 App Router, React 19, Tailwind 4, TypeScript, eslint | `apps/website` |
-| CLI | Typer + Rich: `zipy serve, chat, eval, traces, plugins, config, db` | `engine/commands` |
+| CLI | Typer + Rich: `zipy serve, chat, eval, eval-add, traces, plugins, config, db` | `engine/commands` |
 | Lint and format | ruff | `[tool.ruff]` |
 | Types | mypy `--strict` over both apps | `[tool.mypy]` |
 | Layering | import-linter contracts; grimp-based plugin isolation tests | `[tool.importlinter]`, `tests/test_plugins.py` |
 | Tests | pytest, pytest-asyncio; `integration` marker for Postgres and Redis, which need ZIPY_TEST_DATABASE_URL because they drop every table; eslint and tsc for the website | `apps/**/tests`, `just check-website` |
 | Evals | the user stories as cases, scored on correctness and behaviour, against the configured model over fixtures; not part of the gate | `evals/`, `engine/evals`, `just eval` |
+| Datasets and training | traces to examples, a committed ledger of keep, drop and fix decisions, Unsloth QLoRA over what was accepted | `apps/training`, `just data`, `just train` |
 | Diagrams | mermaid, rendered by mermaid-cli in `just diagrams` | `docs/ARCHITECTURE.md` |
 | Container | uv base image, non-root, amd64 and arm64 | `deploy/Dockerfile` |
 | Deploy | Docker Compose on one VPS; Caddy or nginx for HTTPS | `deploy/compose.yml`, `deploy/compose.prod.yml` |

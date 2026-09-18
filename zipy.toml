@@ -155,6 +155,19 @@ trace_dir = ".zipy/traces"
 metrics = true
 sentry_traces_sample_rate = 0.1
 
+# ---------------------------------------------------------------- training
+#
+# Datasets built from the traces above. The decisions a reviewer makes are the one part of this
+# that is in source control: an export can be run again, a judgment cannot.
+
+[training]
+# Generated data: the raw export, the verified set, the curated set, and training outputs.
+data_dir = ".zipy/training"
+# The review decisions, committed.
+decisions_path = "apps/training/curation/decisions.jsonl"
+# Skip traces older than this on export. Zero reads every one.
+max_age_days = 0
+
 # ---------------------------------------------------------------- platforms
 #
 # Chat platforms. Each renders its own formatting and message limit; the gateway fits replies to

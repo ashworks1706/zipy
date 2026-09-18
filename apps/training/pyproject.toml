@@ -1,0 +1,35 @@
+[project]
+name = "training"
+version = "0.1.0"
+description = "Datasets from real runs, curated by hand, and the post-training that reads them"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "pyyaml>=6",
+    "rich>=13",
+    "typer>=0.15",
+]
+
+# Post-training only. The gate never installs these, and nothing outside posttrain imports them.
+[project.optional-dependencies]
+gpu = [
+    "datasets>=3.0",
+    "torch>=2.5",
+    "transformers>=4.47",
+    "trl>=0.12",
+    "unsloth>=2024.12",
+]
+
+[project.scripts]
+data = "training.datasets.cli:app"
+train = "training.posttrain.cli:app"
+
+[build-system]
+requires = ["setuptools>=84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "training" = "." }
+packages = ["training", "training.core", "training.datasets", "training.posttrain"]

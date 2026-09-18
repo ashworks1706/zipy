@@ -194,7 +194,7 @@ class LiteLlmChat:
                 "latency_ms": round((time.monotonic() - started) * 1000),
                 "input": wire,
                 "output": completion.text,
-                "tool_calls": [call.name for call in completion.tool_calls],
+                "tool_calls": [_tool_call_wire(call) for call in completion.tool_calls],
                 "prompt_tokens": completion.usage.prompt_tokens,
                 "completion_tokens": completion.usage.completion_tokens,
                 "cost_cents": completion.usage.cost_cents,

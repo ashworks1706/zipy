@@ -111,6 +111,16 @@ traces *ARGS:
 eval *ARGS:
     uv run zipy eval {{ARGS}}
 
+# ---------- training ----------
+
+# Datasets from real runs: export, verify, review, curate, stats
+data *ARGS:
+    uv run data {{ARGS}}
+
+# Post-training over the curated set. Needs a GPU and `uv sync --extra gpu`
+train *ARGS:
+    uv run train {{ARGS}}
+
 # Apply database migrations up to head
 migrate *ARGS="upgrade head":
     uv run zipy db {{ARGS}}

@@ -77,13 +77,15 @@ def test_ci_paths_cover_every_app():
 
 
 def test_every_version_in_the_repo_agrees():
-    engine = re.search(
-        r'^version = "(.*)"', (ROOT / "apps/engine/pyproject.toml").read_text(), re.M
-    )
-    cli = re.search(r'^version = "(.*)"', (ROOT / "apps/cli/pyproject.toml").read_text(), re.M)
-    website = json.loads((ROOT / "apps/website/package.json").read_text())["version"]
-    assert engine and cli
-    assert engine.group(1) == cli.group(1) == website
+    versions = {}
+    for app in ("engine", "cli", "training"):
+        found = re.search(
+            r'^version = "(.*)"', (ROOT / f"apps/{app}/pyproject.toml").read_text(), re.M
+        )
+        assert found, f"apps/{app}/pyproject.toml has no version"
+        versions[app] = found.group(1)
+    versions["website"] = json.loads((ROOT / "apps/website/package.json").read_text())["version"]
+    assert len(set(versions.values())) == 1, versions
 
 
 def test_dependabot_covers_every_ecosystem_in_the_repo():

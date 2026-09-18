@@ -4,12 +4,13 @@
 #   apps/engine   the one process: chat platform plugins, the gateway, the agent, its tools and
 #                 memory, provider plugins, the HTTP server, the workers, and the zipy command
 #   apps/cli      the developer console over every just recipe
+#   apps/training datasets from real runs, the decisions made about them, and post-training
 #   apps/website  the landing page, Next.js; not a Python package, not a workspace member
 #
 # Apps never import each other. The console runs recipes.
 
 [tool.uv.workspace]
-members = ["apps/engine", "apps/cli"]
+members = ["apps/engine", "apps/cli", "apps/training"]
 
 [dependency-groups]
 dev = [
@@ -31,10 +32,11 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RET", "ARG", "PTH", "T20", "ANN"]
 ignore = ["ANN401"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["engine", "cli"]
+known-first-party = ["engine", "cli", "training"]
 
 [tool.ruff.lint.per-file-ignores]
 "apps/engine/commands/*" = ["T20"]
+"apps/training/*/cli.py" = ["T20"]
 "apps/**/tests/*" = ["ANN", "ARG"]
 "tests/*" = ["ANN", "ARG"]
 # Alembic loads these by path; they are not part of the package.
@@ -46,7 +48,7 @@ extend-immutable-calls = ["typer.Option", "typer.Argument"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["apps/engine", "apps/cli"]
+files = ["apps/engine", "apps/cli", "apps/training"]
 exclude = ["/tests/", "apps/engine/data/migrations/"]
 ignore_missing_imports = true
 
@@ -63,14 +65,14 @@ asyncio_default_fixture_loop_scope = "function"
 # same change. Enforced by scripts/check-deps.sh, which runs in just check, the pre-commit hook,
 # and CI.
 [tool.importlinter]
-root_packages = ["engine", "cli"]
+root_packages = ["engine", "cli", "training"]
 include_external_packages = true
 exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
 name = "apps never import each other"
 type = "independence"
-modules = ["engine", "cli"]
+modules = ["engine", "cli", "training"]
 
 # ---------------------------------------------------------------- inside the engine
 #

@@ -33,8 +33,13 @@ The stand-in proves the code, not that the provider agrees with it.
 - [ ] Cross-tool digests: "what's happening this week", exec meeting rundown
 
 ## v0.6 Benchmark
+
 - [ ] run on existing benchmarks
 - [ ] make short tech writeup on readme
+- [x] Eval cases from the user stories, scored on correctness and behaviour, over fixtures
+- [x] `zipy eval-add` drafts a case from a real request's trace
+- [x] `apps/training`: traces to examples, reviewed one at a time, curated set, SFT
+- [ ] A model post-trained on curated runs, kept only if the eval suite says it helps
 
 ## v0.7 Collaboration state
 
@@ -54,7 +59,7 @@ so the state updates from behaviour and keeps none of the text behind it.
 - [ ] Production compose on an Oracle Cloud free tier ARM box, behind Caddy
 - [ ] Uptime Kuma alerts into the org's chat
 - [ ] Setup guide an officer with no ops background can follow in under an hour
-- [ ] Eval cases from the user stories in docs/USER_STORIES.md, run before every release
+- [ ] The eval suite run before every release, with its baseline in the release notes
 
 ## Out of scope
 
@@ -62,5 +67,9 @@ so the state updates from behaviour and keeps none of the text behind it.
 - Replacing Notion or Google Calendar as the system of record
 - A hosted SaaS, pricing, or an enterprise tier
 - Sub-agents per integration
-- Storing chat history from any platform
+- Storing chat history from any platform. The runtime keeps none: memory reads history back off
+  the platform, and collaboration state records what behaviour showed rather than what was said.
+  A training dataset is the one thing that holds conversation text, and it is not the runtime: it
+  is built by hand from local traces, redacted, reviewed example by example, and never read by a
+  request. `apps/training` is not deployed, and the engine never imports it.
 - Features that work on only one platform when the gateway could offer them on all
