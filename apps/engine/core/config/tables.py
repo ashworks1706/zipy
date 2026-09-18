@@ -94,6 +94,33 @@ class ModelRole(_Table):
         return self
 
 
+class Files(_Table):
+    """Files attached to a message, read into text and stored for recall."""
+
+    enabled: bool = True
+    # Files read from one message. The rest are named and left.
+    max_per_message: int = 5
+    max_bytes: int = 20_000_000
+    # Characters one file yields. A larger file is read up to here, not refused.
+    max_chars: int = 200_000
+    # Characters of the reading that go into this turn's prompt. The whole of it stays searchable.
+    max_prompt_chars: int = 8_000
+    download_timeout_secs: float = 30.0
+    parse_timeout_secs: float = 30.0
+
+    @model_validator(mode="after")
+    def _check(self) -> Files:
+        if self.max_per_message < 1:
+            raise ConfigError("files.max_per_message must be at least 1")
+        if self.max_bytes < 1 or self.max_chars < 1:
+            raise ConfigError("files.max_bytes and max_chars must be positive")
+        if self.max_prompt_chars > self.max_chars:
+            raise ConfigError("files.max_prompt_chars cannot exceed files.max_chars")
+        if self.download_timeout_secs <= 0 or self.parse_timeout_secs <= 0:
+            raise ConfigError("files.download_timeout_secs and parse_timeout_secs must be positive")
+        return self
+
+
 class Collaboration(_Table):
     """Per-person collaboration state. Off means every prompt is what it would be without it."""
 

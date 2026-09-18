@@ -102,6 +102,7 @@ class PromptBuilder:
             markup=markup,
             org_facts=context.org_facts,
             collaborator=context.collaborator,
+            attachments=context.attachments,
         )
         messages = [ChatMessage(speaker=Speaker.SYSTEM, content=system.strip())]
         recalled = recalled_block(context)

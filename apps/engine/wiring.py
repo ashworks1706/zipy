@@ -190,6 +190,7 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
         collaboration=collaboration,
         settings=config.collaboration,
         conditioning=config.models["chat"].conditioning,
+        files=config.files,
     )
     orchestrator = Orchestrator(
         agent=config.agent,

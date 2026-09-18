@@ -31,6 +31,7 @@ from engine.core.config.tables import (
     Budget,
     Collaboration,
     Data,
+    Files,
     Memory,
     ModelRole,
     Permissions,
@@ -53,6 +54,7 @@ __all__ = [
     "App",
     "Budget",
     "Collaboration",
+    "Files",
     "Config",
     "Data",
     "Memory",
@@ -97,6 +99,7 @@ class Config(BaseSettings):
     models: dict[str, ModelRole] = {}
     memory: Memory = Field(default_factory=Memory)
     collaboration: Collaboration = Field(default_factory=Collaboration)
+    files: Files = Field(default_factory=Files)
     budget: Budget = Field(default_factory=Budget)
     rate_limit: RateLimit = Field(default_factory=RateLimit)
     workers: Workers = Field(default_factory=Workers)

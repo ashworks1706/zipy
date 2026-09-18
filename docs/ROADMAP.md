@@ -31,6 +31,7 @@ The stand-in proves the code, not that the provider agrees with it.
 - [ ] Zoom provider webhook to document jobs; Drive and Notion documents() and periodic sync
 - [ ] Summary model role for transcripts; retention pruning
 - [ ] Cross-tool digests: "what's happening this week", exec meeting rundown
+- [x] Attached files read into text and stored for recall: pdf, docx, pptx, xlsx, csv, json, zip
 
 ## v0.6 Benchmark
 

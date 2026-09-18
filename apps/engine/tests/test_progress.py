@@ -181,12 +181,23 @@ def test_the_sink_writes_only_to_the_request_being_watched(ctx):
     assert [one.event for one in seen] == ["model_started"], "bookkeeping writes no line"
 
 
-def test_images_only_reach_the_model_when_discord_calls_them_images():
+def test_only_what_discord_calls_an_image_is_sent_as_one():
+    """A readable file is still an attachment; it is read into text, never shown to the model."""
     from engine.core.types import Attachment
 
-    assert Attachment.of("https://cdn/one.png", "image/png") is not None
+    png = Attachment.of("https://cdn/one.png", "image/png")
+    csv = Attachment.of("https://cdn/sheet.csv", "text/csv")
+    assert png is not None and png.is_image
     assert Attachment.of("https://cdn/two.jpg", "image/jpeg; charset=binary") is not None
-    assert Attachment.of("https://cdn/sheet.csv", "text/csv") is None
+    assert csv is not None and not csv.is_image
+    assert Attachment.accepted([csv], 4) == ()
+    assert Attachment.readable([png], 4) == ()
+
+
+def test_a_type_nothing_handles_is_still_dropped_without_a_word():
+    from engine.core.types import Attachment
+
+    assert Attachment.of("https://cdn/thing.exe", "application/x-msdownload") is None
     assert Attachment.of("https://cdn/unknown", "") is None
     assert Attachment.of("", "image/png") is None
 

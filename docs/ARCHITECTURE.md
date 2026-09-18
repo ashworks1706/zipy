@@ -801,6 +801,35 @@ that ran and whether anything waited for a confirmation, and `contains` is left 
 reviewer to say what the answer should have carried.
 
 
+## Attached files
+
+An image reaches the model as a link, because every OpenAI-compatible server fetches a URL and the
+bytes stay with the platform. Everything else is downloaded and read into text.
+
+```
+attachment ──► download (capped) ──► parser for its media type ──► Document, source upload
+                                                                        │
+                                              ┌─────────────────────────┴───────────┐
+                                              ▼                                     ▼
+                                   chunked, embedded, stored              a capped extract in
+                                   so recall answers later                this turn's prompt
+```
+
+`memory/ingest/parsers` holds one parser per media type and `core/types.FILE_MEDIA_TYPES` names
+what the gateway accepts; a test holds the two together, so a type accepted on the way in and
+unreadable on the way out cannot exist. A type nothing handles is dropped at the gateway without a
+word, as it always was.
+
+Parsing runs in this process, in a worker thread under a deadline. The limits are about what comes
+out rather than what went in: `files.max_bytes` on the download, `files.max_chars` on the reading,
+and for archives a cap on entries, on each entry unpacked, and on all of them together. A nested
+archive is named and not opened. A file that cannot be read becomes one line saying so rather than
+a failed request, because the rest of the message is still worth answering.
+
+This is proportionate to the threat, which is a member of the org uploading something, not model
+output. It is not a substitute for a sandbox: no parser runs what it reads, and none should.
+
+
 ## Inference tiers
 
 Everything speaks the OpenAI-compatible surface, so a tier is a `[models.chat]` change, not a code

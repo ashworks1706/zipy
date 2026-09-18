@@ -197,6 +197,23 @@ trace_dir = ".zipy/traces"
 metrics = true
 sentry_traces_sample_rate = 0.1
 
+# ---------------------------------------------------------------- files
+#
+# Files attached to a message are downloaded, read into text, and stored as documents of source
+# upload, so the same file answers this turn and every later question about it. Parsing runs in
+# this process under a deadline; a file nothing reads is named and left rather than guessed at.
+
+[files]
+enabled = true
+max_per_message = 5
+max_bytes = 20000000
+# Characters one file yields into the document store.
+max_chars = 200000
+# Characters of it that go into this turn's prompt. The rest stays searchable.
+max_prompt_chars = 8000
+download_timeout_secs = 30.0
+parse_timeout_secs = 30.0
+
 # ---------------------------------------------------------------- training
 #
 # Datasets built from the traces above. The decisions a reviewer makes are the one part of this

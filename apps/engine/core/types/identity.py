@@ -72,6 +72,8 @@ class RequestContext:
     reply_to: str = ""
     #: Images attached to the member's message.
     images: tuple[Attachment, ...] = ()
+    #: Files attached to the member's message, read into text rather than sent as images.
+    files: tuple[Attachment, ...] = ()
     #: Where live progress goes while this request runs. None when nobody is watching.
     #: Excluded from equality: two contexts differing only in who is watching are the same request.
     watcher: Callable[[Progress], None] | None = field(default=None, compare=False)

@@ -1,6 +1,7 @@
 """Data types shared across the engine."""
 
 from engine.core.types.chat import (
+    FILE_MEDIA_TYPES,
     ActionType,
     AgentReply,
     AgentResult,
@@ -62,6 +63,7 @@ from engine.core.types.records import (
 )
 
 __all__ = [
+    "FILE_MEDIA_TYPES",
     "IMPLEMENTED",
     "NEUTRAL",
     "STATED_WEIGHT",
