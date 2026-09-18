@@ -17,9 +17,11 @@ from engine.core.types.chat import (
     wire_name,
 )
 from engine.core.types.collaboration import (
+    IMPLEMENTED,
     NEUTRAL,
     STATED_WEIGHT,
     CollaborationState,
+    Conditioning,
     Dimension,
     Evidence,
     Signal,
@@ -60,9 +62,11 @@ from engine.core.types.records import (
 )
 
 __all__ = [
+    "IMPLEMENTED",
     "NEUTRAL",
     "STATED_WEIGHT",
     "CollaborationState",
+    "Conditioning",
     "Dimension",
     "Evidence",
     "Signal",

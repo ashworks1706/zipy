@@ -13,7 +13,8 @@ from engine.core.protocols import (
     Embedder,
     OrgContextStore,
 )
-from engine.core.types import ChatMessage, RecallHit, RequestContext, Signal
+from engine.core.types import ChatMessage, Conditioning, RecallHit, RequestContext, Signal
+from engine.memory import follow_up
 from engine.memory.collaboration import render as render_collaborator
 from engine.memory.org_context import render
 from engine.memory.recall import recall
@@ -43,6 +44,7 @@ class MemoryManager:
         documents: DocumentStore,
         collaboration: CollaborationStore,
         settings: Collaboration,
+        conditioning: Conditioning = Conditioning.TEXT,
     ) -> None:
         self._memory = memory
         self._conversation = conversation
@@ -51,6 +53,7 @@ class MemoryManager:
         self._documents = documents
         self._collaboration = collaboration
         self._settings = settings
+        self._conditioning = conditioning
 
     async def build(self, ctx: RequestContext, message: str) -> Context:
         """The last conversation_limit messages, the org's facts, and recall if triggered."""
@@ -59,6 +62,7 @@ class MemoryManager:
         recalled: list[RecallHit] = []
         if wants_recall(message, self._memory.recall_triggers):
             recalled = await recall(ctx, message, self._memory, self._embedder, self._documents)
+        await self._read_turn(ctx, message, history)
         return Context(
             history=history,
             org_facts=render(facts),
@@ -66,12 +70,27 @@ class MemoryManager:
             collaborator=await self._collaborator(ctx),
         )
 
+    async def _read_turn(
+        self, ctx: RequestContext, message: str, history: list[ChatMessage]
+    ) -> None:
+        """Record what a follow-up turn shows before the state is read for this request."""
+        if not self._settings.enabled:
+            return
+        signals = follow_up.read(
+            message,
+            history,
+            self._settings.brevity_triggers,
+            self._settings.detail_triggers,
+            self._settings.correction_triggers,
+        )
+        await self.observe(ctx, signals)
+
     async def _collaborator(self, ctx: RequestContext) -> str:
         """What the asker's state asks for, or nothing while collaboration is off."""
         if not self._settings.enabled:
             return ""
         state = await self._collaboration.state(ctx.org_id, ctx.member)
-        return render_collaborator(state, self._settings.min_observations)
+        return render_collaborator(state, self._settings.min_observations, self._conditioning)
 
     async def observe(self, ctx: RequestContext, signals: Sequence[Signal]) -> None:
         """Records what a turn showed about the asker. Does nothing while collaboration is off."""

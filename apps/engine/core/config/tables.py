@@ -9,6 +9,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, SecretStr, model_validator
 
 from engine.core.types.chat import ActionType
+from engine.core.types.collaboration import IMPLEMENTED, Conditioning
 from engine.core.types.errors import ConfigError
 from engine.core.types.identity import Role
 
@@ -75,6 +76,8 @@ class ModelRole(_Table):
     max_tokens: int = 1024
     timeout_secs: float = 60.0
     dimensions: int = 0
+    # What this endpoint can be conditioned with. An endpoint that takes only tokens is text.
+    conditioning: Conditioning = Conditioning.TEXT
 
     @model_validator(mode="after")
     def _check(self) -> ModelRole:
@@ -82,6 +85,12 @@ class ModelRole(_Table):
             raise ConfigError("models.*.temperature must lie in [0, 2]")
         if self.max_tokens < 1 or self.timeout_secs <= 0:
             raise ConfigError("models.*.max_tokens and timeout_secs must be positive")
+        if self.conditioning not in IMPLEMENTED:
+            built = ", ".join(c.value for c in IMPLEMENTED)
+            raise ConfigError(
+                f"models.*.conditioning {self.conditioning.value} has no renderer yet; "
+                f"built so far: {built}"
+            )
         return self
 
 
@@ -91,6 +100,10 @@ class Collaboration(_Table):
     enabled: bool = False
     alpha: float = 0.15
     min_observations: int = 5
+    # Phrases that read a follow-up turn. Only a turn right after an answer is read at all.
+    brevity_triggers: list[str] = []
+    detail_triggers: list[str] = []
+    correction_triggers: list[str] = []
 
     @model_validator(mode="after")
     def _check(self) -> Collaboration:

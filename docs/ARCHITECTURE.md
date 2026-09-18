@@ -588,10 +588,18 @@ rendered into the system prompt as instructions rather than numbers, it never ov
 permission check or a confirmation, and `collaboration.enabled` is false until the eval suite's
 behaviour axis says it earns its place.
 
-It moves two ways. Answering a confirmation is read as a signal on autonomy: confirming says the
-asking was unnecessary, cancelling says it was not. `@Zipy prefer less depth` states a preference
-outright, and weighs four ordinary observations, so saying it once is felt but does not pin the
-dimension forever. Both go through the same exponential moving average, so no single turn decides
+It moves three ways. Answering a confirmation is read as a signal on autonomy: confirming says the
+asking was unnecessary, cancelling says it was not. A turn that follows an answer is read for what
+it asks for: shorter, or more, or that the answer was wrong; the category is kept and the words are
+not, exactly as with a confirmation. `@Zipy prefer less depth` states a preference outright, and
+weighs four ordinary observations, so saying it once is felt but does not pin the dimension
+forever.
+
+Only a turn that follows an answer is read at all: asking why as an opening question is a
+question, while asking it straight after an answer is a request for more than the answer gave. A
+turn that reads as two things at once raises nothing, because ambiguous evidence moves a dimension
+on a coin flip. Platforms differ on whether the turn being handled is already in the history they
+hand back, so trailing user turns are skipped and both read the same. Both go through the same exponential moving average, so no single turn decides
 anything and old observations fade. `@Zipy prefer` shows a person what was read about them in the
 words the prompt gets, and `@Zipy prefer forget` drops it. Nobody writes anybody else's row: an
 admin setting someone else's would be a permission change wearing a preference costume.
@@ -774,10 +782,43 @@ true, and behaviour must move, because a state that changes nothing is not worth
 `just eval` is not part of `just check`: it needs a model, and the gate stays fast and hermetic.
 The suite itself is covered by ordinary tests, which run the loop with a scripted model.
 
+The contrast table is what decides whether `collaboration.enabled` ships on. Running it needs a
+real model rather than a stub, because a stub that ignores the system prompt cannot move:
+
+```
+just model                 # llama.cpp on the CPU, or just model-gpu
+just eval                  # correctness per case, behaviour per case, contrast per dimension
+```
+
+Ship it on when correctness holds across both ends of a dimension and behaviour moves. Leave it
+off otherwise, whatever the mechanism behind the state.
+
 A bad answer becomes a case without hand-writing TOML. `zipy traces` lists the recent requests and
 `zipy eval-add <request-id> --id <case-id>` drafts one: the trace gives the question, the actions
 that ran and whether anything waited for a confirmation, and `contains` is left empty for the
 reviewer to say what the answer should have carried.
+
+
+## Inference tiers
+
+Everything speaks the OpenAI-compatible surface, so a tier is a `[models.chat]` change, not a code
+change:
+
+| tier | serving | text conditioning | prefix conditioning |
+|---|---|---|---|
+| hosted | a provider API | yes | no |
+| local | llama.cpp, `just model` | yes | no |
+| local+ | vLLM or SGLang | yes | possible, not built |
+
+`conditioning` on a model role says which the endpoint accepts. `memory/collaboration.py` holds one
+renderer per conditioning and `core/types/collaboration.IMPLEMENTED` names the ones that exist; a
+role asking for anything else is refused at boot rather than silently conditioning on nothing. A
+test holds the renderers to that list.
+
+Text is the only renderer built, and it is the one that works everywhere. The seam exists so that
+conditioning the model below the text, with a prefix in embedding space, is a renderer and a
+serving tier rather than a change to the gateway, the orchestrator or the prompt builder. Whether
+that is worth building is a question for the contrast table, not for the architecture.
 
 
 ## Training
