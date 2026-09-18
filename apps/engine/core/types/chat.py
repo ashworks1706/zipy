@@ -148,6 +148,24 @@ class ToolOutcome:
 
 
 @dataclass(frozen=True)
+class SubAgent:
+    """Enough of a sub-agent to take it up again after someone answers its confirmation.
+
+    The parent is not here. What the parent was doing is rebuilt from the platform's history and
+    the result this run goes on to produce, exactly as a resumed request already is; a sub-agent's
+    own messages are the part nothing else holds.
+    """
+
+    #: The delegate call the parent is waiting on.
+    call_id: str
+    task: str
+    tools: tuple[str, ...] = ()
+    messages: tuple[ChatMessage, ...] = ()
+    #: Turns it had already taken, so it resumes with what it had left.
+    turns_used: int = 0
+
+
+@dataclass(frozen=True)
 class PendingConfirmation:
     """A destructive call waiting for an answer from someone allowed to give it."""
 
@@ -158,6 +176,8 @@ class PendingConfirmation:
     call: ToolCall
     summary: str
     expires_at: datetime
+    #: The sub-agent that asked, when a sub-agent did. None when the request itself did.
+    sub_agent: SubAgent | None = None
 
 
 @dataclass(frozen=True)

@@ -857,3 +857,116 @@ async def test_the_parent_reads_back_what_the_sub_agent_ran(ctx, cfg):
     handed_back = [m.content for m in model.requests[-1] if "delegate ran" in m.content]
     assert handed_back, "the parent was told what it ran"
     assert "diary.list_events" in handed_back[0]
+
+
+async def test_a_destructive_call_inside_a_sub_agent_stops_and_stores_the_sub_agent(ctx, cfg):
+    held = MemoryConfirmations()
+    agent, _, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="", tool_calls=(call("diary.move_event", event_id="e1"),)),
+        ],
+        confirmations=held,
+    )
+
+    result = await agent.handle(ctx, "clear my week", "discord-markdown")
+
+    assert isinstance(result, NeedsConfirmation)
+    stored = held.pending[result.pending.id]
+    assert stored.sub_agent is not None
+    assert stored.sub_agent.call_id == "d1", "it names the delegate call the parent waits on"
+    assert stored.sub_agent.tools == ("diary",)
+    assert stored.sub_agent.turns_used == 1
+    assert stored.sub_agent.messages, "its conversation is what nothing else holds"
+
+
+async def test_confirming_takes_the_sub_agent_up_again_and_answers_the_parent(ctx, cfg):
+    held = MemoryConfirmations()
+    agent, model, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="", tool_calls=(call("diary.move_event", event_id="e1"),)),
+            # After the answer: the sub-agent finishes, then the parent answers.
+            Completion(text="Removed the one clash."),
+            Completion(text="Cleared it."),
+        ],
+        confirmations=held,
+    )
+    stopped = await agent.handle(ctx, "clear my week", "discord-markdown")
+    assert isinstance(stopped, NeedsConfirmation)
+
+    result = await agent.confirm(ctx, stopped.pending.id, "discord-markdown")
+
+    assert isinstance(result, AgentReply)
+    assert result.text == "Cleared it."
+    # The parent was handed the subtask's conclusion, not the raw tool result.
+    parent = model.requests[-1]
+    assert any("Removed the one clash." in m.content for m in parent)
+
+
+async def test_a_resumed_sub_agent_picks_up_the_turns_it_had_left(ctx, cfg):
+    """It had taken one of two; one is left, so it answers or runs out on that one."""
+    config = Agent(max_iterations=8, delegate_max_iterations=2)
+    held = MemoryConfirmations()
+    agent, model, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="", tool_calls=(call("diary.move_event", event_id="e1"),)),
+            Completion(text="Done."),
+            Completion(text="All set."),
+        ],
+        confirmations=held,
+        agent_config=config,
+    )
+    stopped = await agent.handle(ctx, "go", "discord-markdown")
+    assert isinstance(stopped, NeedsConfirmation)
+
+    result = await agent.confirm(ctx, stopped.pending.id, "discord-markdown")
+
+    assert isinstance(result, AgentReply)
+    assert len(model.script) == 0
+
+
+async def test_a_sub_agent_with_no_turns_left_does_not_resume(ctx, cfg):
+    config = Agent(max_iterations=8, delegate_max_iterations=1)
+    held = MemoryConfirmations()
+    agent, model, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="", tool_calls=(call("diary.move_event", event_id="e1"),)),
+            Completion(text="I could not finish that."),
+        ],
+        confirmations=held,
+        agent_config=config,
+    )
+    stopped = await agent.handle(ctx, "go", "discord-markdown")
+    assert isinstance(stopped, NeedsConfirmation)
+
+    result = await agent.confirm(ctx, stopped.pending.id, "discord-markdown")
+
+    assert isinstance(result, AgentReply)
+    assert any("ran out of turns" in m.content for m in model.requests[-1])
+
+
+async def test_a_confirmation_the_request_itself_asked_for_stores_no_sub_agent(ctx, cfg):
+    """The ordinary path is unchanged: nothing is kept that was not kept before."""
+    held = MemoryConfirmations()
+    agent, _, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [Completion(text="", tool_calls=(call("diary.move_event", event_id="e1"),))],
+        confirmations=held,
+    )
+
+    result = await agent.handle(ctx, "delete it", "discord-markdown")
+
+    assert isinstance(result, NeedsConfirmation)
+    assert held.pending[result.pending.id].sub_agent is None

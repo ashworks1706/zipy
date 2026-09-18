@@ -32,6 +32,8 @@ The stand-in proves the code, not that the provider agrees with it.
 - [ ] Summary model role for transcripts; retention pruning
 - [ ] Cross-tool digests: "what's happening this week", exec meeting rundown
 - [x] Attached files read into text and stored for recall: pdf, docx, pptx, xlsx, csv, json, zip
+- [x] One level of delegation: a named subtask, a subset of the tools, its own turn limit, and a
+      destructive call inside it suspends and resumes
 
 ## v0.6 Benchmark
 

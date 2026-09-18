@@ -42,6 +42,7 @@ from engine.core.types import (
     RequestContext,
     Signal,
     StoreError,
+    SubAgent,
     ToolCall,
     ToolOutcome,
     Usage,
@@ -75,6 +76,11 @@ class Budget:
     """
 
     delegations: int = 0
+
+
+def _task_of(messages: Sequence[ChatMessage]) -> str:
+    """The task a sub-agent was given, which is the system message it started from."""
+    return messages[0].content if messages else ""
 
 
 def _failed(call: ToolCall, why: str) -> ToolOutcome:
@@ -140,9 +146,37 @@ class Orchestrator:
             ctx, "confirmation", {"id": confirmation_id, "answer": "confirm", "ok": outcome.ok}
         )
         await self._memory.observe(ctx, [_answered(Evidence.CONFIRMATION_CONFIRMED, 1.0)])
+        resumed = outcome
+        if pending.sub_agent is not None:
+            resumed = await self._resume(ctx, org, pending.sub_agent, outcome)
         context = await self._memory.build(ctx, pending.summary)
-        messages = self._prompts.build(ctx, org, markup, context, "", (outcome,))
+        messages = self._prompts.build(ctx, org, markup, context, "", (resumed,))
         return await self._run(ctx, org, messages, Budget())
+
+    async def _resume(
+        self, ctx: RequestContext, org: Org, sub: SubAgent, outcome: ToolOutcome
+    ) -> ToolOutcome:
+        """Take a sub-agent up again with its confirmed call answered, and hand back what it made.
+
+        What comes out is the delegate call's result, not the confirmed tool's: the parent asked
+        for a subtask and is owed the subtask's conclusion.
+        """
+        call = ToolCall(id=sub.call_id, name=delegation.NAME, arguments={"task": sub.task})
+        nested = replace(ctx, depth=delegation.SUB_AGENT_DEPTH, parent=sub.call_id)
+        messages = [*sub.messages, *tool_messages([outcome])]
+        left = self._agent.delegate_max_iterations - sub.turns_used
+        if left < 1:
+            return _failed(call, "the subtask ran out of turns while it waited")
+        self._trace.event(nested, "delegate_resumed", {"id": sub.call_id, "turns_left": left})
+        try:
+            result = await self._run(nested, org, messages, Budget(), only=sub.tools, left=left)
+        except ZipyError as exc:
+            return _failed(call, str(exc))
+        if not isinstance(result, AgentReply):
+            return _failed(call, "that subtask needs another confirmation, so do it yourself")
+        return ToolOutcome(
+            call=call, ok=True, content=delegation.result(result.text, list(result.ran))
+        )
 
     async def cancel(self, ctx: RequestContext, confirmation_id: str) -> None:
         """Drop a pending call."""
@@ -185,6 +219,7 @@ class Orchestrator:
         messages: list[ChatMessage],
         budget: Budget,
         only: Sequence[str] | None = None,
+        left: int = 0,
     ) -> AgentResult:
         """Call the model until it answers, a destructive call waits, or the turns run out.
 
@@ -193,7 +228,9 @@ class Orchestrator:
         """
         depth = ctx.depth
         schemas = await self._schemas(ctx, depth, only)
-        limit = self._agent.max_iterations if depth == 0 else self._agent.delegate_max_iterations
+        limit = left or (
+            self._agent.max_iterations if depth == 0 else self._agent.delegate_max_iterations
+        )
         usage = Usage()
         spent = float(org.spent_cents)
         ran: list[str] = []
@@ -216,17 +253,41 @@ class Orchestrator:
             outcomes: list[ToolOutcome] = []
             for call in runnable:
                 if call.name == delegation.NAME:
-                    sub, spent_here = await self._delegate(ctx, org, call, budget, spent)
-                    spent = spent_here
+                    sub, spent = await self._delegate(ctx, org, call, budget, spent)
+                    if isinstance(sub, NeedsConfirmation):
+                        return sub
                     outcomes.append(sub)
                     continue
                 outcomes.append(await self._executor.run(ctx, call))
             ran.extend(outcome.call.name for outcome in outcomes)
             if held is not None:
-                return await self._hold(ctx, held)
+                messages.extend(tool_messages(outcomes))
+                return await self._hold(ctx, held, self._suspended(ctx, messages, turn, only))
             messages.extend(tool_messages(outcomes))
         self._trace.event(ctx, "reply", {"turns": limit, "tools": ran})
         return AgentReply(text=self._exhausted(ran), usage=usage, ran=tuple(ran))
+
+    def _suspended(
+        self,
+        ctx: RequestContext,
+        messages: list[ChatMessage],
+        turn: int,
+        only: Sequence[str] | None,
+    ) -> SubAgent | None:
+        """What a sub-agent needs to take itself up again. None when the request itself is asking.
+
+        The parent is not kept: what it was doing is rebuilt from the platform's history and the
+        result this sub-agent goes on to produce, the way a resumed request already is.
+        """
+        if not ctx.depth or not ctx.parent:
+            return None
+        return SubAgent(
+            call_id=ctx.parent,
+            task=_task_of(messages),
+            tools=tuple(only or ()),
+            messages=tuple(messages),
+            turns_used=turn,
+        )
 
     async def _delegate(
         self,
@@ -235,7 +296,7 @@ class Orchestrator:
         call: ToolCall,
         budget: Budget,
         spent: float,
-    ) -> tuple[ToolOutcome, float]:
+    ) -> tuple[ToolOutcome | NeedsConfirmation, float]:
         """Run one sub-agent and return what the parent reads, with the spend it left behind.
 
         Every way this can go wrong is a tool result rather than a raised error: a sub-agent that
@@ -265,8 +326,10 @@ class Orchestrator:
             self._trace.event(ctx, "delegate_failed", {"id": call.id, "error": str(exc)})
             return _failed(call, str(exc)), spent
         if not isinstance(result, AgentReply):
+            # The sub-agent stopped at a destructive call and stored itself. The gateway asks, and
+            # confirm takes it up again and then rebuilds this level around what it produced.
             self._trace.event(ctx, "delegate_held", {"id": call.id})
-            return _failed(call, "that subtask needs a confirmation, so do it yourself"), spent
+            return result, spent
         spent += result.usage.cost_cents
         text = delegation.result(result.text, list(result.ran))
         self._trace.event(ctx, "delegate_done", {"id": call.id, "chars": len(text)})
@@ -295,7 +358,9 @@ class Orchestrator:
             runnable.append(call)
         return runnable, None
 
-    async def _hold(self, ctx: RequestContext, call: ToolCall) -> NeedsConfirmation:
+    async def _hold(
+        self, ctx: RequestContext, call: ToolCall, sub_agent: SubAgent | None = None
+    ) -> NeedsConfirmation:
         """Store a destructive call for someone to answer, and hand it to the gateway."""
         pending = PendingConfirmation(
             id=str(uuid4()),
@@ -305,6 +370,7 @@ class Orchestrator:
             call=call,
             summary=_summarize(call),
             expires_at=ctx.received_at + timedelta(seconds=self._agent.confirmation_ttl_secs),
+            sub_agent=sub_agent,
         )
         await self._confirmations.put(pending)
         self._trace.event(

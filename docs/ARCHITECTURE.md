@@ -29,6 +29,13 @@ message, the tools available to this org with their schemas, and decides what to
 orchestrator loops: call a tool, read the result, decide whether to call another, until done (at
 most `agent.max_iterations`).
 
+A destructive call inside a sub-agent stops two levels. What the parent was doing is rebuilt from
+the platform's history and the result the sub-agent goes on to produce, the way a resumed request
+already is; the sub-agent's own messages are the part nothing else holds, so they wait on the
+pending confirmation with its task, its tools and the turns it had taken. The row is deleted when
+the answer comes and swept when it expires, so that holds a conversation for as long as a
+confirmation waits and no longer.
+
 `delegate` is the one tool that runs that same loop again, once, on a subtask. There are no
 specialist agents per integration and no agent that exists before a request: a sub-agent is the
 same loop with a task, a named subset of the parent's tools, and its own turn limit, and it is
