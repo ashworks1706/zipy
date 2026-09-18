@@ -1,12 +1,12 @@
 name: Bug
-description: Zipy did something wrong or failed
+description: A request produced the wrong result, or the run failed
 labels: [bug]
 body:
   - type: textarea
     id: what
     attributes:
       label: What happened
-      description: What you asked, what Zipy did, what you expected.
+      description: The request, what the run did with it, and what it should have done.
     validations:
       required: true
   - type: input

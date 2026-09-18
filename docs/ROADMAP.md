@@ -7,7 +7,7 @@ A step whose code is written and tested against a stand-in for a third party, bu
 yet run against the real Discord, Google, Notion or Zoom, is left unticked and marked (built).
 The stand-in proves the code, not that the provider agrees with it.
 
-## v0.2 Talks back
+## v0.2 Answers
 
 - [ ] (built) LiteLLM chat client per model role with spend in Usage; structlog with org and member bound
 - [ ] (built) Discord platform: mentions and DMs to Inbound, install to WorkspaceInstalled, history, send
@@ -36,19 +36,31 @@ The stand-in proves the code, not that the provider agrees with it.
 - [ ] run on existing benchmarks
 - [ ] make short tech writeup on readme
 
+## v0.7 Collaboration state
+
+Not built. The direction: a compact, per-person state derived from how someone works, not from
+what they say about themselves, conditioning the agent per member. Chat history stays unstored,
+so the state updates from behaviour and keeps none of the text behind it.
+
+- [ ] Per-member profile: named dimensions with the observation count behind each
+- [ ] Derived by a worker from the audit log and turn outcomes; nobody types it
+- [ ] Readable and correctable by the person it describes
+- [ ] Conditions the prompt behind a switch, off until the evals say it earns its place
+- [ ] Measured by the behaviour axis of the eval suite: same question, same model, different
+      member, behaviour moves and correctness holds
+
 ## v1.0 Any org can self-host it
 
 - [ ] Production compose on an Oracle Cloud free tier ARM box, behind Caddy
 - [ ] Uptime Kuma alerts into the org's chat
 - [ ] Setup guide an officer with no ops background can follow in under an hour
-- [ ] Eval cases from the user stories in docs/ARCHITECTURE.md, run before every release
+- [ ] Eval cases from the user stories in docs/USER_STORIES.md, run before every release
 
 ## Out of scope
 
 - A general assistant: essays, images, trivia
 - Replacing Notion or Google Calendar as the system of record
 - A hosted SaaS, pricing, or an enterprise tier
-- Local GPU inference
 - Sub-agents per integration
 - Storing chat history from any platform
 - Features that work on only one platform when the gateway could offer them on all

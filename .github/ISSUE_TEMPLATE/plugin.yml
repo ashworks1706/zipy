@@ -1,5 +1,5 @@
 name: Platform or integration request
-description: A chat platform, an account provider, or a tool Zipy should support
+description: A surface, an account provider, or a tool the runtime should support
 labels: [plugin]
 body:
   - type: dropdown
@@ -19,7 +19,7 @@ body:
   - type: textarea
     id: stories
     attributes:
-      label: What officers would ask
-      description: Two or three real requests, and which would change or delete data.
+      label: What it would be used for
+      description: Two or three real requests, the tool call each becomes, and which of them change or delete data.
     validations:
       required: true

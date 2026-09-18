@@ -1,5 +1,5 @@
 name: Feature
-description: Something Zipy should do that is not a new plugin
+description: Something the runtime should do that is not a new plugin
 labels: [enhancement]
 body:
   - type: textarea

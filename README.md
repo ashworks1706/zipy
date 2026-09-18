@@ -29,11 +29,16 @@ student orgs, which have the turnover to prove it.
 <img width="1671" height="833" alt="image" src="https://github.com/user-attachments/assets/7a2c95a6-5387-4702-89e4-3ebb247d259a" />
 
 
+Asking is one way in. Whatever the surface, the same runtime resolves the org and the asker's
+role, assembles the context, runs the tool loop, holds anything destructive for a confirmation,
+and writes an audit entry and a trace for every step.
+
 ```
-@Zipy when's the deadline for the next budget request?
-@Zipy add an event next Tuesday 6pm, intro to LLMs workshop, CPCOM 210, invite sarah@asu.edu
-@Zipy what did we decide about sponsorships in the last exec meeting?
-@Zipy remember our budget tracker is the Notion database called Finance Tracker
+when's the deadline for the next budget request?     notion.query_database
+add an event next Tuesday 6pm, intro to LLMs         calendar.create_event
+workshop, CPCOM 210, invite sarah@asu.edu
+what did we decide about sponsorships last meeting?  semantic recall over stored transcripts
+remember our budget tracker is the Finance Tracker   an org fact, kept for every later request
 ```
 
 

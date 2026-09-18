@@ -1,59 +1,146 @@
 # User stories
 
-What officers ask Zipy, and what it does. Each is a candidate eval case (see the v1.0 roadmap).
+What an org asks the runtime for, what it calls, and what the answer must carry. Each entry is an
+eval case: the id is stable, the calls are real tool actions from `just plugins`, and the
+expectation is what a run is scored against. See the v1.0 roadmap.
 
-**Calendar and scheduling:**
+An action's type comes from `zipy.toml`, never from the model. `read` and `create` run at once;
+`destructive` holds for a confirmation before anything changes.
 
-"When's the next exec board meeting?" — Zipy checks Google Calendar, finds the next event matching "exec board," and responds with the date, time, and location.
+## Calendar and scheduling
 
-"Add an event to calendar inviting me and sarah@asu.edu — workshop on intro to LLMs, next Tuesday 6pm, room CPCOM 210." — Zipy creates the event in Google Calendar with both attendees, the room, and a default 1-hour duration. Sends back a confirmation with the event link.
+### calendar-next-meeting
+> When's the next exec board meeting?
 
-"Can you readjust events this week? I want them to have 5-hour gaps between them." — Zipy fetches all events for the week, calculates new start times with 5-hour spacing, and posts a confirmation showing the before/after. Officer clicks confirm, Zipy updates each event. This is a multi-turn tool-calling loop — the LLM fetches, reasons, then writes.
+Calls `calendar.list_events` (read). Answers with the date, time and location of the next event
+matching the name asked for.
 
-"Am I free Thursday between 2 and 5?" — Checks the org calendar for conflicts in that window and responds with available slots.
+### calendar-create-event
+> Add an event to calendar inviting me and sarah@asu.edu — workshop on intro to LLMs, next
+> Tuesday 6pm, room CPCOM 210.
 
-**Notion and task management:**
+Calls `calendar.create_event` (create). Both attendees, the room, and a default one-hour duration.
+Answers with the event link.
 
-"When do I have to submit the next budget request?" — Zipy queries the Finance Tracker Notion database, finds the next upcoming deadline, and responds with the date and any notes attached.
+### calendar-respace-week
+> Can you readjust events this week? I want them to have 5-hour gaps between them.
 
-"Add Ben to this todo — I need to work with him on the sponsorship outreach." — Zipy updates the relevant Notion page, adding Ben as an assignee. If it's not clear which todo, it asks.
+Calls `calendar.list_events` (read), then `calendar.update_event` (destructive) per event. The
+update holds for a confirmation showing before and after; nothing changes until it is answered.
+The multi-turn case: read, reason, write.
 
-"What's the status of our event planning tasks?" — Queries the Notion database filtered by status, returns a summary of open, in-progress, and completed tasks.
+### calendar-free-slots
+> Am I free Thursday between 2 and 5?
 
-"Create a new task: design the flyer for the AI workshop, assign to Maria, due next Friday." — Creates a new page in the org's task database with the right properties filled in.
+Calls `calendar.find_free_slots` (read). Answers with the open windows, or says the time is taken.
 
-**Google Drive:**
+## Notion and task management
 
-"Can you point me to where the officer contact list sheet is?" — Searches the org's connected Google Drive for files matching "officer contact list" and returns the file name and link.
+### notion-next-deadline
+> When do I have to submit the next budget request?
 
-"What's in the Events folder?" — Lists the contents of the specified Drive folder with file names and last-modified dates.
+Calls `notion.query_database` (read) against the database an org fact names. Answers with the date
+and any note on the row.
 
-"Find the budget spreadsheet from last semester." — Searches Drive with relevant keywords and returns matching files.
+### notion-assign-todo
+> Add Ben to this todo — I need to work with him on the sponsorship outreach.
 
-**Zoom:**
+Calls `notion.update_page` (destructive), so it holds for a confirmation. Asks which task when the
+reference is ambiguous rather than guessing.
 
-"Please summarize the latest Zoom meeting we had." — Zipy checks its indexed transcripts (ingested automatically when Zoom sends a recording.completed webhook), retrieves the most recent one for the org, and sends the LLM a summarization prompt against the transcript chunks.
+### notion-task-status
+> What's the status of our event planning tasks?
 
-"What did we decide about sponsorships in the last exec meeting?" — Semantic search against stored transcript embeddings, retrieves relevant chunks, and has the LLM synthesize an answer.
+Calls `notion.query_database` (read) filtered by status. Answers grouped by open, in progress and
+done.
 
-**Web search and campus info:**
+### notion-create-task
+> Create a new task: design the flyer for the AI workshop, assign to Maria, due next Friday.
 
-"What other clubs are doing AI and robotics stuff at ASU right now?" — Zipy searches the campus portal (Sun Devil Central or similar) for active organizations matching those keywords and summarizes what it finds.
+Calls `notion.create_page` (create) with title, assignee and due date filled in.
 
-"Look up the room booking policy for the MU building." — Web search targeting the university's facilities page, returns relevant info.
+## Google Drive
 
-**Cross-tool queries:**
+### drive-find-file
+> Can you point me to where the officer contact list sheet is?
 
-"What's happening this week?" — Zipy pulls from Google Calendar (upcoming events), Notion (open tasks with due dates this week), and optionally recent Zoom summaries, then compiles a digest.
+Calls `drive.search_files` (read). Answers with the file name and its link.
 
-"Prepare me a rundown for tomorrow's exec meeting — what's on the agenda, what tasks are due, and any notes from last week's meeting." — Multi-tool query: Calendar for the meeting details, Notion for due tasks, semantic search for last week's meeting notes.
+### drive-list-folder
+> What's in the Events folder?
 
-**Org administration:**
+Calls `drive.list_folder` (read). Answers with file names and when each was last modified.
 
-"@Zipy setup" — Starts the onboarding wizard. Walks the admin through connecting Google, Notion, and Zoom via OAuth links sent privately.
+### drive-find-by-term
+> Find the budget spreadsheet from last semester.
 
-"@Zipy remember our budget tracker is the Notion database called Finance Tracker" — Stores this as persistent org context so Zipy knows where to look for budget-related questions going forward.
+Calls `drive.search_files` (read) with the terms from the request. Answers with the matches.
 
-"@Zipy status" — Shows what integrations are connected, what tools are enabled, current month's token usage, and any issues.
+## Zoom
 
-"@Zipy enable zoom" — Enables the Zoom tool module for this org (after credentials are connected).
+### zoom-latest-summary
+> Please summarize the latest Zoom meeting we had.
+
+Calls `zoom.latest_summary` (read) over transcripts already ingested by the
+`recording.completed` webhook. Answers from those chunks, and says so when none are stored.
+
+### zoom-recall-decision
+> What did we decide about sponsorships in the last exec meeting?
+
+No tool call. Semantic recall over stored transcript chunks, triggered by a phrase in
+`memory.recall_triggers`. Answers from the retrieved chunks and cites nothing it was not given.
+
+## Web search and campus info
+
+### search-campus-orgs
+> What other clubs are doing AI and robotics stuff at ASU right now?
+
+Calls `search.campus_orgs` (read). Answers with the active organizations that match.
+
+### search-policy
+> Look up the room booking policy for the MU building.
+
+Calls `search.web_search` (read) against the university's own pages. Answers with what it found,
+not what it assumes.
+
+## Cross-tool
+
+### cross-week-digest
+> What's happening this week?
+
+Calls `calendar.list_events` and `notion.query_database` (both read), optionally
+`zoom.latest_summary`. Answers as one digest, not three lists.
+
+### cross-meeting-rundown
+> Prepare me a rundown for tomorrow's exec meeting — what's on the agenda, what tasks are due,
+> and any notes from last week's meeting.
+
+Calls `calendar.list_events` and `notion.query_database` (read), plus semantic recall for the
+notes. The widest case: three sources, one answer.
+
+## Org administration
+
+Admin commands, handled by the gateway. They never reach the agent and call no tool.
+
+### admin-setup
+> setup
+
+Starts onboarding: the OAuth links for Google, Notion and Zoom, sent privately when the surface
+has direct messages, and with a notice in channel when it does not.
+
+### admin-remember
+> remember our budget tracker is the Notion database called Finance Tracker
+
+Stores an `OrgFact`, which is rendered into the system prompt of every later request for that org.
+Admin only.
+
+### admin-status
+> status
+
+What is connected, which tools are enabled, the month's spend against the budget, and anything
+broken. The one admin command any member may run.
+
+### admin-enable
+> enable zoom
+
+Enables a tool for the org once its provider is connected. Admin only.
