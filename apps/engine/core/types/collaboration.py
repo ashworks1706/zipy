@@ -34,12 +34,35 @@ class Dimension(StrEnum):
     FORMALITY = "formality"
 
 
+class Conditioning(StrEnum):
+    """How a person's state reaches the model.
+
+    The endpoint decides which is possible. Every OpenAI-compatible server takes tokens, so text
+    works everywhere; a prefix in embedding space needs a server that accepts input embeddings.
+    """
+
+    #: Lines in the system prompt. Hosted providers, llama.cpp, vLLM.
+    TEXT = "text"
+    #: An embedding prefix conditioning the model below the text. vLLM and SGLang only.
+    PREFIX = "prefix"
+
+
+#: The conditionings a renderer exists for. test_memory.py holds the renderers to this.
+IMPLEMENTED: tuple[Conditioning, ...] = (Conditioning.TEXT,)
+
+
 class Evidence(StrEnum):
     """Why a signal was raised. A category, never the text it came from."""
 
     CONFIRMATION_CONFIRMED = "confirmation_confirmed"
     CONFIRMATION_CANCELLED = "confirmation_cancelled"
     STATED_PREFERENCE = "stated_preference"
+    #: A turn right after an answer asking for it shorter.
+    ASKED_FOR_BREVITY = "asked_for_brevity"
+    #: A turn right after an answer asking for more of it.
+    ASKED_FOR_DETAIL = "asked_for_detail"
+    #: A turn right after an answer saying it got something wrong.
+    CORRECTED = "corrected"
 
 
 @dataclass(frozen=True)

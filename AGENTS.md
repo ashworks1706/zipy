@@ -151,6 +151,14 @@ again, a judgment cannot. Each carries the fingerprint of the example it judged,
 example is reported as stale rather than trained on. `train sft` needs a GPU and the `gpu` extra,
 which the gate never installs.
 
+## Inference tiers
+
+Everything is OpenAI-compatible, so a tier is a `[models.chat]` change: a hosted provider,
+llama.cpp via `just model`, or vLLM. `conditioning` on the role says what the endpoint accepts.
+`memory/collaboration.py` holds one renderer per conditioning and `core/types` names which exist;
+anything else is refused at boot. Text is the only one built and works on every tier. Adding a
+prefix renderer is a renderer plus a serving tier, never a change to the gateway or the loop.
+
 ## Evals
 
 `just eval` runs `docs/USER_STORIES.md` as cases in `evals/cases.toml`, against the configured

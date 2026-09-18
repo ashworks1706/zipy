@@ -50,10 +50,20 @@ max_images = 4
 
 [models.chat]
 # Runs the tool-calling loop.
+#
+# Three tiers, all OpenAI-compatible, so only these keys change between them:
+#   hosted    a provider API                     conditioning = "text"
+#   local     llama.cpp, just model              conditioning = "text"
+#   local+    vLLM or SGLang                     conditioning = "prefix", once one is built
+#
+# conditioning says what this endpoint can be conditioned with. Every endpoint takes tokens, so
+# text works on all three. A prefix in embedding space needs a server that accepts input
+# embeddings, which only the third tier does. A conditioning with no renderer is refused at boot.
 model = "openai/zipy-chat"
 api_base = "http://127.0.0.1:8000/v1"
 api_key = "local"
 fallbacks = []
+conditioning = "text"
 temperature = 0.2
 max_tokens = 1024
 timeout_secs = 120.0
@@ -85,6 +95,38 @@ enabled = false
 alpha = 0.15
 # Observations before the state says anything to the model at all.
 min_observations = 5
+# A turn right after an answer is read for what it asks for. The category is kept, never the
+# words. A turn that reads as a correction raises only that; a turn that reads as two things at
+# once raises nothing.
+brevity_triggers = [
+    "just tell me",
+    "too long",
+    "shorter",
+    "tldr",
+    "tl;dr",
+    "get to the point",
+    "in one line",
+    "skip the explanation",
+]
+detail_triggers = [
+    "why",
+    "explain",
+    "how did you",
+    "walk me through",
+    "more detail",
+    "elaborate",
+    "what did you check",
+]
+correction_triggers = [
+    "no,",
+    "not what i",
+    "i meant",
+    "that's wrong",
+    "thats wrong",
+    "you should have asked",
+    "undo",
+    "revert that",
+]
 
 [memory]
 # The last N messages of the conversation, read from the platform, given to the model.

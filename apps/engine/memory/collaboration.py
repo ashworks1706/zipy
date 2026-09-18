@@ -1,12 +1,18 @@
-"""Collaboration state as the text block the system prompt shows.
+"""Collaboration state as the thing that conditions the model.
 
 Scores are rendered as the behaviour they ask for, not as numbers: a model reads an instruction
 better than it reads 0.82, and a person reading their own state sees what it changes.
+
+One renderer per Conditioning. Text is the only one built: it works against every
+OpenAI-compatible endpoint, hosted or local. A prefix in embedding space goes here too when
+there is a server under it that accepts one, and nothing above this module changes.
 """
 
 from __future__ import annotations
 
-from engine.core.types import CollaborationState, Dimension
+from collections.abc import Callable
+
+from engine.core.types import CollaborationState, Conditioning, Dimension
 
 #: How far from neutral a score must be before it says anything.
 BAND = 0.15
@@ -28,7 +34,7 @@ WORDING: dict[Dimension, tuple[str, str]] = {
 }
 
 
-def render(state: CollaborationState, min_observations: int) -> str:
+def render_text(state: CollaborationState, min_observations: int) -> str:
     """The lines this state asks for. Empty until enough has been observed to mean anything."""
     if state.observations < min_observations:
         return ""
@@ -40,3 +46,21 @@ def render(state: CollaborationState, min_observations: int) -> str:
         elif score >= 0.5 + BAND:
             lines.append(f"- {high}")
     return "\n".join(lines)
+
+
+#: One renderer per conditioning. core/types/collaboration.IMPLEMENTED names which exist.
+RENDERERS: dict[Conditioning, Callable[[CollaborationState, int], str]] = {
+    Conditioning.TEXT: render_text,
+}
+
+
+def render(
+    state: CollaborationState,
+    min_observations: int,
+    conditioning: Conditioning = Conditioning.TEXT,
+) -> str:
+    """What this state conditions the model with. A conditioning with no renderer is a KeyError.
+
+    Config rejects an unbuilt conditioning at boot, so the lookup cannot fail on a running engine.
+    """
+    return RENDERERS[conditioning](state, min_observations)

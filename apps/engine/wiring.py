@@ -189,6 +189,7 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
         documents=documents,
         collaboration=collaboration,
         settings=config.collaboration,
+        conditioning=config.models["chat"].conditioning,
     )
     orchestrator = Orchestrator(
         agent=config.agent,

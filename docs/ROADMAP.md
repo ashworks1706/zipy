@@ -43,14 +43,23 @@ The stand-in proves the code, not that the provider agrees with it.
 
 ## v0.7 Collaboration state
 
-Not built. The direction: a compact, per-person state derived from how someone works, not from
-what they say about themselves, conditioning the agent per member. Chat history stays unstored,
-so the state updates from behaviour and keeps none of the text behind it.
+Built and shipped off. A compact, per-person state derived from how someone works, not from what
+they say about themselves, conditioning the agent per member. Chat history stays unstored, so the
+state updates from behaviour and keeps none of the text behind it.
 
-- [ ] Per-member profile: named dimensions with the observation count behind each
-- [ ] Derived by a worker from the audit log and turn outcomes; nobody types it
-- [ ] Readable and correctable by the person it describes
-- [ ] Conditions the prompt behind a switch, off until the evals say it earns its place
+Conditioning goes through a renderer chosen by what the endpoint accepts. Text is built and works
+on every tier. A prefix in embedding space, which would condition the model below the text, needs
+a serving tier that takes input embeddings (vLLM or SGLang); it is a renderer and a tier, not a
+change to the loop. It is worth building only if the contrast table says text conditioning is what
+limits the adaptation.
+
+- [x] Per-member profile: named dimensions with the observation count behind each
+- [x] Derived from behaviour: confirmation outcomes, and what a turn following an answer asks for
+- [x] Readable and correctable by the person it describes, with `prefer`
+- [x] Conditions the prompt behind a switch, off until the evals say it earns its place
+- [x] A conditioning seam: one renderer per endpoint capability, text built
+- [ ] Run the contrast table against a real model and decide whether it ships on
+- [ ] A team-level state under the person's, for norms one person did not set
 - [ ] Measured by the behaviour axis of the eval suite: same question, same model, different
       member, behaviour moves and correctness holds
 
