@@ -184,16 +184,14 @@ class Orchestrator:
         org: Org,
         messages: list[ChatMessage],
         budget: Budget,
-        depth: int = 0,
         only: Sequence[str] | None = None,
-        parent: str = "",
     ) -> AgentResult:
         """Call the model until it answers, a destructive call waits, or the turns run out.
 
-        depth is 0 for the request and 1 for a sub-agent. only narrows the tools, parent names the
-        delegate call a sub-agent is running under, and both travel onto every event so a trace
-        can be read as the tree it is.
+        ctx.depth is 0 for the request and 1 for a sub-agent, and travels onto every event every
+        layer raises, so the flat trace can be read as the tree it is. only narrows the tools.
         """
+        depth = ctx.depth
         schemas = await self._schemas(ctx, depth, only)
         limit = self._agent.max_iterations if depth == 0 else self._agent.delegate_max_iterations
         usage = Usage()
@@ -204,21 +202,21 @@ class Orchestrator:
                 raise BudgetExceeded(
                     f"{org.name} has spent its {org.budget_cents} cent monthly budget"
                 )
-            self._event(ctx, "model_started", {"turn": turn}, depth, parent)
+            self._trace.event(ctx, "model_started", {"turn": turn})
             completion = await self._model.complete(ctx, messages, schemas)
             usage = _total(usage, completion.usage)
             spent += completion.usage.cost_cents
             await self._orgs.add_spend(ctx.org_id, completion.usage.cost_cents)
-            self._event(ctx, "model_call", self._call_event(turn, completion), depth, parent)
+            self._trace.event(ctx, "model_call", self._call_event(turn, completion))
             if not completion.tool_calls:
-                self._event(ctx, "answer_draft", {"text": completion.text}, depth, parent)
-                self._event(ctx, "reply", {"turns": turn, "tools": ran}, depth, parent)
+                self._trace.event(ctx, "answer_draft", {"text": completion.text})
+                self._trace.event(ctx, "reply", {"turns": turn, "tools": ran})
                 return AgentReply(text=completion.text, usage=usage, ran=tuple(ran))
             runnable, held = self._split(completion.tool_calls)
             outcomes: list[ToolOutcome] = []
             for call in runnable:
                 if call.name == delegation.NAME:
-                    sub, spent_here = await self._delegate(ctx, org, call, budget, depth, spent)
+                    sub, spent_here = await self._delegate(ctx, org, call, budget, spent)
                     spent = spent_here
                     outcomes.append(sub)
                     continue
@@ -227,16 +225,8 @@ class Orchestrator:
             if held is not None:
                 return await self._hold(ctx, held)
             messages.extend(tool_messages(outcomes))
-        self._event(ctx, "reply", {"turns": limit, "tools": ran}, depth, parent)
+        self._trace.event(ctx, "reply", {"turns": limit, "tools": ran})
         return AgentReply(text=self._exhausted(ran), usage=usage, ran=tuple(ran))
-
-    def _event(
-        self, ctx: RequestContext, name: str, data: dict[str, Any], depth: int, parent: str
-    ) -> None:
-        """One trace event, carrying which level raised it and under which delegate call."""
-        if depth or parent:
-            data = {**data, "depth": depth, "parent": parent}
-        self._trace.event(ctx, name, data)
 
     async def _delegate(
         self,
@@ -244,7 +234,6 @@ class Orchestrator:
         org: Org,
         call: ToolCall,
         budget: Budget,
-        depth: int,
         spent: float,
     ) -> tuple[ToolOutcome, float]:
         """Run one sub-agent and return what the parent reads, with the spend it left behind.
@@ -252,7 +241,7 @@ class Orchestrator:
         Every way this can go wrong is a tool result rather than a raised error: a sub-agent that
         could not finish is one failed call in a request the parent may still answer.
         """
-        if depth >= delegation.SUB_AGENT_DEPTH:
+        if ctx.depth >= delegation.SUB_AGENT_DEPTH:
             return _failed(call, "a sub-agent cannot delegate again"), spent
         budget.delegations += 1
         if budget.delegations > self._agent.max_delegations:
@@ -262,27 +251,25 @@ class Orchestrator:
         except ConfigError as exc:
             return _failed(call, str(exc)), spent
         tools = delegation.tools_of(call, await self._offered(ctx))
-        self._event(ctx, "delegate", {"id": call.id, "task": task, "tools": tools}, depth, "")
+        self._trace.event(ctx, "delegate", {"id": call.id, "task": task, "tools": tools})
         messages = self._prompts.delegated(org, task)
         try:
             result = await self._run(
-                ctx,
+                replace(ctx, depth=delegation.SUB_AGENT_DEPTH, parent=call.id),
                 replace(org, spent_cents=spent),
                 messages,
                 budget,
-                depth=delegation.SUB_AGENT_DEPTH,
                 only=tools,
-                parent=call.id,
             )
         except ZipyError as exc:
-            self._event(ctx, "delegate_failed", {"id": call.id, "error": str(exc)}, depth, "")
+            self._trace.event(ctx, "delegate_failed", {"id": call.id, "error": str(exc)})
             return _failed(call, str(exc)), spent
         if not isinstance(result, AgentReply):
-            self._event(ctx, "delegate_held", {"id": call.id}, depth, "")
+            self._trace.event(ctx, "delegate_held", {"id": call.id})
             return _failed(call, "that subtask needs a confirmation, so do it yourself"), spent
         spent += result.usage.cost_cents
         text = delegation.result(result.text, list(result.ran))
-        self._event(ctx, "delegate_done", {"id": call.id, "chars": len(text)}, depth, "")
+        self._trace.event(ctx, "delegate_done", {"id": call.id, "chars": len(text)})
         return ToolOutcome(call=call, ok=True, content=text), spent
 
     def _call_event(self, turn: int, completion: Completion) -> dict[str, Any]:

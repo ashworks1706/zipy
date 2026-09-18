@@ -373,3 +373,127 @@ async def test_the_editor_stops_when_the_work_raises():
 
     # A leaked editor task would keep redrawing after the turn ended.
     assert all(task.done() for task in asyncio.all_tasks() - {asyncio.current_task()})
+
+
+# ---------------------------------------------------------------- delegation
+
+
+def test_a_sub_agent_line_says_how_deep_it_happened():
+    from engine.core.types import progress
+
+    step = progress(
+        "tool_started",
+        {"id": "c1", "action": "github.list_issues", "arguments": {}, "depth": 1, "parent": "d1"},
+        STYLE,
+    )
+    assert step is not None
+    assert step.depth == 1
+    assert "github.list_issues" in step.text
+
+
+def test_the_two_levels_do_not_write_over_each_other():
+    """Call ids come from the model, so both levels can use the same one."""
+    from engine.core.types import progress
+
+    parent = progress("tool_started", {"id": "c1", "action": "a", "arguments": {}}, STYLE)
+    sub = progress(
+        "tool_started",
+        {"id": "c1", "action": "b", "arguments": {}, "depth": 1, "parent": "d1"},
+        STYLE,
+    )
+    assert parent is not None and sub is not None
+    assert parent.slot != sub.slot
+
+    card = Card()
+    card.apply(parent)
+    card.apply(sub)
+    body = card.running()
+    assert "`a`" in body and "`b`" in body, "two lines, not one written over the other"
+
+
+def test_a_handoff_shows_the_task_and_is_replaced_by_its_result():
+    card = Card()
+    for name, data in (
+        ("delegate", {"id": "d1", "task": "count the open issues", "tools": ["github"]}),
+        ("delegate_done", {"id": "d1", "chars": 42}),
+    ):
+        update = progress(name, data, STYLE)
+        assert update is not None
+        card.apply(update)
+
+    body = card.running()
+    assert body.count("handed back") == 1
+    assert "count the open issues" not in body, "the result wrote over the handoff line"
+
+
+def test_a_handoff_that_did_not_finish_says_so():
+    update = line("delegate_failed", id="d1", error="the subtask ran out of turns")
+    assert update is not None
+    assert "did not finish" in update.text
+    assert "ran out of turns" in update.text
+
+
+def test_a_sub_agent_step_is_indented_under_the_parent():
+    from engine.platforms.cards import INDENT
+
+    card = Card()
+    for data in (
+        {"id": "c1", "action": "parent.read", "arguments": {}},
+        {"id": "c2", "action": "sub.read", "arguments": {}, "depth": 1, "parent": "d1"},
+    ):
+        update = progress("tool_started", data, STYLE)
+        assert update is not None
+        card.apply(update)
+
+    body = card.running()
+    assert f"{INDENT}" in body
+    lines = [one for one in body.splitlines() if "sub.read" in one]
+    assert lines and INDENT in lines[0]
+    outer = [one for one in body.splitlines() if "parent.read" in one]
+    assert outer and INDENT not in outer[0]
+
+
+def test_an_event_from_the_request_itself_carries_no_depth():
+    """The parent's events are byte for byte what they were before delegation existed."""
+    from engine.core.types import progress
+
+    step = progress("tool_started", {"id": "c1", "action": "a", "arguments": {}}, STYLE)
+    assert step is not None
+    assert step.depth == 0
+    assert step.slot == "tool:c1"
+
+
+def test_the_sink_reads_the_level_off_the_context_not_the_event(ctx):
+    """Only the orchestrator knows the depth; the llm client and the executor do not."""
+    from dataclasses import replace
+
+    from engine.telemetry.progress import ProgressSink
+
+    seen: list[Progress] = []
+    sink = ProgressSink()
+    nested = replace(ctx, watcher=seen.append, depth=1, parent="d1")
+
+    # An event raised by the llm client, which passes no depth of its own.
+    sink.event(nested, "generation", {"output": "", "tool_calls": ["github.list_issues"]})
+
+    assert len(seen) == 1
+    assert seen[0].depth == 1, "the sub-agent's model call is marked as one"
+    assert seen[0].slot == "d1:model"
+
+
+def test_the_trace_record_carries_the_level_for_every_layer(ctx):
+    """A tool call inside a sub-agent must be distinguishable from the parent's."""
+    from dataclasses import replace
+    from datetime import UTC, datetime
+
+    from engine.telemetry.trace import record
+
+    flat = record(ctx, "tool_call", {"action": "a"}, datetime.now(UTC))
+    assert "depth" not in flat, "the request's own events are what they always were"
+
+    nested = record(
+        replace(ctx, depth=1, parent="d1"), "tool_call", {"action": "a"}, datetime.now(UTC)
+    )
+    assert nested["depth"] == 1
+    assert nested["parent"] == "d1"
+    assert nested["request_id"] == flat["request_id"], "one file per request, both levels in it"

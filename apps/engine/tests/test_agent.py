@@ -811,11 +811,12 @@ async def test_every_sub_agent_event_says_which_level_and_which_call_it_belongs_
 
     named = {name for name, _ in trace.events}
     assert "delegate" in named and "delegate_done" in named
-    nested = [data for name, data in trace.events if data.get("depth") == 1]
+    nested = [(name, parent) for name, depth, parent in trace.levels if depth == 1]
     assert nested, "the sub-agent raised events"
-    assert all(one["parent"] == "d1" for one in nested), "each names the delegate call"
-    parent_events = [data for name, data in trace.events if "depth" not in data]
-    assert parent_events, "the parent's own events are unchanged"
+    assert all(parent == "d1" for _, parent in nested), "each names the delegate call"
+    assert {name for name, _ in nested} >= {"model_started", "reply"}
+    outer = [name for name, depth, parent in trace.levels if depth == 0 and not parent]
+    assert "delegate" in outer, "the handoff itself is the parent's event"
 
 
 async def test_delegation_off_offers_no_such_tool(ctx, cfg):

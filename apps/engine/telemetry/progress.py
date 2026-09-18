@@ -27,6 +27,8 @@ class ProgressSink:
         watcher = self._watcher or ctx.watcher
         if watcher is None:
             return
-        line = progress(name, data, self._style)
+        # Which level raised the event lives on the context, not in the event's own data.
+        scoped = {**data, "depth": ctx.depth, "parent": ctx.parent} if ctx.depth else data
+        line = progress(name, scoped, self._style)
         if line is not None:
             watcher(line)

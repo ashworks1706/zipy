@@ -135,7 +135,10 @@ def traces(
             raise fail(ZipyError(f"no trace for request {request_id} under {directory}"))
         for line in found[0].read_text(encoding="utf-8").splitlines():
             event = json.loads(line)
-            console.print(f"[dim]{event['at']}[/dim] [bold]{event['event']}[/bold]", event["data"])
+            data = event["data"]
+            depth = data.get("depth", 0) if isinstance(data, dict) else 0
+            indent = "  " * (depth if isinstance(depth, int) else 0)
+            console.print(f"{indent}[dim]{event['at']}[/dim] [bold]{event['event']}[/bold]", data)
         return
     grid = Table("request", "org", "platform", "events", "last event", "at")
     for path in files[:limit]:
