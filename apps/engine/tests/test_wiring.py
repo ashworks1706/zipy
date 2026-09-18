@@ -32,7 +32,7 @@ def wired(monkeypatch, cfg: Config) -> Config:
 
 def test_the_whole_object_graph_builds_from_the_committed_config(wired):
     parts = assemble(wired)
-    assert sorted(parts.platforms.enabled) == ["discord"]
+    assert sorted(parts.platforms.enabled) == ["local"]
     assert parts.providers is not None
     assert parts.scheduler is not None
     assert parts.consumer is not None

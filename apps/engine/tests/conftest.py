@@ -1,5 +1,6 @@
 """Shared fixtures: the repo's zipy.toml and a request context."""
 
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -9,6 +10,18 @@ from engine.core.config import Config, load
 from engine.core.types import ChannelRef, MemberRef, OrgId, RequestContext, Role, WorkspaceRef
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_config(monkeypatch) -> None:
+    """Hide the developer's own ZIPY_ variables.
+
+    Running Zipy locally means exporting .env, and a test that read it would pass or fail by
+    what happens to be in the shell.
+    """
+    for name in list(os.environ):
+        if name.startswith("ZIPY_"):
+            monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture

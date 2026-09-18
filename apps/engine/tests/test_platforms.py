@@ -55,10 +55,11 @@ NOW = datetime(2026, 9, 15, 12, 0, tzinfo=UTC)
 class FakeGateway:
     """Records what a platform hands it and returns the outbound it was loaded with."""
 
-    def __init__(self, replies=None, install_replies=None, unknown_until=0):
+    def __init__(self, replies=None, install_replies=None, unknown_until=0, linked=True):
         self.replies = replies or []
         self.install_replies = install_replies or []
         self.unknown_until = unknown_until
+        self.is_linked = linked
         self.messages: list[Inbound] = []
         self.answers: list[InboundAnswer] = []
         self.installs: list[WorkspaceInstalled] = []
@@ -79,15 +80,25 @@ class FakeGateway:
 
     async def installed(self, event: WorkspaceInstalled, budget) -> list[Outbound]:
         self.installs.append(event)
+        self.is_linked = True
         return list(self.install_replies)
 
+    async def linked(self, workspace) -> bool:
+        return self.is_linked
 
-def local(gateway, **settings):
+
+def local(gateway, lines=None, **settings):
     """A local platform writing into the list it returns beside itself."""
     written: list[str] = []
+    typed = iter([*(lines or []), ""])
+
+    async def read_line() -> str:
+        return next(typed)
+
     platform = LocalPlatform(
         LocalSettings(**settings),
         gateway,
+        read_line=read_line,
         write_line=written.append,
     )
     return platform, written
@@ -234,18 +245,30 @@ async def test_a_run_reads_lines_until_stdin_closes():
     assert len(gateway.messages) == 1
 
 
-async def test_an_unlinked_workspace_is_installed_and_the_message_is_asked_again():
+async def test_an_unlinked_workspace_is_linked_before_the_first_line_is_read():
     channel = ChannelRef(workspace=WORKSPACE, channel_id="terminal-0")
     gateway = FakeGateway(
         replies=[Text(channel=channel, text="hi")],
         install_replies=[Text(channel=channel, text="Welcome")],
-        unknown_until=1,
+        linked=False,
     )
-    platform, written = local(gateway, org_name="Robotics")
-    await platform.handle("hello")
+    platform, written = local(gateway, lines=["hello\n"], org_name="Robotics")
+
+    await platform.run()
+
     assert [install.name for install in gateway.installs] == ["Robotics"]
     assert written == ["Welcome", "hi"]
-    assert len(gateway.messages) == 2
+
+
+async def test_a_workspace_already_linked_is_not_installed_again():
+    channel = ChannelRef(workspace=WORKSPACE, channel_id="terminal-0")
+    gateway = FakeGateway(replies=[Text(channel=channel, text="hi")], linked=True)
+    platform, written = local(gateway, lines=["hello\n"])
+
+    await platform.run()
+
+    assert gateway.installs == []
+    assert written == ["hi"]
 
 
 async def test_a_gateway_error_is_written_and_does_not_stop_the_terminal():

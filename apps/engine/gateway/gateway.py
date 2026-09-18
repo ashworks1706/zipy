@@ -34,6 +34,7 @@ from engine.core.types import (
     Role,
     StoreError,
     Workspace,
+    WorkspaceRef,
     ZipyError,
 )
 from engine.gateway.admin import AdminCommand, Verb, parse
@@ -205,6 +206,10 @@ class Gateway:
             return self._failed(ctx, exc, capabilities)
         logger.info("confirmation answered", answer=event.answer.value)
         return self._rendered(ctx, result, capabilities)
+
+    async def linked(self, workspace: WorkspaceRef) -> bool:
+        """Whether this workspace already belongs to an org."""
+        return await self._workspaces.get(workspace) is not None
 
     async def installed(self, event: WorkspaceInstalled, budget: Budget) -> list[Outbound]:
         """Create an org for a new workspace, link it, make the installer an admin, welcome."""

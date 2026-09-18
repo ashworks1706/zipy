@@ -22,7 +22,6 @@ from engine.core.types import (
     PlatformError,
     RequestContext,
     Speaker,
-    UnknownWorkspace,
     WorkspaceRef,
     ZipyError,
 )
@@ -119,6 +118,7 @@ class LocalPlatform(BasePlatform[LocalSettings]):
 
     async def run(self) -> None:
         """Read lines until stdin closes; each ask goes to the gateway, each reply is written."""
+        await self._link()
         if self.settings.jsonl:
             self._write_line(encode("ready"))
         while True:
@@ -182,16 +182,18 @@ class LocalPlatform(BasePlatform[LocalSettings]):
         except ZipyError as exc:
             self._fail(exc)
 
+    async def _link(self) -> None:
+        """Give this workspace an org on first run, with the developer as its admin."""
+        if await self.gateway.linked(WORKSPACE):
+            return
+        install = WorkspaceInstalled(
+            channel=self.channel, installed_by=self.member, name=self.settings.org_name
+        )
+        await self._deliver(await self.gateway.installed(install, self._budget))
+
     async def _message(self, inbound: Inbound) -> list[Outbound]:
-        """The gateway's reply, installing this workspace first when it has no org yet."""
-        try:
-            return await self.gateway.message(inbound, self.capabilities)
-        except UnknownWorkspace:
-            install = WorkspaceInstalled(
-                channel=self.channel, installed_by=self.member, name=self.settings.org_name
-            )
-            await self._deliver(await self.gateway.installed(install, self._budget))
-            return await self.gateway.message(inbound, self.capabilities)
+        """The gateway's reply."""
+        return await self.gateway.message(inbound, self.capabilities)
 
     async def answer(self, answer: Answer) -> None:
         """Answer the confirmation this conversation is holding."""

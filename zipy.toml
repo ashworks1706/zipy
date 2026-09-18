@@ -150,8 +150,10 @@ sentry_traces_sample_rate = 0.1
 # Chat platforms. Each renders its own formatting and message limit; the gateway fits replies to
 # them. Tokens and signing secrets live in .env as ZIPY_PLATFORMS__<NAME>__<KEY>.
 
+# Off until a token is set: an enabled platform with no credential stops the whole process, and
+# a clone has no token. Turn it on here or with ZIPY_PLATFORMS__DISCORD__ENABLED=true.
 [platforms.discord]
-enabled = true
+enabled = false
 message_limit = 2000
 # Shortest gap between edits of the one message a turn is written into. Discord rate limits
 # edits, so a shorter gap is not a faster card.
@@ -161,9 +163,10 @@ edit_every_ms = 1500
 enabled = false
 message_limit = 3000
 
+# A terminal conversation for development, and the one platform a clone can use before any
+# credential exists. zipy chat runs it whether or not it is enabled here.
 [platforms.local]
-# A terminal conversation for development. zipy chat runs it whether or not it is enabled here.
-enabled = false
+enabled = true
 org_name = "Local dev org"
 member_name = "developer"
 

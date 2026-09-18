@@ -23,7 +23,9 @@ MIGRATIONS = Path(__file__).resolve().parent.parent / "data" / "migrations"
 
 def fail(exc: ZipyError) -> typer.Exit:
     """Print an error without a traceback and exit 1."""
-    err.print(f"[red]error[/red] {exc}")
+    # The message is data: a config error names tables like [platforms.*], which are not markup.
+    err.print("[red]error[/red] ", end="")
+    err.print(str(exc), markup=False, highlight=False)
     return typer.Exit(1)
 
 
