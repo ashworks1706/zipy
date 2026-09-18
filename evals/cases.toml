@@ -1,0 +1,138 @@
+# The eval cases. Each id is a story in docs/USER_STORIES.md, and the two files move together.
+#
+# calls are the qualified tool actions the run must make. contains is what the answer must carry,
+# taken from evals/fixtures.toml, so a run that invents an answer fails rather than reading well.
+# confirms is whether the run must stop before changing anything, which the action type decides
+# and the model does not.
+#
+# The cases are scored on two axes that are never added together: correctness is what is here,
+# behaviour is measured from the same run. See apps/engine/evals/scoring.py.
+
+# ---------------------------------------------------------------- calendar
+
+[[case]]
+id = "calendar-next-meeting"
+ask = "When's the next exec board meeting?"
+calls = ["calendar.list_events"]
+contains = ["CPCOM 210"]
+
+[[case]]
+id = "calendar-create-event"
+ask = """
+Add an event to calendar inviting me and sarah@asu.edu, a workshop on intro to LLMs, next Tuesday
+6pm, room CPCOM 210.
+"""
+calls = ["calendar.create_event"]
+contains = ["calendar.example/ev-9"]
+
+[[case]]
+id = "calendar-respace-week"
+ask = "Can you readjust events this week? I want them to have 5-hour gaps between them."
+calls = ["calendar.list_events", "calendar.update_event"]
+confirms = true
+
+[[case]]
+id = "calendar-free-slots"
+ask = "Am I free Thursday between 2 and 5?"
+calls = ["calendar.find_free_slots"]
+
+# ---------------------------------------------------------------- notion
+
+[[case]]
+id = "notion-next-deadline"
+ask = "When do I have to submit the next budget request?"
+calls = ["notion.query_database"]
+contains = ["2026-10-02"]
+
+[[case]]
+id = "notion-assign-todo"
+ask = "Add Ben to the sponsorship outreach todo. I need to work with him on it."
+calls = ["notion.update_page"]
+confirms = true
+
+[[case]]
+id = "notion-task-status"
+ask = "What's the status of our event planning tasks?"
+calls = ["notion.query_database"]
+contains = ["Sponsorship outreach"]
+
+[[case]]
+id = "notion-create-task"
+ask = "Create a new task: design the flyer for the AI workshop, assign to Maria, due next Friday."
+calls = ["notion.create_page"]
+contains = ["notion.example/pg-9"]
+
+# ---------------------------------------------------------------- drive
+
+[[case]]
+id = "drive-find-file"
+ask = "Can you point me to where the officer contact list sheet is?"
+calls = ["drive.search_files"]
+contains = ["drive.example/fl-1"]
+
+[[case]]
+id = "drive-list-folder"
+ask = "What's in the Events folder?"
+calls = ["drive.list_folder"]
+contains = ["Workshop signup sheet"]
+
+[[case]]
+id = "drive-find-by-term"
+ask = "Find the budget spreadsheet from last semester."
+calls = ["drive.search_files"]
+
+# ---------------------------------------------------------------- zoom
+
+[[case]]
+id = "zoom-latest-summary"
+ask = "Please summarize the latest Zoom meeting we had."
+calls = ["zoom.latest_summary"]
+contains = ["Honeywell"]
+
+# ---------------------------------------------------------------- search
+
+[[case]]
+id = "search-campus-orgs"
+ask = "What other clubs are doing AI and robotics stuff at ASU right now?"
+calls = ["search.campus_orgs"]
+contains = ["Software Developers Association"]
+
+[[case]]
+id = "search-policy"
+ask = "Look up the room booking policy for the MU building."
+calls = ["search.web_search"]
+contains = ["60 days"]
+
+# ---------------------------------------------------------------- cross-tool
+
+[[case]]
+id = "cross-week-digest"
+ask = "What's happening this week?"
+calls = ["calendar.list_events", "notion.query_database"]
+
+[[case]]
+id = "cross-meeting-rundown"
+ask = """
+Prepare me a rundown for tomorrow's exec meeting: what's on the agenda, what tasks are due, and
+any notes from last week's meeting.
+"""
+calls = ["calendar.list_events", "notion.query_database"]
+
+# ---------------------------------------------------------------- the contrast
+#
+# The same case at both ends of one dimension. Correctness must hold, because a preference is not
+# a permission and never changes what is true; behaviour must move, because a state that changes
+# nothing is a state not worth keeping. This is what decides whether collaboration.enabled ships
+# on, and it is read per case, not averaged.
+
+[[contrast]]
+case = "calendar-next-meeting"
+dimension = "depth"
+
+[[contrast]]
+case = "notion-task-status"
+dimension = "depth"
+
+[[contrast]]
+case = "calendar-respace-week"
+dimension = "autonomy"

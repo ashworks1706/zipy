@@ -1,0 +1,114 @@
+# What the tools answer during an eval, instead of reaching Google, Notion or Zoom.
+#
+# One table per qualified action, validated into the result model the plugin declares, so a
+# fixture that stops fitting the schema fails the run. The fixture does not look at the params: an
+# action answers the same thing however it was called, and what the case scores is whether the
+# right action ran and whether the answer carried what the fixture holds.
+
+[org]
+name = "Robotics Club"
+
+[[org.facts]]
+key = "budget tracker"
+category = "tool_mapping"
+value = "the Notion database called Finance Tracker"
+
+[[org.facts]]
+key = "exec board meeting"
+value = "Wednesdays at 6pm in CPCOM 210"
+
+# ---------------------------------------------------------------- calendar
+
+[tools."calendar.list_events"]
+events = [
+  { id = "ev-1", title = "Exec board meeting", start = "2026-09-23T18:00:00Z", end = "2026-09-23T19:00:00Z", location = "CPCOM 210", attendees = ["officers@robotics.asu.edu"], link = "https://calendar.example/ev-1" },
+  { id = "ev-2", title = "Intro to LLMs workshop", start = "2026-09-25T18:00:00Z", end = "2026-09-25T19:30:00Z", location = "CPCOM 120", attendees = [], link = "https://calendar.example/ev-2" },
+]
+
+[tools."calendar.find_free_slots"]
+slots = [
+  { start = "2026-09-24T14:00:00Z", end = "2026-09-24T15:30:00Z" },
+]
+
+[tools."calendar.create_event"]
+id = "ev-9"
+title = "Intro to LLMs workshop"
+start = "2026-09-22T18:00:00Z"
+end = "2026-09-22T19:00:00Z"
+location = "CPCOM 210"
+attendees = ["sarah@asu.edu"]
+link = "https://calendar.example/ev-9"
+
+[tools."calendar.update_event"]
+id = "ev-1"
+title = "Exec board meeting"
+start = "2026-09-23T20:00:00Z"
+end = "2026-09-23T21:00:00Z"
+location = "CPCOM 210"
+attendees = []
+link = "https://calendar.example/ev-1"
+
+[tools."calendar.delete_event"]
+ok = true
+
+# ---------------------------------------------------------------- notion
+
+[tools."notion.query_database"]
+pages = [
+  { id = "pg-1", title = "Fall budget request", url = "https://notion.example/pg-1", properties = { Status = "open", Due = "2026-10-02", Owner = "Ben" } },
+  { id = "pg-2", title = "Sponsorship outreach", url = "https://notion.example/pg-2", properties = { Status = "in progress", Due = "2026-09-30", Owner = "Maria" } },
+  { id = "pg-3", title = "Book CPCOM 210", url = "https://notion.example/pg-3", properties = { Status = "done", Due = "2026-09-12", Owner = "Ash" } },
+]
+
+[tools."notion.get_page"]
+text = "Budget requests are due the first Friday of each month, to the Finance Tracker database."
+page = { id = "pg-1", title = "Fall budget request", url = "https://notion.example/pg-1", properties = { Status = "open", Due = "2026-10-02" } }
+
+[tools."notion.create_page"]
+id = "pg-9"
+title = "Design the flyer for the AI workshop"
+url = "https://notion.example/pg-9"
+properties = { Owner = "Maria", Due = "2026-09-25" }
+
+[tools."notion.update_page"]
+id = "pg-2"
+title = "Sponsorship outreach"
+url = "https://notion.example/pg-2"
+properties = { Owner = "Ben", Status = "in progress" }
+
+# ---------------------------------------------------------------- drive
+
+[tools."drive.search_files"]
+files = [
+  { id = "fl-1", name = "Officer contact list", mime_type = "application/vnd.google-apps.spreadsheet", link = "https://drive.example/fl-1", modified_at = "2026-09-10T17:04:00Z" },
+]
+
+[tools."drive.list_folder"]
+files = [
+  { id = "fl-2", name = "Fall kickoff run of show", mime_type = "application/vnd.google-apps.document", link = "https://drive.example/fl-2", modified_at = "2026-09-08T12:00:00Z" },
+  { id = "fl-3", name = "Workshop signup sheet", mime_type = "application/vnd.google-apps.spreadsheet", link = "https://drive.example/fl-3", modified_at = "2026-09-09T09:30:00Z" },
+]
+
+# ---------------------------------------------------------------- zoom
+
+[tools."zoom.list_recordings"]
+recordings = [
+  { meeting_id = "zm-1", topic = "Exec board meeting", start = "2026-09-16T18:00:00Z", has_transcript = true },
+]
+
+[tools."zoom.latest_summary"]
+text = "The board agreed to approach Honeywell for sponsorship before the end of the month, and to hold the flyer until the room is confirmed."
+recording = { meeting_id = "zm-1", topic = "Exec board meeting", start = "2026-09-16T18:00:00Z", has_transcript = true }
+
+# ---------------------------------------------------------------- search
+
+[tools."search.web_search"]
+hits = [
+  { title = "Room reservations, Memorial Union", url = "https://asu.edu/mu/reservations", snippet = "Recognized student organizations may reserve MU rooms up to 60 days ahead." },
+]
+
+[tools."search.campus_orgs"]
+hits = [
+  { title = "Software Developers Association", url = "https://asu.edu/orgs/soda", snippet = "A student org for software and machine learning projects." },
+  { title = "AI Club at ASU", url = "https://asu.edu/orgs/ai-club", snippet = "Weekly talks and reading groups on machine learning." },
+]

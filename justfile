@@ -107,6 +107,10 @@ chat *ARGS:
 traces *ARGS:
     uv run zipy traces {{ARGS}}
 
+# The eval cases in evals/, against the configured model. Not part of the gate: it needs a model
+eval *ARGS:
+    uv run zipy eval {{ARGS}}
+
 # Apply database migrations up to head
 migrate *ARGS="upgrade head":
     uv run zipy db {{ARGS}}

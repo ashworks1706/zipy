@@ -129,7 +129,8 @@ A package may import any package below it. The arrows show the nearest layer; sk
 downward is allowed, importing upward or sideways is not.
 
 ```
-commands          zipy serve | chat | traces | config | plugins | db
+commands          zipy serve | chat | eval | traces | config | plugins | db
+evals             the eval cases, run against the real loop over fixtures rather than providers
 wiring            the composition root: builds everything, runs platforms + api + workers in one loop
 platforms | api | workers
                   platforms: chat platform plugins (discord, slack, local), translating and rendering
@@ -741,6 +742,34 @@ org id, because a metrics system is readable by every operator; per-org numbers 
 live in Postgres and are shown to the org with `@Zipy status`.
 
 
+## Evals
+
+`just eval` runs the stories in `docs/USER_STORIES.md` as cases. A case is one message through the
+real gateway, the real orchestrator and the real tool loop, against the configured model. Nothing
+reaches a provider: every tool class is subclassed with its `execute` replaced by the fixture for
+that action from `evals/fixtures.toml`, validated into the result model the plugin declares, so a
+fixture that stops fitting its schema fails the run rather than passing quietly. What the run
+called is read from the audit log the executor writes, not from what the model says it called.
+
+The two axes are never added together.
+
+**Correctness** is a pass or a fail: the actions the run made, the facts the answer carries, and
+whether a destructive call waited for a confirmation. All three come from the case.
+
+**Behaviour** is measured, not judged: how long the answer is, whether it asked rather than acted,
+which tool it reached for first, how many it made. There is no right answer to any of them, which
+is the point.
+
+That separation is what makes the collaboration-state claim checkable. A `[[contrast]]` runs one
+case at both ends of one dimension with everything else held still, and reads two things off it:
+correctness must hold, because a preference is not a permission and changes nothing about what is
+true, and behaviour must move, because a state that changes nothing is not worth keeping. Whether
+`collaboration.enabled` ships on is that table, read per case rather than averaged.
+
+`just eval` is not part of `just check`: it needs a model, and the gate stays fast and hermetic.
+The suite itself is covered by ordinary tests, which run the loop with a scripted model.
+
+
 ## Console
 
 `just console` opens the developer console (`apps/cli`, Textual): every `just` recipe as a unit
@@ -872,11 +901,12 @@ and the Release workflow verifies every version against the tag before publishin
 | Uptime | Uptime Kuma | `deploy/compose.yml` |
 | Console | Textual + Rich; logo animation from ASCII Motion exports | `apps/cli` |
 | Website | Next.js 16 App Router, React 19, Tailwind 4, TypeScript, eslint | `apps/website` |
-| CLI | Typer + Rich: `zipy serve, chat, traces, plugins, config, db` | `engine/commands` |
+| CLI | Typer + Rich: `zipy serve, chat, eval, traces, plugins, config, db` | `engine/commands` |
 | Lint and format | ruff | `[tool.ruff]` |
 | Types | mypy `--strict` over both apps | `[tool.mypy]` |
 | Layering | import-linter contracts; grimp-based plugin isolation tests | `[tool.importlinter]`, `tests/test_plugins.py` |
-| Tests | pytest, pytest-asyncio; `integration` marker for Postgres and Redis; eslint and tsc for the website | `apps/**/tests`, `just check-website` |
+| Tests | pytest, pytest-asyncio; `integration` marker for Postgres and Redis, which need ZIPY_TEST_DATABASE_URL because they drop every table; eslint and tsc for the website | `apps/**/tests`, `just check-website` |
+| Evals | the user stories as cases, scored on correctness and behaviour, against the configured model over fixtures; not part of the gate | `evals/`, `engine/evals`, `just eval` |
 | Diagrams | mermaid, rendered by mermaid-cli in `just diagrams` | `docs/ARCHITECTURE.md` |
 | Container | uv base image, non-root, amd64 and arm64 | `deploy/Dockerfile` |
 | Deploy | Docker Compose on one VPS; Caddy or nginx for HTTPS | `deploy/compose.yml`, `deploy/compose.prod.yml` |

@@ -1,9 +1,10 @@
-"""zipy serve, chat, traces, config, plugins and db."""
+"""zipy serve, chat, eval, traces, config, plugins and db."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import typer
@@ -19,6 +20,9 @@ console = Console()
 err = Console(stderr=True)
 
 MIGRATIONS = Path(__file__).resolve().parent.parent / "data" / "migrations"
+
+#: The repository's evals folder, three levels above apps/engine/commands.
+EVALS = Path(__file__).resolve().parents[3] / "evals"
 
 
 def fail(exc: ZipyError) -> typer.Exit:
@@ -55,6 +59,33 @@ def chat(
         asyncio.run(run(load(), only=("local",)))
     except ZipyError as exc:
         raise fail(exc) from exc
+
+
+@app.command("eval")
+def run_eval(
+    directory: Path = typer.Option(EVALS, help="where cases.toml and fixtures.toml live"),
+    case: str = typer.Option("", help="run one case by its id"),
+) -> None:
+    """Run the eval cases against the configured model, over fixtures rather than providers."""
+    from engine.evals import report, runner
+    from engine.evals.cases import load as load_cases
+    from engine.evals.fixtures import load as load_fixtures
+    from engine.evals.stack import build
+
+    try:
+        suite = load_cases(directory / "cases.toml")
+        raw = load_fixtures(directory / "fixtures.toml")
+        if case:
+            if case not in suite.by_id:
+                raise ZipyError(f"no case {case} in {directory / 'cases.toml'}")
+            suite = replace(suite, cases=(suite.by_id[case],), contrasts=())
+        stack = build(load(), raw)
+        runs, pairs = asyncio.run(runner.run(stack, suite))
+    except ZipyError as exc:
+        raise fail(exc) from exc
+    report.render(console, runs, pairs)
+    if not all(run.correctness.passed for run in runs):
+        raise typer.Exit(1)
 
 
 @app.command()

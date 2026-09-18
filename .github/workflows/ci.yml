@@ -35,6 +35,8 @@ jobs:
               - 'apps/engine/**'
               - 'apps/cli/**'
               - 'tests/**'
+              - 'evals/**'
+              - 'docs/USER_STORIES.md'
               - 'pyproject.toml'
               - 'uv.lock'
               - 'zipy.toml'

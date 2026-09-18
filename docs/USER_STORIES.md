@@ -4,6 +4,9 @@ What an org asks the runtime for, what it calls, and what the answer must carry.
 eval case: the id is stable, the calls are real tool actions from `just plugins`, and the
 expectation is what a run is scored against. See the v1.0 roadmap.
 
+`evals/cases.toml` holds these ids and is run by `just eval`; a test holds the two files to each
+other, so a story renamed here fails the gate until the case follows.
+
 An action's type comes from `zipy.toml`, never from the model. `read` and `create` run at once;
 `destructive` holds for a confirmation before anything changes.
 
@@ -138,7 +141,14 @@ Admin only.
 > status
 
 What is connected, which tools are enabled, the month's spend against the budget, and anything
-broken. The one admin command any member may run.
+broken. Any member may run it.
+
+### admin-prefer
+> prefer less depth
+
+Sets one dimension of the caller's own collaboration state, and answers with what the state now
+asks for. Any member may run it, because it writes one row, their own. `prefer` alone shows the
+state, `prefer forget` drops it, and all three answer that the feature is off when it is.
 
 ### admin-enable
 > enable zoom

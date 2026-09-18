@@ -87,6 +87,7 @@ sibling on its own row:
 
 ```
 commands        the zipy command
+evals           the cases in evals/, run over fixtures rather than providers
 wiring          builds everything, runs platforms + api + workers in one event loop
 platforms | api | workers
 gateway         platform-neutral: org and role, rate limit, admin commands, confirmations
@@ -131,6 +132,16 @@ Every replaceable dependency is a protocol in `engine/core/protocols.py` with a 
 `AuditLog`, `ConfirmationStore`, `RateLimiter`, `ProviderLimiter`, `JobQueue`, `TraceSink`,
 `CollaborationStore`. A new one gets a protocol
 and a double in the same change.
+
+## Evals
+
+`just eval` runs `docs/USER_STORIES.md` as cases in `evals/cases.toml`, against the configured
+model, with every tool answering from `evals/fixtures.toml` instead of its provider. Correctness
+(which actions ran, what the answer carried, whether a destructive call waited) and behaviour
+(length, asked or acted, which tool first) are scored apart and never added. A `[[contrast]]` runs
+one case at both ends of one collaboration dimension: correctness must hold, behaviour must move.
+Renaming a story means renaming its case; a test holds the two files together. `just eval` is not
+part of `just check`, because the gate needs no model.
 
 ## Config
 

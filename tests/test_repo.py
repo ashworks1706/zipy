@@ -92,3 +92,10 @@ def test_dependabot_covers_every_ecosystem_in_the_repo():
         for u in yaml.safe_load((ROOT / ".github/dependabot.yml").read_text())["updates"]
     }
     assert {"uv", "npm", "github-actions", "docker"} <= ecosystems
+
+
+def test_ci_runs_the_python_gate_when_the_eval_cases_change():
+    """The gate holds cases.toml to the stories, so a change to either must run it."""
+    filters = (WORKFLOWS / "ci.yml").read_text()
+    for path in ("evals/**", "docs/USER_STORIES.md"):
+        assert f"'{path}'" in filters, f"no CI path filter covers {path}"
