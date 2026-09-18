@@ -12,6 +12,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY apps/engine/pyproject.toml apps/engine/
 COPY apps/cli/pyproject.toml apps/cli/
+COPY apps/training/pyproject.toml apps/training/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-install-workspace --package engine
 

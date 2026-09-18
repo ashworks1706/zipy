@@ -2,6 +2,7 @@
 
 import json
 import re
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -17,6 +18,26 @@ def _workflow(name: str) -> dict:
 def _recipes() -> set[str]:
     text = (ROOT / "justfile").read_text()
     return set(re.findall(r"^([a-z][\w-]*)(?:\s[^:\n]*)?:(?!=)", text, re.MULTILINE))
+
+
+def _workspace_members() -> list[str]:
+    """Every app the uv workspace holds."""
+    root = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    return root["tool"]["uv"]["workspace"]["members"]
+
+
+def test_the_image_copies_every_workspace_manifest_the_lockfile_is_checked_against():
+    """uv sync --locked re-resolves when a member's pyproject is missing, and then refuses."""
+    dockerfile = (ROOT / "deploy/Dockerfile").read_text()
+    ignore = (ROOT / ".dockerignore").read_text()
+    for member in _workspace_members():
+        assert f"COPY {member}/pyproject.toml" in dockerfile, (
+            f"deploy/Dockerfile does not copy {member}/pyproject.toml; the image build will fail"
+        )
+        if f"\n{member}\n" in f"\n{ignore}":
+            assert f"!{member}/pyproject.toml" in ignore, (
+                f".dockerignore excludes {member} without keeping its pyproject.toml"
+            )
 
 
 def test_the_ci_job_needs_every_other_job_so_none_is_forgotten():
