@@ -166,6 +166,8 @@ class AgentReply:
 
     text: str
     usage: Usage = field(default_factory=Usage)
+    #: The actions this run made, in order, without repeats. A delegating parent reads them back.
+    ran: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

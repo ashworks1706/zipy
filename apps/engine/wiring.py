@@ -58,6 +58,8 @@ from engine.workers.token_refresh import refresh_expiring
 log = log_setup.get("engine.wiring")
 
 #: Where the system prompt templates live.
+DELEGATED_TEMPLATE = "delegated.md.j2"
+
 TEMPLATES = Path(__file__).resolve().parent / "agent" / "templates"
 
 #: Release reported to Sentry.
@@ -196,7 +198,11 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
         agent=config.agent,
         model=LiteLlmChat(config.models["chat"], trace),
         memory=memory,
-        prompts=PromptBuilder(system_template(config.agent.system_template), config.app.name),
+        prompts=PromptBuilder(
+            system_template(config.agent.system_template),
+            config.app.name,
+            system_template(DELEGATED_TEMPLATE),
+        ),
         registry=registry,
         executor=Executor(
             registry,

@@ -9,10 +9,12 @@ org's spend.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from datetime import timedelta
 from typing import Any
 from uuid import uuid4
 
+from engine.agent import delegate as delegation
 from engine.agent.classifier import needs_confirmation
 from engine.agent.prompt import PromptBuilder, tool_messages
 from engine.core.config import Agent
@@ -30,6 +32,7 @@ from engine.core.types import (
     BudgetExceeded,
     ChatMessage,
     Completion,
+    ConfigError,
     ConfirmationError,
     Dimension,
     Evidence,
@@ -40,7 +43,9 @@ from engine.core.types import (
     Signal,
     StoreError,
     ToolCall,
+    ToolOutcome,
     Usage,
+    ZipyError,
 )
 from engine.memory.manager import MemoryManager
 from engine.tools.executor import Executor
@@ -59,6 +64,22 @@ def _total(usage: Usage, added: Usage) -> Usage:
 def _answered(evidence: Evidence, target: float) -> Signal:
     """What answering a confirmation shows about how much the asker wants to be asked."""
     return Signal(dimension=Dimension.AUTONOMY, target=target, evidence=evidence)
+
+
+@dataclass
+class Budget:
+    """What one request has spent that is not money: how many sub-agents it has run.
+
+    The orchestrator holds no per-request state, so this is made per request and threaded down.
+    A counter on the instance would be shared by every request in flight.
+    """
+
+    delegations: int = 0
+
+
+def _failed(call: ToolCall, why: str) -> ToolOutcome:
+    """A delegate call the parent reads as a failed tool rather than a raised error."""
+    return ToolOutcome(call=call, ok=False, content=f"delegate did not run: {why}")
 
 
 def _summarize(call: ToolCall) -> str:
@@ -104,7 +125,7 @@ class Orchestrator:
         org = await self._org(ctx)
         context = await self._memory.build(ctx, message)
         messages = self._prompts.build(ctx, org, markup, context, message)
-        return await self._run(ctx, org, messages)
+        return await self._run(ctx, org, messages, Budget())
 
     async def confirm(self, ctx: RequestContext, confirmation_id: str, markup: str) -> AgentResult:
         """Run a confirmed call and continue the loop. Expired or foreign is ConfirmationError."""
@@ -121,7 +142,7 @@ class Orchestrator:
         await self._memory.observe(ctx, [_answered(Evidence.CONFIRMATION_CONFIRMED, 1.0)])
         context = await self._memory.build(ctx, pending.summary)
         messages = self._prompts.build(ctx, org, markup, context, "", (outcome,))
-        return await self._run(ctx, org, messages)
+        return await self._run(ctx, org, messages, Budget())
 
     async def cancel(self, ctx: RequestContext, confirmation_id: str) -> None:
         """Drop a pending call."""
@@ -138,41 +159,131 @@ class Orchestrator:
             raise StoreError(f"org {ctx.org_id} is not stored")
         return org
 
-    async def _schemas(self, ctx: RequestContext) -> list[dict[str, Any]]:
-        """The function schemas of the tools this org has connected and enabled."""
+    async def _offered(self, ctx: RequestContext, only: Sequence[str] | None = None) -> list[str]:
+        """The tools this org has connected and enabled, narrowed to only when one is given."""
         connected = await self._credentials.connected(ctx.org_id)
         overrides = await self._tool_config.overrides(ctx.org_id)
-        return self._registry.schemas(self._registry.available(connected, overrides))
+        available = self._registry.available(connected, overrides)
+        if only is None:
+            return available
+        return [name for name in available if name in only]
 
-    async def _run(self, ctx: RequestContext, org: Org, messages: list[ChatMessage]) -> AgentResult:
-        """Call the model until it answers, a destructive call waits, or the turns run out."""
-        schemas = await self._schemas(ctx)
+    async def _schemas(
+        self, ctx: RequestContext, depth: int = 0, only: Sequence[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """The schemas one level is offered. Only the parent is offered delegation."""
+        tools = await self._offered(ctx, only)
+        schemas = self._registry.schemas(tools)
+        if depth == 0 and self._agent.delegate:
+            schemas.append(delegation.schema(tools))
+        return schemas
+
+    async def _run(
+        self,
+        ctx: RequestContext,
+        org: Org,
+        messages: list[ChatMessage],
+        budget: Budget,
+        depth: int = 0,
+        only: Sequence[str] | None = None,
+        parent: str = "",
+    ) -> AgentResult:
+        """Call the model until it answers, a destructive call waits, or the turns run out.
+
+        depth is 0 for the request and 1 for a sub-agent. only narrows the tools, parent names the
+        delegate call a sub-agent is running under, and both travel onto every event so a trace
+        can be read as the tree it is.
+        """
+        schemas = await self._schemas(ctx, depth, only)
+        limit = self._agent.max_iterations if depth == 0 else self._agent.delegate_max_iterations
         usage = Usage()
         spent = float(org.spent_cents)
         ran: list[str] = []
-        for turn in range(1, self._agent.max_iterations + 1):
+        for turn in range(1, limit + 1):
             if spent >= org.budget_cents:
                 raise BudgetExceeded(
                     f"{org.name} has spent its {org.budget_cents} cent monthly budget"
                 )
-            self._trace.event(ctx, "model_started", {"turn": turn})
+            self._event(ctx, "model_started", {"turn": turn}, depth, parent)
             completion = await self._model.complete(ctx, messages, schemas)
             usage = _total(usage, completion.usage)
             spent += completion.usage.cost_cents
             await self._orgs.add_spend(ctx.org_id, completion.usage.cost_cents)
-            self._trace.event(ctx, "model_call", self._call_event(turn, completion))
+            self._event(ctx, "model_call", self._call_event(turn, completion), depth, parent)
             if not completion.tool_calls:
-                self._trace.event(ctx, "answer_draft", {"text": completion.text})
-                self._trace.event(ctx, "reply", {"turns": turn, "tools": ran})
-                return AgentReply(text=completion.text, usage=usage)
+                self._event(ctx, "answer_draft", {"text": completion.text}, depth, parent)
+                self._event(ctx, "reply", {"turns": turn, "tools": ran}, depth, parent)
+                return AgentReply(text=completion.text, usage=usage, ran=tuple(ran))
             runnable, held = self._split(completion.tool_calls)
-            outcomes = [await self._executor.run(ctx, call) for call in runnable]
+            outcomes: list[ToolOutcome] = []
+            for call in runnable:
+                if call.name == delegation.NAME:
+                    sub, spent_here = await self._delegate(ctx, org, call, budget, depth, spent)
+                    spent = spent_here
+                    outcomes.append(sub)
+                    continue
+                outcomes.append(await self._executor.run(ctx, call))
             ran.extend(outcome.call.name for outcome in outcomes)
             if held is not None:
                 return await self._hold(ctx, held)
             messages.extend(tool_messages(outcomes))
-        self._trace.event(ctx, "reply", {"turns": self._agent.max_iterations, "tools": ran})
-        return AgentReply(text=self._exhausted(ran), usage=usage)
+        self._event(ctx, "reply", {"turns": limit, "tools": ran}, depth, parent)
+        return AgentReply(text=self._exhausted(ran), usage=usage, ran=tuple(ran))
+
+    def _event(
+        self, ctx: RequestContext, name: str, data: dict[str, Any], depth: int, parent: str
+    ) -> None:
+        """One trace event, carrying which level raised it and under which delegate call."""
+        if depth or parent:
+            data = {**data, "depth": depth, "parent": parent}
+        self._trace.event(ctx, name, data)
+
+    async def _delegate(
+        self,
+        ctx: RequestContext,
+        org: Org,
+        call: ToolCall,
+        budget: Budget,
+        depth: int,
+        spent: float,
+    ) -> tuple[ToolOutcome, float]:
+        """Run one sub-agent and return what the parent reads, with the spend it left behind.
+
+        Every way this can go wrong is a tool result rather than a raised error: a sub-agent that
+        could not finish is one failed call in a request the parent may still answer.
+        """
+        if depth >= delegation.SUB_AGENT_DEPTH:
+            return _failed(call, "a sub-agent cannot delegate again"), spent
+        budget.delegations += 1
+        if budget.delegations > self._agent.max_delegations:
+            return _failed(call, f"this request already ran {self._agent.max_delegations}"), spent
+        try:
+            task = delegation.task_of(call)
+        except ConfigError as exc:
+            return _failed(call, str(exc)), spent
+        tools = delegation.tools_of(call, await self._offered(ctx))
+        self._event(ctx, "delegate", {"id": call.id, "task": task, "tools": tools}, depth, "")
+        messages = self._prompts.delegated(org, task)
+        try:
+            result = await self._run(
+                ctx,
+                replace(org, spent_cents=spent),
+                messages,
+                budget,
+                depth=delegation.SUB_AGENT_DEPTH,
+                only=tools,
+                parent=call.id,
+            )
+        except ZipyError as exc:
+            self._event(ctx, "delegate_failed", {"id": call.id, "error": str(exc)}, depth, "")
+            return _failed(call, str(exc)), spent
+        if not isinstance(result, AgentReply):
+            self._event(ctx, "delegate_held", {"id": call.id}, depth, "")
+            return _failed(call, "that subtask needs a confirmation, so do it yourself"), spent
+        spent += result.usage.cost_cents
+        text = delegation.result(result.text, list(result.ran))
+        self._event(ctx, "delegate_done", {"id": call.id, "chars": len(text)}, depth, "")
+        return ToolOutcome(call=call, ok=True, content=text), spent
 
     def _call_event(self, turn: int, completion: Completion) -> dict[str, Any]:
         """What one model call records on the trace. The text itself is not recorded here."""
@@ -185,10 +296,14 @@ class Orchestrator:
         }
 
     def _split(self, calls: Sequence[ToolCall]) -> tuple[list[ToolCall], ToolCall | None]:
-        """The calls that run now, and the first destructive one, which stops the loop."""
+        """The calls that run now, and the first destructive one, which stops the loop.
+
+        Delegating is never itself destructive, and the registry does not know the name. What a
+        sub-agent goes on to call is split the same way, one level down.
+        """
         runnable: list[ToolCall] = []
         for call in calls:
-            if needs_confirmation(self._registry, call):
+            if call.name != delegation.NAME and needs_confirmation(self._registry, call):
                 return runnable, call
             runnable.append(call)
         return runnable, None

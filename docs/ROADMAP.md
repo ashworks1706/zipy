@@ -76,7 +76,8 @@ limits the adaptation.
 - A general assistant: essays, images, trivia
 - Replacing Notion or Google Calendar as the system of record
 - A hosted SaaS, pricing, or an enterprise tier
-- Sub-agents per integration
+- Sub-agents per integration, a specialist agent per tool, or any agent that exists before a
+  request. One level of delegation on a named subtask is in; a fleet of standing agents is not.
 - Storing chat history from any platform. The runtime keeps none: memory reads history back off
   the platform, and collaboration state records what behaviour showed rather than what was said.
   A training dataset is the one thing that holds conversation text, and it is not the runtime: it

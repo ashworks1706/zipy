@@ -74,9 +74,24 @@ def tool_messages(outcomes: Sequence[ToolOutcome]) -> list[ChatMessage]:
 class PromptBuilder:
     """Renders the system template and assembles messages."""
 
-    def __init__(self, template: str, app_name: str) -> None:
+    def __init__(self, template: str, app_name: str, delegated: str = "") -> None:
         self._template = Template(template, undefined=StrictUndefined)
+        self._delegated_template = Template(delegated or template, undefined=StrictUndefined)
         self._app_name = app_name
+
+    def delegated(self, org: Org, task: str, org_facts: str = "") -> list[ChatMessage]:
+        """The messages one sub-agent starts from: the task, and the org's facts.
+
+        No conversation history and no collaboration state. A sub-agent is not talking to anyone,
+        so the history is not its business and nobody reads its prose.
+        """
+        system = self._delegated_template.render(
+            app_name=self._app_name,
+            org_name=org.name,
+            org_facts=org_facts,
+            task=task,
+        )
+        return [ChatMessage(speaker=Speaker.SYSTEM, content=system.strip())]
 
     def build(
         self,

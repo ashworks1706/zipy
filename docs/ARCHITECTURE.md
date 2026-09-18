@@ -24,10 +24,17 @@ plugin folder and one config table; the agent, tools and memory do not change.
 `zipy.toml`, discovered at startup. A folder without a table or a table without a folder fails at
 startup. The plugin declares the third-party libraries it owns; nothing else imports them.
 
-**One agent, many tools, not many agents.** The model is the router. It receives a message, the
-tools available to this org with their schemas, and decides what to call. One orchestrator loops:
-call a tool, read the result, decide whether to call another, until done (at most
-`agent.max_iterations`). No sub-agents. This keeps the system flat and debuggable.
+**One agent, many tools, and one level of delegation.** The model is the router. It receives a
+message, the tools available to this org with their schemas, and decides what to call. One
+orchestrator loops: call a tool, read the result, decide whether to call another, until done (at
+most `agent.max_iterations`).
+
+`delegate` is the one tool that runs that same loop again, once, on a subtask. There are no
+specialist agents per integration and no agent that exists before a request: a sub-agent is the
+same loop with a task, a named subset of the parent's tools, and its own turn limit, and it is
+never offered `delegate` itself. Two levels, bounded at `max_iterations` squared, one code path,
+one trace format. That bound is the reason this is allowed at all; anything deeper stops being
+something a person can read a trace of.
 
 **Credentials never touch the model.** The model sees tool names and parameter schemas. The
 executor fetches and decrypts the org's token internally. The model never sees a key, a token or

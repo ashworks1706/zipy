@@ -55,6 +55,12 @@ class Agent(_Table):
     system_template: str = "system.md.j2"
     #: Images of one message sent to the model. 0 sends none.
     max_images: int = 4
+    # Delegation: the same loop run once on a subtask. Off leaves the tool unoffered.
+    delegate: bool = True
+    # Turns one sub-agent gets. The worst case of a request is max_iterations times this.
+    delegate_max_iterations: int = 6
+    # Sub-agents one request may run, however many turns the parent has.
+    max_delegations: int = 3
 
     @model_validator(mode="after")
     def _check(self) -> Agent:
@@ -62,6 +68,10 @@ class Agent(_Table):
             raise ConfigError("agent.max_iterations must be at least 1")
         if self.confirmation_ttl_secs < 10:
             raise ConfigError("agent.confirmation_ttl_secs must be at least 10")
+        if self.delegate_max_iterations < 1:
+            raise ConfigError("agent.delegate_max_iterations must be at least 1")
+        if self.max_delegations < 1:
+            raise ConfigError("agent.max_delegations must be at least 1")
         return self
 
 

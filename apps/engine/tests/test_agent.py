@@ -50,9 +50,9 @@ from engine.tools.base import Action, BaseTool
 from engine.tools.executor import Executor
 from engine.tools.registry import Registry
 
-TEMPLATE = (
-    Path(__file__).resolve().parents[1] / "agent" / "templates" / "system.md.j2"
-).read_text()
+TEMPLATES = Path(__file__).resolve().parents[1] / "agent" / "templates"
+TEMPLATE = (TEMPLATES / "system.md.j2").read_text()
+DELEGATED = (TEMPLATES / "delegated.md.j2").read_text()
 
 
 class Settings(BaseModel):
@@ -301,6 +301,8 @@ def orchestrator(
     max_iterations: int = 8,
     confirmations: MemoryConfirmations | None = None,
     audit: MemoryAudit | None = None,
+    agent_config: Agent | None = None,
+    trace: MemoryTrace | None = None,
 ) -> tuple[Orchestrator, ScriptedModel, MemoryOrgs, MemoryConfirmations]:
     """An orchestrator over doubles, with the model scripted."""
     orgs = MemoryOrgs()
@@ -319,17 +321,17 @@ def orchestrator(
     held = confirmations if confirmations is not None else MemoryConfirmations()
     run, _ = executor(ctx, audit=audit)
     agent = Orchestrator(
-        agent=Agent(max_iterations=max_iterations),
+        agent=agent_config or Agent(max_iterations=max_iterations),
         model=model,
         memory=memory,
-        prompts=PromptBuilder(TEMPLATE, "Zipy"),
+        prompts=PromptBuilder(TEMPLATE, "Zipy", DELEGATED),
         registry=registry(),
         executor=run,
         orgs=orgs,
         credentials=connected(ctx.org_id),
         tool_config=MemoryToolConfig(),
         confirmations=held,
-        trace=MemoryTrace(),
+        trace=trace or MemoryTrace(),
     )
     return agent, model, orgs, held
 
@@ -619,3 +621,238 @@ def test_a_collaboration_block_rides_in_the_system_prompt_and_yields_to_the_rule
     assert asked in system
     # It is a preference, not a permission.
     assert "never override" in system
+
+
+# ---------------------------------------------------------------- delegation
+
+
+def _delegate(task="find the open CI issues", tools=("diary",), id_="d1"):
+    from engine.core.types import ToolCall
+
+    return ToolCall(id=id_, name="delegate", arguments={"task": task, "tools": list(tools)})
+
+
+async def test_a_delegate_call_runs_the_loop_again_and_comes_back_as_a_tool_result(ctx, cfg):
+    agent, model, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="Two issues, both about the image build."),
+            Completion(text="There are two, both the image build."),
+        ],
+    )
+
+    result = await agent.handle(ctx, "what is failing in CI?", "discord-markdown")
+
+    assert isinstance(result, AgentReply)
+    assert result.text == "There are two, both the image build."
+    # The sub-agent's conclusion reached the parent as a tool message.
+    parent_second = model.requests[2]
+    assert any("both about the image build" in m.content for m in parent_second)
+
+
+async def test_a_sub_agent_starts_from_the_task_and_not_the_conversation(ctx, cfg):
+    agent, model, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(task="count the open issues"),)),
+            Completion(text="Two."),
+            Completion(text="Two."),
+        ],
+    )
+
+    await agent.handle(ctx, "what is failing in CI?", "discord-markdown")
+
+    sub = model.requests[1]
+    assert len(sub) == 1, "one system message, no history and no user turn"
+    assert "count the open issues" in sub[0].content
+    assert "what is failing in CI?" not in sub[0].content
+
+
+async def test_a_sub_agent_is_not_offered_the_delegate_tool(ctx, cfg):
+    """Two levels is the bound. A sub-agent that could delegate would not be bounded."""
+    from engine.agent import delegate as delegation
+
+    agent, _, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="", tool_calls=(_delegate(id_="d2"),)),
+            Completion(text="done"),
+            Completion(text="done"),
+        ],
+    )
+
+    await agent.handle(ctx, "go", "discord-markdown")
+
+    # The nested delegate call was refused rather than run.
+    assert delegation.SUB_AGENT_DEPTH == 1
+
+
+async def test_a_nested_delegate_is_refused_as_a_failed_tool_not_an_error(ctx, cfg):
+    agent, model, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="", tool_calls=(_delegate(id_="d2"),)),
+            Completion(text="I could not delegate further."),
+            Completion(text="Done anyway."),
+        ],
+    )
+
+    result = await agent.handle(ctx, "go", "discord-markdown")
+
+    assert isinstance(result, AgentReply)
+    sub_second = model.requests[2]
+    assert any("cannot delegate again" in m.content for m in sub_second)
+
+
+async def test_a_request_runs_at_most_max_delegations_sub_agents(ctx, cfg):
+    config = Agent(max_iterations=8, max_delegations=1)
+    agent, model, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="first done"),
+            Completion(text="", tool_calls=(_delegate(id_="d2"),)),
+            Completion(text="Only one ran."),
+        ],
+        agent_config=config,
+    )
+
+    result = await agent.handle(ctx, "go", "discord-markdown")
+
+    assert isinstance(result, AgentReply)
+    last = model.requests[-1]
+    assert any("already ran 1" in m.content for m in last)
+
+
+async def test_a_sub_agent_gets_its_own_shorter_turn_limit(ctx, cfg):
+    """It loops without answering, and stops at delegate_max_iterations, not the parent's."""
+    config = Agent(max_iterations=8, delegate_max_iterations=2)
+    calling = Completion(text="", tool_calls=(call("diary.list_events"),))
+    agent, model, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            calling,
+            calling,
+            Completion(text="Fine."),
+        ],
+        agent_config=config,
+    )
+
+    result = await agent.handle(ctx, "go", "discord-markdown")
+
+    assert isinstance(result, AgentReply)
+    assert len(model.script) == 0, "two sub-agent turns, then the parent"
+
+
+async def test_a_sub_agent_only_gets_the_tools_the_parent_named(ctx, cfg):
+    from engine.agent.delegate import tools_of
+
+    asked = _delegate(tools=("diary", "ghost"))
+    assert tools_of(asked, ["diary", "search"]) == ["diary"], "a tool the org lacks is dropped"
+    assert tools_of(_delegate(tools=()), ["diary"]) == []
+
+
+async def test_a_delegate_call_with_no_task_is_a_failed_tool(ctx, cfg):
+    from engine.core.types import ToolCall
+
+    empty = ToolCall(id="d1", name="delegate", arguments={"task": "  ", "tools": []})
+    agent, model, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [Completion(text="", tool_calls=(empty,)), Completion(text="I need a task.")],
+    )
+
+    result = await agent.handle(ctx, "go", "discord-markdown")
+
+    assert isinstance(result, AgentReply)
+    assert any("no task" in m.content for m in model.requests[-1])
+
+
+async def test_the_spend_of_a_sub_agent_is_charged_to_the_org(ctx, cfg):
+    agent, _, orgs, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),), usage=Usage(10, 5, 1.0)),
+            Completion(text="done", usage=Usage(10, 5, 2.0)),
+            Completion(text="Answered.", usage=Usage(10, 5, 4.0)),
+        ],
+    )
+
+    await agent.handle(ctx, "go", "discord-markdown")
+
+    assert orgs.orgs[ctx.org_id].spent_cents == 7, "parent and sub-agent both charged"
+
+
+async def test_every_sub_agent_event_says_which_level_and_which_call_it_belongs_to(ctx, cfg):
+    trace = MemoryTrace()
+    agent, _, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="done"),
+            Completion(text="Answered."),
+        ],
+        trace=trace,
+    )
+
+    await agent.handle(ctx, "go", "discord-markdown")
+
+    named = {name for name, _ in trace.events}
+    assert "delegate" in named and "delegate_done" in named
+    nested = [data for name, data in trace.events if data.get("depth") == 1]
+    assert nested, "the sub-agent raised events"
+    assert all(one["parent"] == "d1" for one in nested), "each names the delegate call"
+    parent_events = [data for name, data in trace.events if "depth" not in data]
+    assert parent_events, "the parent's own events are unchanged"
+
+
+async def test_delegation_off_offers_no_such_tool(ctx, cfg):
+    from engine.agent.delegate import NAME
+
+    agent, _, _, _ = orchestrator(
+        ctx, cfg, [Completion(text="Answered.")], agent_config=Agent(delegate=False)
+    )
+    schemas = await agent._schemas(ctx)  # noqa: SLF001
+    assert all(s["function"]["name"] != NAME for s in schemas)
+
+
+async def test_delegation_on_offers_it_to_the_parent_only(ctx, cfg):
+    from engine.agent.delegate import NAME, SUB_AGENT_DEPTH
+
+    agent, _, _, _ = orchestrator(ctx, cfg, [Completion(text="Answered.")])
+    parent = await agent._schemas(ctx, 0)  # noqa: SLF001
+    sub = await agent._schemas(ctx, SUB_AGENT_DEPTH)  # noqa: SLF001
+    assert any(s["function"]["name"] == NAME for s in parent)
+    assert all(s["function"]["name"] != NAME for s in sub)
+
+
+async def test_the_parent_reads_back_what_the_sub_agent_ran(ctx, cfg):
+    """So it does not repeat the lookups the sub-agent already made."""
+    agent, model, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="", tool_calls=(call("diary.list_events"),)),
+            Completion(text="Two events."),
+            Completion(text="Two."),
+        ],
+    )
+
+    await agent.handle(ctx, "go", "discord-markdown")
+
+    handed_back = [m.content for m in model.requests[-1] if "delegate ran" in m.content]
+    assert handed_back, "the parent was told what it ran"
+    assert "diary.list_events" in handed_back[0]

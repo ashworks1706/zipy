@@ -35,6 +35,14 @@ system_template = "system.md.j2"
 # Images of one message sent to the model. The model has to be one that reads images; see
 # deploy/inference/README.md. 0 sends none.
 max_images = 4
+# Delegation: the same loop, once, on a subtask, with a subset of the tools the parent has.
+# A sub-agent is never offered it, so a request is two levels deep at most. false offers no
+# such tool and the loop is exactly what it was.
+delegate = true
+# Turns one sub-agent gets. A request costs at most max_iterations times this many model calls.
+delegate_max_iterations = 6
+# Sub-agents one request may run, whatever its turns.
+max_delegations = 3
 
 # ---------------------------------------------------------------- models
 #
