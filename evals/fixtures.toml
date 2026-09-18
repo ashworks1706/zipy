@@ -100,6 +100,45 @@ recordings = [
 text = "The board agreed to approach Honeywell for sponsorship before the end of the month, and to hold the flyer until the room is confirmed."
 recording = { meeting_id = "zm-1", topic = "Exec board meeting", start = "2026-09-16T18:00:00Z", has_transcript = true }
 
+# ---------------------------------------------------------------- github
+
+[tools."github.list_issues"]
+issues = [
+  { number = 14, title = "Add eval suite and training pipeline", state = "open", url = "https://github.com/soda/zipy/issues/14", author = "ash", labels = ["enhancement"], is_pull_request = true, updated_at = "2026-09-18T03:22:50Z" },
+  { number = 12, title = "Image build fails on a new workspace member", state = "open", url = "https://github.com/soda/zipy/issues/12", author = "maria", labels = ["bug", "ci"], is_pull_request = false, updated_at = "2026-09-17T19:04:00Z" },
+]
+
+[tools."github.get_issue"]
+body = "The gate passes but the image job cannot resolve the lockfile."
+issue = { number = 12, title = "Image build fails on a new workspace member", state = "open", url = "https://github.com/soda/zipy/issues/12", author = "maria", labels = ["bug", "ci"], is_pull_request = false }
+comments = [
+  { author = "ash", body = "The Dockerfile copies each manifest by name.", url = "https://github.com/soda/zipy/issues/12#issuecomment-1" },
+]
+
+[tools."github.search_issues"]
+issues = [
+  { number = 12, title = "Image build fails on a new workspace member", state = "open", url = "https://github.com/soda/zipy/issues/12", author = "maria", labels = ["bug", "ci"], is_pull_request = false },
+]
+
+[tools."github.get_file"]
+path = "README.md"
+url = "https://github.com/soda/zipy/blob/main/README.md"
+text = "Zipy self-hosts on one box: postgres, redis, and the engine behind Caddy."
+
+[tools."github.create_issue"]
+number = 21
+title = "The gate is failing on the image build"
+state = "open"
+url = "https://github.com/soda/zipy/issues/21"
+author = "zipy"
+labels = []
+is_pull_request = false
+
+[tools."github.comment"]
+author = "zipy"
+body = "Ash is picking this up."
+url = "https://github.com/soda/zipy/issues/14#issuecomment-2"
+
 # ---------------------------------------------------------------- search
 
 [tools."search.web_search"]

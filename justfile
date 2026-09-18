@@ -226,7 +226,15 @@ diagrams:
       awk -v d="$d" -v n="$(basename "$doc" .md)" '/^```mermaid/{i++; f=d"/"n"-"i".mmd"; next} /^```/{f=""; next} f{print > f}' "$doc"
     done
     shopt -s nullglob
-    for f in "$d"/*.mmd; do npx -y @mermaid-js/mermaid-cli@11 -i "$f" -o "${f%.mmd}.svg" -q && echo "ok $(basename "$f")"; done
+    # Chromium refuses its sandbox as root, which is how it runs in a container.
+    cfg=""
+    if [ "$(id -u)" = "0" ]; then
+      cfg="$d/puppeteer.json"
+      echo '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > "$cfg"
+    fi
+    for f in "$d"/*.mmd; do
+      npx -y @mermaid-js/mermaid-cli@11 -i "$f" -o "${f%.mmd}.svg" -q ${cfg:+-p "$cfg"} && echo "ok $(basename "$f")"
+    done
 
 # Build the zipy image
 image:

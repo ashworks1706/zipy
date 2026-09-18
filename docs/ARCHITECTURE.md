@@ -66,6 +66,7 @@ flowchart LR
         google["Google Calendar, Drive"]
         notion["Notion"]
         zoom["Zoom"]
+        github["GitHub"]
     end
 
     subgraph infra["Data and models"]
@@ -92,6 +93,7 @@ flowchart LR
     tools <--> google
     tools <--> notion
     tools <--> zoom
+    tools <--> github
     zoom -- webhooks --> api
     api --> redis --> workers
     workers --> tools

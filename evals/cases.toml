@@ -103,6 +103,42 @@ ask = "Look up the room booking policy for the MU building."
 calls = ["search.web_search"]
 contains = ["60 days"]
 
+# ---------------------------------------------------------------- github
+
+[[case]]
+id = "github-open-issues"
+ask = "What's still open on the zipy repo?"
+calls = ["github.list_issues"]
+contains = ["Image build fails"]
+
+[[case]]
+id = "github-issue-detail"
+ask = "What did people say on issue 12?"
+calls = ["github.get_issue"]
+contains = ["copies each manifest"]
+
+[[case]]
+id = "github-find-issue"
+ask = "Did anyone file something about the flaky CI?"
+calls = ["github.search_issues"]
+
+[[case]]
+id = "github-read-file"
+ask = "What does the zipy README say about self-hosting?"
+calls = ["github.get_file"]
+contains = ["Caddy"]
+
+[[case]]
+id = "github-open-one"
+ask = "Open an issue on zipy: the gate is failing on the image build."
+calls = ["github.create_issue"]
+contains = ["issues/21"]
+
+[[case]]
+id = "github-comment"
+ask = "Reply on issue 14 that I am picking it up."
+calls = ["github.comment"]
+
 # ---------------------------------------------------------------- cross-tool
 
 [[case]]

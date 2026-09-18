@@ -249,6 +249,9 @@ enabled = true
 [providers.zoom]
 enabled = true
 
+[providers.github]
+enabled = true
+
 # ---------------------------------------------------------------- tools
 #
 # Each action names its type, which decides whether it runs at once (read, create) or waits for a
@@ -296,12 +299,30 @@ update_page = "destructive"
 
 [tools.zoom]
 provider = "zoom"
-enabled = false
+enabled = true
 scopes = ["cloud_recording:read"]
 
 [tools.zoom.actions]
 list_recordings = "read"
 latest_summary = "read"
+
+[tools.github]
+provider = "github"
+enabled = true
+# repo covers reading private repositories and opening issues; read:org resolves the org's
+# members. Drop repo to public_repo when the org has no private repository worth reading.
+scopes = ["repo", "read:org"]
+# Owner an unqualified repo name is read under. Empty means every repo must be given as owner/name.
+default_owner = ""
+max_results = 25
+
+[tools.github.actions]
+list_issues = "read"
+get_issue = "read"
+search_issues = "read"
+get_file = "read"
+create_issue = "create"
+comment = "create"
 
 [tools.search]
 # Web and campus portal search. Needs no connected account.
