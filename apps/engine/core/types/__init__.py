@@ -18,6 +18,7 @@ from engine.core.types.chat import (
 )
 from engine.core.types.collaboration import (
     NEUTRAL,
+    STATED_WEIGHT,
     CollaborationState,
     Dimension,
     Evidence,
@@ -60,6 +61,7 @@ from engine.core.types.records import (
 
 __all__ = [
     "NEUTRAL",
+    "STATED_WEIGHT",
     "CollaborationState",
     "Dimension",
     "Evidence",

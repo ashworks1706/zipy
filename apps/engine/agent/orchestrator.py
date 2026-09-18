@@ -31,10 +31,13 @@ from engine.core.types import (
     ChatMessage,
     Completion,
     ConfirmationError,
+    Dimension,
+    Evidence,
     NeedsConfirmation,
     Org,
     PendingConfirmation,
     RequestContext,
+    Signal,
     StoreError,
     ToolCall,
     Usage,
@@ -51,6 +54,11 @@ def _total(usage: Usage, added: Usage) -> Usage:
         completion_tokens=usage.completion_tokens + added.completion_tokens,
         cost_cents=usage.cost_cents + added.cost_cents,
     )
+
+
+def _answered(evidence: Evidence, target: float) -> Signal:
+    """What answering a confirmation shows about how much the asker wants to be asked."""
+    return Signal(dimension=Dimension.AUTONOMY, target=target, evidence=evidence)
 
 
 def _summarize(call: ToolCall) -> str:
@@ -110,6 +118,7 @@ class Orchestrator:
         self._trace.event(
             ctx, "confirmation", {"id": confirmation_id, "answer": "confirm", "ok": outcome.ok}
         )
+        await self._memory.observe(ctx, [_answered(Evidence.CONFIRMATION_CONFIRMED, 1.0)])
         context = await self._memory.build(ctx, pending.summary)
         messages = self._prompts.build(ctx, org, markup, context, "", (outcome,))
         return await self._run(ctx, org, messages)
@@ -120,6 +129,7 @@ class Orchestrator:
         if pending is not None and pending.org_id != ctx.org_id:
             raise ConfirmationError(f"confirmation {confirmation_id} belongs to another org")
         self._trace.event(ctx, "confirmation", {"id": confirmation_id, "answer": "cancel"})
+        await self._memory.observe(ctx, [_answered(Evidence.CONFIRMATION_CANCELLED, 0.0)])
 
     async def _org(self, ctx: RequestContext) -> Org:
         """The org of the request. An org that is not stored is a StoreError."""

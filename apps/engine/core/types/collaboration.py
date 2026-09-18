@@ -19,6 +19,9 @@ NEUTRAL = 0.5
 #: Weight of one observation when the caller names none.
 DEFAULT_ALPHA = 0.15
 
+#: How many ordinary observations a stated preference counts for.
+STATED_WEIGHT = 4.0
+
 
 class Dimension(StrEnum):
     """What is scored about a person. A new one needs no migration."""
@@ -46,6 +49,8 @@ class Signal:
     dimension: Dimension
     target: float
     evidence: Evidence
+    #: How many ordinary observations this one counts for.
+    weight: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -67,14 +72,16 @@ def apply_signals(
 ) -> CollaborationState:
     """The state after signals, each moving its dimension toward the target by alpha.
 
-    A moving average, so one observation never decides a dimension and old ones fade.
+    A moving average, so one observation never decides a dimension and old ones fade. A signal
+    weighing more than one moves further, up to landing on its target.
     """
     if not signals:
         return state
     scores = dict(state.scores)
     for signal in signals:
         current = scores.get(signal.dimension, NEUTRAL)
-        scores[signal.dimension] = (1.0 - alpha) * current + alpha * signal.target
+        step = min(alpha * signal.weight, 1.0)
+        scores[signal.dimension] = (1.0 - step) * current + step * signal.target
     return CollaborationState(
         member=state.member,
         scores=scores,

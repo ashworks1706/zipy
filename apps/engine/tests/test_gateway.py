@@ -31,7 +31,10 @@ from engine.core.doubles import (
 from engine.core.types import (
     ActionType,
     ChannelRef,
+    CollaborationState,
     Completion,
+    Dimension,
+    Evidence,
     FactCategory,
     MemberRef,
     Org,
@@ -40,10 +43,12 @@ from engine.core.types import (
     OrgToolConfig,
     ProviderAuth,
     Role,
+    Signal,
     ToolCall,
     Usage,
     Workspace,
 )
+from engine.core.types.collaboration import apply_signals
 from engine.gateway.admin import AdminCommand, Verb, parse
 from engine.gateway.gateway import Gateway
 from engine.gateway.messages import (
@@ -184,6 +189,7 @@ class Stack:
     credentials: MemoryCredentials
     tool_config: MemoryToolConfig
     confirmations: MemoryConfirmations
+    collaboration: MemoryCollaboration
     metrics: Metrics
 
 
@@ -235,6 +241,7 @@ def stack(
     org_context = MemoryOrgContext()
     tool_config = MemoryToolConfig()
     confirmations = MemoryConfirmations()
+    collaboration = MemoryCollaboration()
     registry = Registry(tables(), {"diary": Diary})
     model = ScriptedModel(script=list(script or []))
     orchestrator = Orchestrator(
@@ -246,7 +253,7 @@ def stack(
             org_context=org_context,
             embedder=FixedEmbedder([0.1]),
             documents=MemoryDocuments(),
-            collaboration=MemoryCollaboration(),
+            collaboration=collaboration,
             settings=cfg.collaboration,
         ),
         prompts=PromptBuilder(TEMPLATE, "Zipy"),
@@ -279,6 +286,7 @@ def stack(
             credentials=credentials,
             tool_config=tool_config,
             rate_limiter=limiter if limiter is not None else AllowAll(),
+            collaboration=collaboration,
             metrics=metrics,
         ),
         model=model,
@@ -288,6 +296,7 @@ def stack(
         credentials=credentials,
         tool_config=tool_config,
         confirmations=confirmations,
+        collaboration=collaboration,
         metrics=metrics,
     )
 
@@ -587,3 +596,104 @@ async def test_metrics_count_messages_by_platform_and_outcome_never_by_org(cfg, 
     snapshot = unit.metrics.snapshot()
     assert snapshot["zipy_messages_total{outcome=reply,platform=discord}"] == 1
     assert not any(str(ctx.org_id) in key for key in snapshot)
+
+
+def _on(cfg: Any) -> Any:
+    """The same config with collaboration switched on and one observation enough to show."""
+    switched = cfg.collaboration.model_copy(update={"enabled": True, "min_observations": 1})
+    return cfg.model_copy(update={"collaboration": switched})
+
+
+async def test_prefer_is_the_one_command_a_member_runs_without_being_an_admin(cfg, ctx):
+    unit = stack(_on(cfg), ctx)
+    replies = await unit.gateway.message(inbound(ctx, "prefer less depth"), DISCORD)
+    assert "admin" not in body(replies)
+    assert unit.collaboration.by_member[(ctx.org_id, ctx.member)].score(Dimension.DEPTH) < 0.5
+
+
+async def test_prefer_writes_only_the_caller_and_never_another_member(cfg, ctx):
+    unit = stack(_on(cfg), ctx)
+    await unit.gateway.message(inbound(ctx, "prefer more autonomy"), DISCORD)
+    assert list(unit.collaboration.by_member) == [(ctx.org_id, ctx.member)]
+
+
+async def test_a_stated_preference_outweighs_one_observation(cfg, ctx):
+    unit = stack(_on(cfg), ctx)
+    await unit.gateway.message(inbound(ctx, "prefer less depth"), DISCORD)
+    stated = unit.collaboration.by_member[(ctx.org_id, ctx.member)].score(Dimension.DEPTH)
+    observed = apply_signals(
+        CollaborationState(member=ctx.member),
+        [Signal(Dimension.DEPTH, 0.0, Evidence.CONFIRMATION_CANCELLED)],
+    ).score(Dimension.DEPTH)
+    assert stated < observed
+
+
+async def test_prefer_shows_what_was_read_and_forget_drops_it(cfg, ctx):
+    unit = stack(_on(cfg), ctx)
+    await unit.gateway.message(inbound(ctx, "prefer less depth"), DISCORD)
+    shown = body(await unit.gateway.message(inbound(ctx, "prefer"), DISCORD))
+    assert "Answer briefly" in shown
+    await unit.gateway.message(inbound(ctx, "prefer forget"), DISCORD)
+    assert unit.collaboration.by_member == {}
+
+
+async def test_a_preference_that_names_nothing_real_is_refused_with_the_format(cfg, ctx):
+    unit = stack(_on(cfg), ctx)
+    replies = await unit.gateway.message(inbound(ctx, "prefer louder"), DISCORD)
+    assert "prefer more <dimension>" in body(replies)
+    assert unit.collaboration.by_member == {}
+
+
+async def test_prefer_says_the_feature_is_off_rather_than_pretending_to_store(cfg, ctx):
+    unit = stack(cfg, ctx)
+    replies = await unit.gateway.message(inbound(ctx, "prefer less depth"), DISCORD)
+    assert "off in this deployment" in body(replies)
+    assert unit.collaboration.by_member == {}
+
+
+async def test_status_says_nothing_about_a_person_while_collaboration_is_off(cfg, ctx):
+    unit = stack(cfg, ctx)
+    assert "how you work" not in body(await unit.gateway.message(inbound(ctx, "status"), DISCORD))
+
+
+async def _answer(unit: Stack, ctx: Any, answer: Answer) -> None:
+    """Ask for a destructive call, then answer the confirmation it comes back with."""
+    asked = await unit.gateway.message(inbound(ctx, "move standup to 4pm"), DISCORD)
+    prompt = asked[0]
+    assert isinstance(prompt, ConfirmPrompt)
+    await unit.gateway.answer(
+        InboundAnswer(
+            channel=ctx.channel,
+            member=ctx.member,
+            confirmation_id=prompt.confirmation_id,
+            answer=answer,
+            received_at=ctx.received_at,
+        ),
+        DISCORD,
+    )
+
+
+def _script() -> list[Completion]:
+    """A destructive call and the reply that follows it."""
+    return [
+        Completion(text="", tool_calls=(call("diary.move_event", event_id="e1", to="4pm"),)),
+        Completion(text="Moved standup to 4pm."),
+    ]
+
+
+async def test_confirming_reads_as_wanting_to_be_asked_less(cfg, ctx):
+    unit = stack(_on(cfg), ctx, _script())
+    await _answer(unit, ctx, Answer.CONFIRM)
+    assert unit.collaboration.by_member[(ctx.org_id, ctx.member)].score(Dimension.AUTONOMY) > 0.5
+
+
+async def test_cancelling_reads_as_wanting_to_be_asked_more(cfg, ctx):
+    unit = stack(_on(cfg), ctx, _script())
+    await _answer(unit, ctx, Answer.CANCEL)
+    assert unit.collaboration.by_member[(ctx.org_id, ctx.member)].score(Dimension.AUTONOMY) < 0.5
+
+
+async def test_an_answered_confirmation_is_observed_only_while_collaboration_is_on(cfg, ctx):
+    unit = stack(cfg, ctx, _script())
+    await _answer(unit, ctx, Answer.CONFIRM)
+    assert unit.collaboration.by_member == {}

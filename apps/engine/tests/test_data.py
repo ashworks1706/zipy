@@ -1,8 +1,11 @@
 """The data layer: the vault, the Redis codecs, and the repositories against Postgres.
 
 Everything that needs a live Postgres or Redis is marked integration; the rest runs with no
-services at all. The integration tests drop and recreate every table of the database they point
-at: ZIPY_TEST_DATABASE_URL when it is set, otherwise ZIPY_DATA__DATABASE_URL.
+services at all.
+
+The integration tests drop and recreate every table of ZIPY_TEST_DATABASE_URL, and skip when it is
+unset. They never fall back to ZIPY_DATA__DATABASE_URL: that is the database the developer is
+running Zipy against, and a fallback makes running the suite destroy it.
 """
 
 import os
@@ -20,10 +23,13 @@ from sqlalchemy.exc import OperationalError
 from engine.core.config import Data, ProviderRate, RateLimit
 from engine.core.config import load as load_config
 from engine.core.types import (
+    NEUTRAL,
     AuditEntry,
     ChannelRef,
     Chunk,
     ConfigError,
+    Dimension,
+    Evidence,
     FactCategory,
     Job,
     MemberRef,
@@ -34,6 +40,7 @@ from engine.core.types import (
     ProviderAuth,
     RateLimited,
     Role,
+    Signal,
     StoreError,
     ToolCall,
     Workspace,
@@ -54,6 +61,7 @@ from engine.data.cache import (
 from engine.data.crypto import Vault
 from engine.data.db import create_engine, org_uuid, sessions, store_errors
 from engine.data.repos.audit import PgAudit
+from engine.data.repos.collaboration import PgCollaboration
 from engine.data.repos.confirmations import PgConfirmations
 from engine.data.repos.credentials import PgCredentials
 from engine.data.repos.documents import PgDocuments
@@ -63,11 +71,10 @@ from engine.data.repos.tool_config import PgToolConfig
 from engine.data.repos.workspaces import PgWorkspaces
 from engine.data.tables import EMBEDDING_DIMENSIONS, AuditRow, Base, CredentialRow
 
-DATABASE_URL = os.environ.get(
-    "ZIPY_TEST_DATABASE_URL",
-    os.environ.get("ZIPY_DATA__DATABASE_URL", "postgresql+asyncpg://zipy:zipy@127.0.0.1:5432/zipy"),
-)
+DATABASE_URL = os.environ.get("ZIPY_TEST_DATABASE_URL", "")
 REDIS_URL = os.environ.get("ZIPY_DATA__REDIS_URL", "redis://127.0.0.1:6379/0")
+
+NO_DATABASE = "set ZIPY_TEST_DATABASE_URL to a throwaway database; these tests drop every table"
 
 BUCKET_ORG = OrgId("bucket-org-1")
 
@@ -287,6 +294,8 @@ async def test_an_error_that_is_not_the_database_travels_unchanged():
 
 @pytest.fixture
 async def factory():
+    if not DATABASE_URL:
+        pytest.skip(NO_DATABASE)
     engine = create_engine(Data(database_url=SecretStr(DATABASE_URL)))
     async with engine.begin() as connection:
         await connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
@@ -305,6 +314,8 @@ def vault():
 
 @pytest.fixture
 def data():
+    if not DATABASE_URL:
+        pytest.skip(NO_DATABASE)
     return Data(database_url=SecretStr(DATABASE_URL), redis_url=SecretStr(REDIS_URL))
 
 
@@ -391,6 +402,36 @@ async def test_a_fact_is_replaced_by_key_forgotten_and_never_seen_by_another_org
     assert len(await context.facts(soda.org_id)) == 2
     await context.forget(soda.org_id, "meeting")
     assert [f.key for f in await context.facts(soda.org_id)] == ["budget"]
+
+
+@pytest.mark.integration
+async def test_collaboration_state_moves_by_signals_and_never_crosses_an_org(factory):
+    orgs, collaboration = PgOrgs(factory), PgCollaboration(factory)
+    soda = await orgs.create("SoDA", 500)
+    acm = await orgs.create("ACM", 500)
+    ash = MemberRef("discord", "u1")
+
+    assert (await collaboration.state(soda.org_id, ash)).observations == 0
+    assert (await collaboration.state(soda.org_id, ash)).score(Dimension.DEPTH) == NEUTRAL
+
+    await collaboration.observe(
+        soda.org_id, ash, [Signal(Dimension.DEPTH, 0.0, Evidence.CONFIRMATION_CANCELLED)]
+    )
+    await collaboration.observe(
+        soda.org_id, ash, [Signal(Dimension.DEPTH, 0.0, Evidence.CONFIRMATION_CANCELLED)]
+    )
+    twice = await collaboration.state(soda.org_id, ash)
+    assert twice.observations == 2
+    assert twice.score(Dimension.DEPTH) < NEUTRAL
+    assert twice.score(Dimension.AUTONOMY) == NEUTRAL
+
+    assert (await collaboration.state(acm.org_id, ash)).observations == 0
+    assert (await collaboration.state(soda.org_id, MemberRef("slack", "u1"))).observations == 0
+
+    await collaboration.forget(acm.org_id, ash)
+    assert (await collaboration.state(soda.org_id, ash)).observations == 2
+    await collaboration.forget(soda.org_id, ash)
+    assert (await collaboration.state(soda.org_id, ash)).observations == 0
 
 
 @pytest.mark.integration

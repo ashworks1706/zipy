@@ -580,8 +580,15 @@ no text column, because it records what behaviour showed and never what was said
 lets it exist at all while "storing chat history from any platform" stays out of scope. It is
 rendered into the system prompt as instructions rather than numbers, it never overrides a
 permission check or a confirmation, and `collaboration.enabled` is false until the eval suite's
-behaviour axis says it earns its place. A person can read their own state and delete it; an admin
-cannot set someone else's, because that would be a permission change wearing a preference costume.
+behaviour axis says it earns its place.
+
+It moves two ways. Answering a confirmation is read as a signal on autonomy: confirming says the
+asking was unnecessary, cancelling says it was not. `@Zipy prefer less depth` states a preference
+outright, and weighs four ordinary observations, so saying it once is felt but does not pin the
+dimension forever. Both go through the same exponential moving average, so no single turn decides
+anything and old observations fade. `@Zipy prefer` shows a person what was read about them in the
+words the prompt gets, and `@Zipy prefer forget` drops it. Nobody writes anybody else's row: an
+admin setting someone else's would be a permission change wearing a preference costume.
 
 
 ## Configuration
@@ -611,7 +618,7 @@ release notes for that version say how to update the file.
 **Per-org overrides** live in `org_tool_config`. `@Zipy config calendar reminder 15` writes
 `{"default_reminder_minutes": 15}` for that org and tool; the registry merges it over the file and
 validates it with the tool's settings model. Orgs never edit `zipy.toml`. Everything they customize
-is an admin command, the same on every platform:
+is a command parsed from the text, the same on every platform:
 
 ```
 @Zipy setup                          onboarding wizard
@@ -622,7 +629,11 @@ is an admin command, the same on every platform:
 @Zipy remember <fact>                store an org fact
 @Zipy forget <key>                   remove an org fact
 @Zipy status                         connections, tools, spend
+@Zipy prefer less depth              set one's own collaboration state
 ```
+
+Everything above `status` changes the org, so an admin runs it. `status` and `prefer` read, and
+`prefer` writes only the caller's own row, so anyone runs them.
 
 
 ## Onboarding

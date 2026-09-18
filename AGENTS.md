@@ -21,7 +21,7 @@ just setup              # install every app (uv sync --locked)
 just check              # the gate: check-python and check-website; CI and the hook run what changed
 just check-python       # format, lint, layering, types, tests for engine and console
 just check-website      # eslint and tsc for the website
-just test integration   # tests against postgres and redis (just up first)
+just test integration   # tests against postgres and redis; needs ZIPY_TEST_DATABASE_URL, which they wipe
 just fmt                # format in place
 just lock               # re-resolve uv.lock after changing any pyproject.toml
 

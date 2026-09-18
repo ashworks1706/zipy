@@ -222,6 +222,7 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
         credentials=credentials,
         tool_config=tool_config,
         rate_limiter=RedisRateLimiter(config.data, config.rate_limit),
+        collaboration=collaboration,
         metrics=metrics,
     )
     platforms = Platforms(selected(config, only), gateway, workspaces)
