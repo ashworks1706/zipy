@@ -29,6 +29,7 @@ class SandboxTool(BaseTool[SandboxSettings]):
     #: Everything but the output limit decides what the container may do, so no org may set it.
     locked: ClassVar[frozenset[str]] = frozenset(
         {
+            "required",
             "runtime",
             "image",
             "memory",

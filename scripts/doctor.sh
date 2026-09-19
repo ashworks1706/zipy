@@ -61,6 +61,14 @@ probe "langfuse"    "http://127.0.0.1:3000/api/public/health" "run: just up lang
 probe "prometheus"  "http://127.0.0.1:9090/-/ready" "run: just up prometheus"
 probe "grafana"     "http://127.0.0.1:3002/api/health" "run: just up grafana"
 probe "uptime-kuma" "http://127.0.0.1:3001/" "run: just up uptime-kuma"
+image=$(grep -m1 '^image = ' zipy.toml | cut -d'"' -f2)
+if ! docker version >/dev/null 2>&1; then
+  printf '  down    %-12s no runtime; the sandbox tool and attached files are off\n' "sandbox"
+elif docker image inspect "$image" >/dev/null 2>&1; then
+  printf '  ok      %-12s %s\n' "sandbox" "$image"
+else
+  printf '  down    %-12s %s is not built  run: just sandbox-image\n' "sandbox" "$image"
+fi
 echo "local state:"
 for dir in .zipy/traces .zipy/logs; do
   n=$(find "$dir" -type f 2>/dev/null | wc -l)

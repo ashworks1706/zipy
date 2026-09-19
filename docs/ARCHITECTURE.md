@@ -316,14 +316,33 @@ that could leave the workspace is refused before anything runs.
 a command cannot touch anything the org would miss. Every setting except `max_output_chars` decides
 what the container may do, so `SandboxTool.locked` keeps them out of an org's overrides.
 
-The tool ships off. It needs a container runtime the engine process can reach, which not every
-deployment has.
+**It ships on.** `just bootstrap` builds the image, and `wiring.probe_sandbox` asks the runtime
+once at startup. A runtime that does not answer is a `ConfigError` when `[tools.sandbox] required`
+is on, and otherwise one warning naming the fix: the tool goes unoffered and attached files go
+unread, and the rest of Zipy runs. Nothing falls back to parsing an untrusted file in the engine
+process, and nothing drops an attachment quietly either — the person is told the sandbox is not
+running and why files are read inside it.
+
+In compose, the engine drives a `sandboxd` sidecar (`docker:27-dind`) over `DOCKER_HOST`, never the
+runtime it is itself running under. Mounting the host socket would give the engine container the
+power to start any container on the host as root, which is the opposite of what the sandbox is
+for.
 
 **Attached files are the other thing the sandbox is for.** `pypdf`, `python-docx`, `python-pptx`
 and `openpyxl` read bytes nobody vetted. With `files.sandbox` on, the bytes go into a workspace and
 `deploy/sandbox/extract.py` reads them in the container instead of in the engine process. There is
 no fallback: a sandbox that will not run is a file that is not read, because quietly parsing an
 untrusted file beside the org's credentials is the thing the setting exists to stop.
+
+**A sub-agent gets its own workspace.** A session container is named by a hash of the org, the
+member and the scope, where the scope is empty for the request and the delegate call id for a
+sub-agent. Without it the parent and its sub-agent both naming a session `build` would land in one
+container, and two sub-agents of one member would too. The orchestrator reaps a sub-agent's
+sessions when it ends, whether it answered or failed.
+
+The sub-agent itself still runs in the engine. Running its loop inside the container would mean
+giving the container the network it needs to reach the model and the org's tokens to call tools,
+which is the opposite of what the sandbox is for.
 
 **The console reads the sessions too.** `S` in `just cli` lists every live session, who it
 belongs to, how long it has been up and what is running inside it, with `x` to kill one and `X` to

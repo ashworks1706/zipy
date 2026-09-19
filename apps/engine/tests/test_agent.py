@@ -22,6 +22,7 @@ from engine.core.doubles import (
     MemoryDocuments,
     MemoryOrgContext,
     MemoryOrgs,
+    MemorySandbox,
     MemoryToolConfig,
     MemoryTrace,
     NoLimit,
@@ -41,6 +42,7 @@ from engine.core.types import (
     RateLimited,
     RequestContext,
     Role,
+    SandboxSession,
     Speaker,
     ToolCall,
     ToolError,
@@ -308,6 +310,7 @@ def orchestrator(
     audit: MemoryAudit | None = None,
     agent_config: Agent | None = None,
     trace: MemoryTrace | None = None,
+    sandbox: MemorySandbox | None = None,
 ) -> tuple[Orchestrator, ScriptedModel, MemoryOrgs, MemoryConfirmations]:
     """An orchestrator over doubles, with the model scripted."""
     orgs = MemoryOrgs()
@@ -337,6 +340,7 @@ def orchestrator(
         tool_config=MemoryToolConfig(),
         confirmations=held,
         trace=trace or MemoryTrace(),
+        sandbox=sandbox,
     )
     return agent, model, orgs, held
 
@@ -675,6 +679,79 @@ async def test_a_sub_agent_starts_from_the_task_and_not_the_conversation(ctx, cf
     assert len(sub) == 1, "one system message, no history and no user turn"
     assert "count the open issues" in sub[0].content
     assert "what is failing in CI?" not in sub[0].content
+
+
+async def test_a_sub_agents_workspace_goes_when_it_ends(ctx, cfg):
+    """Its files were for the subtask. Leaving them costs memory and leaks into the next one."""
+    box = MemorySandbox()
+    box.live = [
+        SandboxSession(
+            name="zipy-sb-sub-build",
+            org_id=str(ctx.org_id),
+            member="discord:u1",
+            started_at=datetime(2026, 9, 19, tzinfo=UTC),
+            idle_secs=1.0,
+        )
+    ]
+    agent, _, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="Two issues."),
+            Completion(text="Two."),
+        ],
+        sandbox=box,
+    )
+
+    await agent.handle(ctx, "what is failing in CI?", "discord-markdown")
+
+    assert box.reaped == ["zipy-sb-sub-build"]
+
+
+async def test_a_sub_agent_that_failed_still_gives_its_workspace_back(ctx, cfg):
+    box = MemorySandbox()
+    box.live = [
+        SandboxSession(
+            name="zipy-sb-sub-build",
+            org_id=str(ctx.org_id),
+            member="discord:u1",
+            started_at=datetime(2026, 9, 19, tzinfo=UTC),
+            idle_secs=1.0,
+        )
+    ]
+    agent, _, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),), usage=Usage(10, 5, 4.0)),
+            Completion(text="never read", usage=Usage(10, 5, 90.0)),
+        ],
+        budget_cents=5,
+        sandbox=box,
+    )
+
+    # The sub-agent runs out of budget, and the parent runs out on its next turn.
+    with pytest.raises(BudgetExceeded):
+        await agent.handle(ctx, "what is failing in CI?", "discord-markdown")
+
+    assert box.reaped == ["zipy-sb-sub-build"], "the workspace went back even though it failed"
+
+
+async def test_delegation_runs_without_a_sandbox_wired(ctx, cfg):
+    agent, _, _, _ = orchestrator(
+        ctx,
+        cfg,
+        [
+            Completion(text="", tool_calls=(_delegate(),)),
+            Completion(text="Two issues."),
+            Completion(text="Two."),
+        ],
+    )
+
+    result = await agent.handle(ctx, "what is failing in CI?", "discord-markdown")
+
+    assert isinstance(result, AgentReply)
 
 
 async def test_a_sub_agent_is_not_offered_the_delegate_tool(ctx, cfg):

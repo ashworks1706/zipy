@@ -14,7 +14,7 @@ doctor:
     ./scripts/doctor.sh
 
 # Everything a fresh clone needs: .env, git hooks, dependencies, the website's too
-bootstrap: env hooks setup web-setup
+bootstrap: env hooks setup web-setup sandbox-image
     @echo "ready: fill .env, then 'just up', 'just migrate', 'just serve'"
 
 # Install every app
@@ -162,6 +162,12 @@ down:
 
 # Build the sandbox image the sandbox tool and file parsing run in
 sandbox-image tag="ghcr.io/ashworks1706/zipy-sandbox:main":
+    #!/usr/bin/env sh
+    if ! docker version >/dev/null 2>&1; then
+        echo "no container runtime: skipping the sandbox image."
+        echo "start docker and run 'just sandbox-image', or set [tools.sandbox] enabled = false."
+        exit 0
+    fi
     docker build -f deploy/sandbox/Dockerfile -t {{tag}} .
 
 # Remove every sandbox session container, which compose does not own

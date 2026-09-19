@@ -572,25 +572,42 @@ def test_any_other_key_closes_the_overlay(cfg, tmp_path):
 
 def test_a_live_session_is_shown_even_when_the_setting_says_the_sandbox_is_off(cfg, tmp_path):
     """A container outlives the setting, and one still running is the one worth killing."""
+    off = cfg.model_copy(
+        update={"tools": {"sandbox": cfg.sandbox.model_copy(update={"enabled": False})}}
+    )
 
     async def scenario() -> None:
-        app = _app(cfg, tmp_path, *_tasks("true"), reader=FakeRuntime(names=["zipy-sb-a-left"]))
+        app = _app(off, tmp_path, *_tasks("true"), reader=FakeRuntime(names=["zipy-sb-a-left"]))
         async with app.run_test(size=(120, 30)) as pilot:
             await pilot.press("S")
             await _until(pilot, lambda: app.show_sandboxes)
-            assert not app.cfg.sandbox.enabled
             assert "zipy-sb-a-left" in app._sandbox_text().plain
 
     asyncio.run(scenario())
 
 
 def test_the_overlay_says_the_sandbox_is_off_rather_than_showing_nothing(cfg, tmp_path):
+    app_cfg = cfg.model_copy(
+        update={"tools": {"sandbox": cfg.sandbox.model_copy(update={"enabled": False})}}
+    )
+
+    async def scenario() -> None:
+        app = _app(app_cfg, tmp_path, *_tasks("true"), reader=FakeRuntime())
+        async with app.run_test(size=(120, 30)) as pilot:
+            await pilot.press("S")
+            await _until(pilot, lambda: app.show_sandboxes)
+            assert "the sandbox is off" in app._sandbox_text().plain
+
+    asyncio.run(scenario())
+
+
+def test_no_sessions_with_the_sandbox_on_says_just_that(cfg, tmp_path):
     async def scenario() -> None:
         app = _app(cfg, tmp_path, *_tasks("true"), reader=FakeRuntime())
         async with app.run_test(size=(120, 30)) as pilot:
             await pilot.press("S")
             await _until(pilot, lambda: app.show_sandboxes)
-            assert not app.cfg.sandbox.enabled
-            assert "the sandbox is off" in app._sandbox_text().plain
+            assert app.cfg.sandbox.enabled
+            assert app._sandbox_text().plain == "no sandbox sessions are open"
 
     asyncio.run(scenario())

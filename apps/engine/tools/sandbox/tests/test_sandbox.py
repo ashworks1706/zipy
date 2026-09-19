@@ -1,5 +1,6 @@
 """The sandbox: the container it asks for, the names it refuses, and what it hands back."""
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -330,3 +331,49 @@ async def test_the_tool_runs_the_command_and_hands_back_what_it_produced():
     assert result.stdout == "42\n"
     assert result.exit_code == 0
     assert result.session is None
+
+
+# ---------------------------------------------------------------- a sub-agent's workspace
+
+
+def sub(parent="call-1", **over):
+    """A context as a sub-agent runs under."""
+    return replace(ctx(**over), depth=1, parent=parent)
+
+
+def test_a_sub_agent_does_not_get_the_parents_workspace():
+    """Both would have named a session build and landed in one container."""
+    assert owner(OrgId("org-1"), MemberRef("discord", "u1")) != owner(
+        OrgId("org-1"), MemberRef("discord", "u1"), "call-1"
+    )
+
+
+def test_two_sub_agents_of_one_member_do_not_share_a_workspace():
+    member = MemberRef("discord", "u1")
+    assert owner(OrgId("o"), member, "call-1") != owner(OrgId("o"), member, "call-2")
+
+
+def test_a_members_own_sessions_still_persist_across_their_requests():
+    member = MemberRef("discord", "u1")
+    assert owner(OrgId("o"), member) == owner(OrgId("o"), member, "")
+
+
+@pytest.mark.anyio
+async def test_a_sub_agent_session_is_named_for_its_delegation():
+    runtime = Runtime({"inspect --format {{.State.Running}}": Completed(0, "false", "")})
+    await sandbox(runtime).run(sub(), SandboxRequest(command="ls", session="build"))
+    created = runtime.called("run --detach")[0]
+    name = created[created.index("--name") + 1]
+    assert name == f"{owner(OrgId('org-1'), MemberRef('discord', 'u1'), 'call-1')}build"
+
+
+@pytest.mark.anyio
+async def test_reaping_a_scope_removes_that_sub_agents_sessions_and_leaves_the_rest():
+    mine = f"{owner(OrgId('org-1'), MemberRef('discord', 'u1'), 'call-1')}build"
+    theirs = f"{owner(OrgId('org-1'), MemberRef('discord', 'u1'))}notes"
+    runtime = Runtime(listing([mine, theirs]))
+
+    gone = await sandbox(runtime).reap_scope(sub())
+
+    assert gone == [mine]
+    assert theirs not in gone

@@ -225,7 +225,7 @@ parse_timeout_secs = 30.0
 # openpyxl read bytes nobody vetted; on, they read them in a container with no network instead of
 # beside the org's credentials. Needs [tools.sandbox] enabled and its image built. A sandbox that
 # will not run is a file that is not read, never a quiet parse here.
-sandbox = false
+sandbox = true
 
 # ---------------------------------------------------------------- training
 #
@@ -426,7 +426,10 @@ comment = "create"
 # run is create, not destructive: the container has no network and its workspace is a tmpfs that
 # goes with it, so a command cannot touch anything the org would miss. Everything below except
 # max_output_chars decides what the container may do, so no org may override it.
-enabled = false
+enabled = true
+# Refuse to start when the runtime does not answer. Off leaves the tool unoffered and attached
+# files unread, with one line in the log saying so, rather than stopping the rest of Zipy.
+required = false
 scopes = []
 runtime = "docker"
 image = "ghcr.io/ashworks1706/zipy-sandbox:main"

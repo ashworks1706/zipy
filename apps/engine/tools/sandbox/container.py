@@ -90,9 +90,14 @@ def clip(text: str, limit: int) -> str:
     return f"{text[:head]}\n[{dropped} characters cut]\n{text[len(text) - tail :]}"
 
 
-def owner(org_id: OrgId, member: MemberRef) -> str:
-    """The prefix every session container of one member shares."""
-    parts = f"{org_id}\0{member.platform}\0{member.user_id}"
+def owner(org_id: OrgId, member: MemberRef, scope: str = "") -> str:
+    """The prefix every session container of one member shares, within one scope.
+
+    scope separates a sub-agent's workspace from its parent's and from another sub-agent's. At
+    depth 0 it is empty and the member's sessions persist across their requests, which is what
+    naming a session is for.
+    """
+    parts = f"{org_id}\0{member.platform}\0{member.user_id}\0{scope}"
     return f"zipy-sb-{hashlib.sha256(parts.encode()).hexdigest()[:16]}-"
 
 
@@ -190,6 +195,15 @@ class ContainerSandbox:
         done = await self._runtime(["rm", "--force", name])
         return done.code == 0
 
+    async def reap_scope(self, ctx: RequestContext) -> list[str]:
+        """Remove every session of one scope. A sub-agent's workspace goes when it ends."""
+        prefix = owner(ctx.org_id, ctx.member, ctx.parent)
+        gone = []
+        for session in await self.sessions(ctx.org_id):
+            if session.name.startswith(prefix) and await self.kill(session.name):
+                gone.append(session.name)
+        return gone
+
     async def reap_idle(self) -> list[str]:
         """Remove every session idle past its budget and name the ones that went."""
         budget = self._settings.session_idle_secs
@@ -226,7 +240,7 @@ class ContainerSandbox:
 
     async def _started(self, ctx: RequestContext, session: str) -> str:
         """The container of a session, started if it was not already running."""
-        container = f"{owner(ctx.org_id, ctx.member)}{session}"
+        container = f"{owner(ctx.org_id, ctx.member, ctx.parent)}{session}"
         if await self._running(container):
             return container
         await self.kill(container)
@@ -251,7 +265,7 @@ class ContainerSandbox:
 
     async def _within_cap(self, ctx: RequestContext) -> None:
         """Reap the member's oldest session when they already hold the most they may."""
-        prefix = owner(ctx.org_id, ctx.member)
+        prefix = owner(ctx.org_id, ctx.member, ctx.parent)
         held = [s for s in await self.sessions() if s.name.startswith(prefix)]
         over = len(held) - max(self._settings.max_sessions, 1) + 1
         if over <= 0:

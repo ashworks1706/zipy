@@ -120,7 +120,7 @@ class Files(_Table):
     # Parse in the sandbox instead of in this process. Needs [tools.sandbox] enabled and a
     # container runtime the engine can reach. A sandbox that will not run is a file that is not
     # read, never a quiet parse in the engine.
-    sandbox: bool = False
+    sandbox: bool = True
 
     @model_validator(mode="after")
     def _check(self) -> Files:
