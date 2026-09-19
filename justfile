@@ -160,6 +160,10 @@ down:
     {{compose}} --profile '*' down
     @just sandbox-down
 
+# Build the sandbox image the sandbox tool and file parsing run in
+sandbox-image tag="ghcr.io/ashworks1706/zipy-sandbox:main":
+    docker build -f deploy/sandbox/Dockerfile -t {{tag}} .
+
 # Remove every sandbox session container, which compose does not own
 sandbox-down:
     #!/usr/bin/env sh

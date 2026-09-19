@@ -117,6 +117,10 @@ class Files(_Table):
     max_prompt_chars: int = 8_000
     download_timeout_secs: float = 30.0
     parse_timeout_secs: float = 30.0
+    # Parse in the sandbox instead of in this process. Needs [tools.sandbox] enabled and a
+    # container runtime the engine can reach. A sandbox that will not run is a file that is not
+    # read, never a quiet parse in the engine.
+    sandbox: bool = False
 
     @model_validator(mode="after")
     def _check(self) -> Files:

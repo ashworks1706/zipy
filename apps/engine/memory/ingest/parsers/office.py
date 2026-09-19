@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 
-from engine.core.types import IngestError
+from engine.memory.ingest.parsers.errors import ParseError
 
 #: Slides, rows and paragraphs read before the rest is left.
 MAX_PARTS = 5000
@@ -15,7 +15,7 @@ def _opened(raw: bytes, kind: str, open_it: object) -> object:
     try:
         return open_it(io.BytesIO(raw))  # type: ignore[operator]
     except Exception as exc:  # noqa: BLE001 - the libraries raise their own unrelated types
-        raise IngestError(f"that {kind} could not be read: {type(exc).__name__}") from exc
+        raise ParseError(f"that {kind} could not be read: {type(exc).__name__}") from exc
 
 
 def read_docx(raw: bytes, limit: int) -> str:

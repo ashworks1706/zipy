@@ -345,6 +345,7 @@ class MemorySandbox:
     """A sandbox that records what it was asked and answers from a script."""
 
     answers: dict[str, SandboxOutput] = field(default_factory=dict)
+    default: SandboxOutput | None = None
     ran: list[tuple[OrgId, str, str | None]] = field(default_factory=list)
     written: dict[str, bytes] = field(default_factory=dict)
     live: list[SandboxSession] = field(default_factory=list)
@@ -352,10 +353,12 @@ class MemorySandbox:
 
     async def run(self, ctx: RequestContext, request: SandboxRequest) -> SandboxOutput:
         self.ran.append((ctx.org_id, request.command, request.session))
-        return self.answers.get(
-            request.command,
-            SandboxOutput(exit_code=0, stdout="", stderr="", session=request.session),
-        )
+        for needle, answer in self.answers.items():
+            if needle in request.command:
+                return answer
+        if self.default is not None:
+            return self.default
+        return SandboxOutput(exit_code=0, stdout="", stderr="", session=request.session)
 
     async def put(self, ctx: RequestContext, session: str, name: str, content: bytes) -> str:
         self.written[f"{ctx.org_id}/{session}/{name}"] = content

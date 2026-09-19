@@ -221,6 +221,11 @@ max_chars = 200000
 max_prompt_chars = 8000
 download_timeout_secs = 30.0
 parse_timeout_secs = 30.0
+# Parse in the sandbox rather than in the engine process. pypdf, python-docx, python-pptx and
+# openpyxl read bytes nobody vetted; on, they read them in a container with no network instead of
+# beside the org's credentials. Needs [tools.sandbox] enabled and its image built. A sandbox that
+# will not run is a file that is not read, never a quiet parse here.
+sandbox = false
 
 # ---------------------------------------------------------------- training
 #

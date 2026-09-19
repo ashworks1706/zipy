@@ -319,6 +319,18 @@ what the container may do, so `SandboxTool.locked` keeps them out of an org's ov
 The tool ships off. It needs a container runtime the engine process can reach, which not every
 deployment has.
 
+**Attached files are the other thing the sandbox is for.** `pypdf`, `python-docx`, `python-pptx`
+and `openpyxl` read bytes nobody vetted. With `files.sandbox` on, the bytes go into a workspace and
+`deploy/sandbox/extract.py` reads them in the container instead of in the engine process. There is
+no fallback: a sandbox that will not run is a file that is not read, because quietly parsing an
+untrusted file beside the org's credentials is the thing the setting exists to stop.
+
+The image carries the engine's own parsers, so the text a file yields is the same either way. That
+works because `memory/ingest/parsers/` imports nothing from `engine` — `ParseError` is its own, and
+`files.py` translates it to `IngestError` at the boundary. `tests/test_deploy.py` lays the package
+out the way the Dockerfile does and runs the extractor against it, so a parser that grows an engine
+import fails the gate rather than the first upload.
+
 ### MCP endpoints
 
 The endpoint is not a tunable. It decides where the org's OAuth token is sent, so `RemoteTool`

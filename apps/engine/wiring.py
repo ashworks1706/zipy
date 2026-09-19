@@ -185,6 +185,9 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
 
     conversations = Conversations()
     provider_limiter = RedisProviderLimiter(config.data, config.rate_limit)
+    sandbox = ContainerSandbox(
+        SandboxSettings.model_validate(registry.settings_for("sandbox").model_dump())
+    )
     memory = MemoryManager(
         memory=config.memory,
         conversation=conversations,
@@ -195,6 +198,7 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
         settings=config.collaboration,
         conditioning=config.models["chat"].conditioning,
         files=config.files,
+        sandbox=sandbox,
     )
     orchestrator = Orchestrator(
         agent=config.agent,
@@ -240,9 +244,6 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
 
     ingestion = Ingestion(
         registry, config.memory, credentials, embedder, documents, provider_limiter
-    )
-    sandbox = ContainerSandbox(
-        SandboxSettings.model_validate(registry.settings_for("sandbox").model_dump())
     )
     workers = config.workers
     scheduler = Scheduler(

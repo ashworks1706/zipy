@@ -12,6 +12,7 @@ from engine.core.protocols import (
     DocumentStore,
     Embedder,
     OrgContextStore,
+    Sandbox,
 )
 from engine.core.types import (
     ChatMessage,
@@ -57,6 +58,7 @@ class MemoryManager:
         settings: Collaboration,
         conditioning: Conditioning = Conditioning.TEXT,
         files: Files | None = None,
+        sandbox: Sandbox | None = None,
     ) -> None:
         self._memory = memory
         self._conversation = conversation
@@ -67,6 +69,7 @@ class MemoryManager:
         self._settings = settings
         self._conditioning = conditioning
         self._files = files or Files()
+        self._sandbox = sandbox
 
     async def build(self, ctx: RequestContext, message: str) -> Context:
         """The last conversation_limit messages, the org's facts, and recall if triggered."""
@@ -96,7 +99,9 @@ class MemoryManager:
         for attachment in ctx.files[: self._files.max_per_message]:
             name = attachment.name or attachment.media_type
             try:
-                document = await file_reader.read(attachment, self._files)
+                document = await file_reader.read(
+                    attachment, self._files, ctx=ctx, sandbox=self._sandbox
+                )
                 await ingest(ctx.org_id, document, self._memory, self._embedder, self._documents)
             except IngestError as exc:
                 blocks.append(f"{name}: {exc}")
