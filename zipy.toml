@@ -13,7 +13,7 @@
 # A folder without a table, or a table without a folder, fails at startup.
 
 # Bumped only when a table changes shape so an older file would be misread.
-config_version = 1
+config_version = 2
 
 [app]
 # dev prints readable logs; prod prints JSON lines.
@@ -221,6 +221,11 @@ max_chars = 200000
 max_prompt_chars = 8000
 download_timeout_secs = 30.0
 parse_timeout_secs = 30.0
+# Parse in the sandbox rather than in the engine process. pypdf, python-docx, python-pptx and
+# openpyxl read bytes nobody vetted; on, they read them in a container with no network instead of
+# beside the org's credentials. Needs [tools.sandbox] enabled and its image built. A sandbox that
+# will not run is a file that is not read, never a quiet parse here.
+sandbox = false
 
 # ---------------------------------------------------------------- training
 #
@@ -284,30 +289,95 @@ enabled = true
 # when its provider is connected and the org has it enabled. A tool that syncs documents for
 # recall has sync_hours.
 
+# ---------------------------------------------------------------- tools on an MCP server
+#
+# calendar, drive, gmail and workspace declare no actions in Python. Each ships a catalog.json
+# holding its server's own tools/list response and the tools this deployment exposes from it;
+# zipy mcp <tool> re-fetches one and reports what changed. The actions below must match that
+# exposed list exactly, or the engine refuses to start: a server that grows a tool cannot reach
+# the model until someone lists it here and says what kind of action it is.
+#
+# The server's annotations suggest a type. They are not taken: Google marks update_event
+# non-destructive, and overwriting an event the org already announced is destructive here.
+
 [tools.calendar]
 provider = "google"
 enabled = true
 scopes = ["https://www.googleapis.com/auth/calendar"]
-default_event_minutes = 60
-default_reminder_minutes = 10
+endpoint = "https://calendarmcp.googleapis.com/mcp/v1"
+timeout_secs = 30.0
+# Characters of a result the model reads. The rest is cut and the result says it was.
+max_result_chars = 4000
 
 [tools.calendar.actions]
 list_events = "read"
-find_free_slots = "read"
+list_calendars = "read"
+get_event = "read"
+search_events = "read"
+suggest_time = "read"
 create_event = "create"
+respond_to_event = "create"
 update_event = "destructive"
 delete_event = "destructive"
 
 [tools.drive]
 provider = "google"
 enabled = true
+# Read-only. The server also offers create_file and copy_file; exposing either means widening
+# this to drive.file, which is a decision for whoever wants them, not a default.
 scopes = ["https://www.googleapis.com/auth/drive.readonly"]
-max_results = 10
+endpoint = "https://drivemcp.googleapis.com/mcp/v1"
+timeout_secs = 30.0
+max_result_chars = 4000
 sync_hours = 12
 
 [tools.drive.actions]
 search_files = "read"
-list_folder = "read"
+list_recent_files = "read"
+get_file_metadata = "read"
+read_file_content = "read"
+
+[tools.gmail]
+provider = "google"
+enabled = true
+# compose covers create_draft. Nothing exposed here sends, trashes or marks spam, though the
+# server offers all three.
+scopes = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.compose",
+]
+endpoint = "https://gmailmcp.googleapis.com/mcp/v1"
+timeout_secs = 30.0
+max_result_chars = 4000
+
+[tools.gmail.actions]
+search_threads = "read"
+get_thread = "read"
+get_message = "read"
+list_labels = "read"
+list_drafts = "read"
+get_draft = "read"
+create_draft = "create"
+
+[tools.workspace]
+provider = "google"
+enabled = true
+# One search over Drive, Gmail, Calendar and Chat, for a question that names no product. It reads
+# all four, so it asks for all four.
+scopes = [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/chat.messages.readonly",
+]
+endpoint = "https://workspacemcp.googleapis.com/mcp/v1"
+timeout_secs = 30.0
+max_result_chars = 4000
+
+[tools.workspace.actions]
+search_corpus = "read"
+
+# ---------------------------------------------------------------- tools with a client here
 
 [tools.notion]
 provider = "notion"
@@ -348,6 +418,31 @@ search_issues = "read"
 get_file = "read"
 create_issue = "create"
 comment = "create"
+
+[tools.sandbox]
+# A shell in a container: no network, read-only root, non-root user, tmpfs workspace, capped
+# memory, CPU, processes and wall clock. It reaches no provider, so it needs no account.
+#
+# run is create, not destructive: the container has no network and its workspace is a tmpfs that
+# goes with it, so a command cannot touch anything the org would miss. Everything below except
+# max_output_chars decides what the container may do, so no org may override it.
+enabled = false
+scopes = []
+runtime = "docker"
+image = "ghcr.io/ashworks1706/zipy-sandbox:main"
+memory = "256m"
+cpus = "1"
+pids = 128
+timeout_secs = 20.0
+max_output_chars = 4000
+# How long a session container stays up with nothing running in it.
+session_idle_secs = 900.0
+# Sessions one member may hold at once. Starting one past the cap reaps their most idle.
+max_sessions = 4
+workspace_mb = 64
+
+[tools.sandbox.actions]
+run = "create"
 
 [tools.search]
 # Web and campus portal search. Needs no connected account.

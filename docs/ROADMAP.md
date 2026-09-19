@@ -13,12 +13,17 @@ The stand-in proves the code, not that the provider agrees with it.
 - [ ] (built) Discord platform: mentions and DMs to Inbound, install to WorkspaceInstalled, history, send
 - [ ] (built) LangFuse traces for every model call; Sentry for errors
 
-## v0.3 Calendar and Drive
+## v0.3 Google Workspace
 
 - [ ] (built) Google OAuth: signed state, DM link, callback, token refresh worker
-- [ ] (built) Calendar tool: list, free slots, create; update and delete behind confirmation
-- [ ] (built) Drive tool: search and list folder, read-only scope
 - [ ] (built) `@Zipy setup` wizard and `@Zipy connect google`
+- [x] MCP seam: one streamable-HTTP client, a committed catalog per server, action types pinned
+      in zipy.toml rather than taken from the server's annotations
+- [ ] (built) Calendar, Drive, Gmail and cross-Workspace search on Google's MCP servers; Drive
+      keeps an API client for the document feed MCP has no tool for
+- [ ] Offer a tool only when the org's grant carries its scopes. Today a tool is offered once its
+      provider is connected, so an org that granted Google before gmail existed is offered gmail
+      and learns it is missing a scope from the refusal. Reconnecting adds it, incrementally.
 
 ## v0.4 Notion and campus search
 
@@ -32,6 +37,11 @@ The stand-in proves the code, not that the provider agrees with it.
 - [ ] Summary model role for transcripts; retention pruning
 - [ ] Cross-tool digests: "what's happening this week", exec meeting rundown
 - [x] Attached files read into text and stored for recall: pdf, docx, pptx, xlsx, csv, json, zip
+- [x] A sandbox tool: a sealed container per command, sessions named by the member, the runtime
+      as the session registry, idle reaping, and `just down` removing every one
+- [ ] Sub-agents in their own sandbox env rather than in the engine process
+- [x] Attached files parsed inside the sandbox, not in the engine process, behind files.sandbox
+- [x] The console shows live sessions and what each is running, and can kill one or all
 - [x] One level of delegation: a named subtask, a subset of the tools, its own turn limit, and a
       destructive call inside it suspends and resumes
 
@@ -85,4 +95,6 @@ limits the adaptation.
   A training dataset is the one thing that holds conversation text, and it is not the runtime: it
   is built by hand from local traces, redacted, reviewed example by example, and never read by a
   request. `apps/training` is not deployed, and the engine never imports it.
+- Letting an MCP server decide what an action may do. A server says what its tools take; the
+  action type, the confirmation, the role check and the audit entry stay here.
 - Features that work on only one platform when the gateway could offer them on all

@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from engine.core.types import ProviderAuth
+from engine.core.types import ProviderAuth, RequestContext
 from engine.tools.base import Action, BaseTool, first_set, require_auth
 from engine.tools.github import schemas as s
 from engine.tools.github.client import GithubClient
@@ -41,7 +41,13 @@ class GithubTool(BaseTool[s.GithubSettings]):
         detail = first_set(params, "number", "path", "query")
         return f"{repo}#{detail}" if repo and detail else repo or detail
 
-    async def execute(self, action: str, params: BaseModel, auth: ProviderAuth | None) -> BaseModel:
+    async def execute(
+        self,
+        ctx: RequestContext,  # noqa: ARG002 - github is scoped by the org's token
+        action: str,
+        params: BaseModel,
+        auth: ProviderAuth | None,
+    ) -> BaseModel:
         client = GithubClient(require_auth(auth, self.provider), self.settings)
         handlers: dict[str, Callable[[Any], Awaitable[BaseModel]]] = {
             "list_issues": client.list_issues,

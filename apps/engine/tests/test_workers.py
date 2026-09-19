@@ -92,7 +92,7 @@ class Diary(BaseTool[Settings]):
         "list_events": Action("List the events of a day.", Params, Result)
     }
 
-    async def execute(self, action, params, auth):
+    async def execute(self, ctx, action, params, auth):
         return Result(events=[])
 
     async def documents(

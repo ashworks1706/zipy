@@ -33,7 +33,17 @@ def test_every_plugin_kind_is_discovered():
     assert names == {
         "engine.platforms": {"discord", "local", "slack"},
         "engine.auth.providers": {"github", "google", "notion", "zoom"},
-        "engine.tools": {"calendar", "drive", "github", "notion", "zoom", "search"},
+        "engine.tools": {
+            "calendar",
+            "drive",
+            "github",
+            "gmail",
+            "notion",
+            "sandbox",
+            "search",
+            "workspace",
+            "zoom",
+        },
     }
 
 

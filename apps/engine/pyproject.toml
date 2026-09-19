@@ -69,10 +69,13 @@ packages = [
     "engine.auth.providers.zoom",
     "engine.tools",
     "engine.tools.calendar",
+    "engine.tools.gmail",
+    "engine.tools.workspace",
     "engine.tools.github",
     "engine.tools.drive",
     "engine.tools.notion",
     "engine.tools.zoom",
+    "engine.tools.sandbox",
     "engine.tools.search",
     "engine.memory",
     "engine.memory.ingest",
@@ -90,4 +93,8 @@ packages = [
 
 [tool.setuptools.package-data]
 "engine.agent" = ["templates/*.j2"]
+"engine.tools.calendar" = ["catalog.json"]
+"engine.tools.drive" = ["catalog.json"]
+"engine.tools.gmail" = ["catalog.json"]
+"engine.tools.workspace" = ["catalog.json"]
 "engine.data.migrations" = ["script.py.mako", "versions/*.py"]

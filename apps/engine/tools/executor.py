@@ -79,7 +79,7 @@ class Executor:
                 await self._limiter.acquire(
                     ctx.org_id, provider, self._limits.provider_max_wait_seconds
                 )
-            result = await tool.execute(action, params, await self._auth(ctx, type(tool)))
+            result = await tool.execute(ctx, action, params, await self._auth(ctx, type(tool)))
             if not isinstance(result, spec.result):
                 raise ToolError(f"{action_name} returned {type(result).__name__}")
             content = result.model_dump_json()

@@ -36,6 +36,7 @@ just eval [--case id]   # the eval cases against the configured model; not part 
 just data ...           # export | verify | review | curate | stats: the dataset from real runs
 just train sft          # post-training over the curated set; needs a GPU and the gpu extra
 just plugins            # every platform, provider and tool plugin, checked against zipy.toml
+just mcp <tool>         # an MCP server's tool list against the tool's catalog; --write updates it
 just config [table]     # the resolved configuration, secrets masked
 just fernet-key         # a key for ZIPY_DATA__FERNET_KEY
 just console            # the developer console (TUI): units, logs, chat, metrics; alias: just cli
@@ -127,6 +128,14 @@ tools/<name>/tool.py               BaseTool       [tools.<name>]       actions t
 
 Each declares `name` (folder and table), `owns` (libraries only it imports) and `settings_model`
 (its own table keys, secrets included). Adding one never edits the gateway, agent, API or workers.
+
+A tool gets its actions from a client written here (`github`, `notion`, `zoom`, `search`) or from an
+MCP server (`calendar`, `drive`, `gmail`, `workspace`). A server-backed tool subclasses `RemoteTool`
+and ships `catalog.json`, the server's own tools/list response plus the `exposed` list this
+deployment offers; `zipy mcp <tool>` re-fetches it and says what changed. The server describes what
+its tools take. It never says what they may do: `[tools.<name>.actions]` pins every exposed tool's
+action type by hand, and a catalog entry nobody listed fails at startup rather than reaching the
+model.
 Use the `add-platform` and `add-tool` skills.
 
 ## The seams

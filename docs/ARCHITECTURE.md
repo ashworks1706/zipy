@@ -193,8 +193,9 @@ apps/engine/
   llm/                  client.py, embeddings.py, tracing.py
   auth/                 permissions.py, state.py
   auth/providers/       base.py, registry.py, <provider>/provider.py
-  tools/                base.py, registry.py, executor.py
-  tools/<tool>/         tool.py, client.py, schemas.py, tests/
+  tools/                base.py, registry.py, executor.py, remote.py
+  tools/sandbox/        container.py, the one tool that runs code rather than calling an API
+  tools/<tool>/         tool.py, and either client.py + schemas.py or catalog.json
   memory/               manager.py, triggers.py, org_context.py, recall.py
   memory/ingest/        chunking.py, pipeline.py
   agent/                orchestrator.py, prompt.py, classifier.py, templates/system.md.j2
@@ -262,17 +263,95 @@ are `/auth/<provider>/callback` and webhooks `/webhooks/<provider>`, so a new pr
 route.
 
 **A tool** names the provider it needs (or none), exposes actions with pydantic params and
-results, and executes them through its client. A tool with `syncs = True` implements
-`documents()`, yielding documents changed since a time or one named document; the workers chunk,
-embed and store them. Several tools can share one provider (calendar and drive both use google).
+results, and executes them. A tool with `syncs = True` implements `documents()`, yielding documents
+changed since a time or one named document; the workers chunk, embed and store them. Several tools
+can share one provider (calendar, drive, gmail and workspace all use google).
 
-Adding Trello, for example:
+A tool gets its actions one of two ways.
+
+**From a client written here** (`github`, `notion`, `zoom`, `search`): `client.py` calls the
+provider's REST API and `schemas.py` declares the params and result models. Adding Trello that way:
 
 1. `auth/providers/trello/` if Trello needs its own OAuth, and `[providers.trello]`.
 2. `tools/trello/` with `tool.py`, `client.py`, `schemas.py`, `tests/`, and `[tools.trello]` giving
    every action a type.
 3. `syncs = True` and `documents()` if cards should be searchable, and `sync_hours` in the table.
 4. Add the packages to `apps/engine/pyproject.toml`. `just check`, then `just plugins`.
+
+**From an MCP server** (`calendar`, `drive`, `gmail`, `workspace`): `tools/remote.py` holds one
+JSON-RPC client over streamable HTTP, and the tool ships a `catalog.json` instead of a client. The
+catalog is the server's own `tools/list` response plus the `exposed` list this deployment offers;
+`RemoteTool` turns each exposed entry into an `Action` whose params model validates what the server
+said it takes and whose description and schema reach the model verbatim. Adding a server:
+
+1. `[tools.<name>]` with its `endpoint`, and the provider whose token is the bearer.
+2. `tools/<name>/tool.py`, six lines subclassing `RemoteTool`, and a `catalog.json` holding
+   the endpoint and two empty lists.
+3. `zipy mcp <name> --write` to fetch the server's tools, then list the ones to offer in `exposed`.
+4. Give every exposed tool a type in `[tools.<name>.actions]`.
+
+The server never decides what it is allowed to do. Its `annotations` suggest a type and `zipy mcp`
+prints the suggestion, but `zipy.toml` pins it: Google marks `update_event` non-destructive, and
+overwriting an event the org already announced is destructive here. A catalog that gains a tool
+nobody listed fails at startup rather than reaching the model, because the registry already
+requires the plugin's actions and the table's actions to be the same set.
+
+### The sandbox
+
+`tools/sandbox/` is the one tool that runs code rather than calling a provider. A command goes to
+a container with no network, a read-only root, every capability dropped, `no-new-privileges`, a
+non-root user, ceilings on memory, CPU, processes and wall clock, and a tmpfs workspace that goes
+when the container does. It reaches no account, so it needs no provider and no scopes.
+
+The engine holds no session map. Every session container carries labels naming the org, the member
+and the session, and its workspace holds a marker file touched on each use, so listing, reaping and
+the per-member cap all read the runtime. A restarted engine sees the sessions it left behind rather
+than leaking them, and `just down` removes every one.
+
+A session is named by the member, and its container name is a hash of the org and the member, so
+two orgs and two people in one org never share a workspace. A session name or a workspace file name
+that could leave the workspace is refused before anything runs.
+
+`run` is `create`, not `destructive`: with no network and a workspace that dies with the container,
+a command cannot touch anything the org would miss. Every setting except `max_output_chars` decides
+what the container may do, so `SandboxTool.locked` keeps them out of an org's overrides.
+
+The tool ships off. It needs a container runtime the engine process can reach, which not every
+deployment has.
+
+**Attached files are the other thing the sandbox is for.** `pypdf`, `python-docx`, `python-pptx`
+and `openpyxl` read bytes nobody vetted. With `files.sandbox` on, the bytes go into a workspace and
+`deploy/sandbox/extract.py` reads them in the container instead of in the engine process. There is
+no fallback: a sandbox that will not run is a file that is not read, because quietly parsing an
+untrusted file beside the org's credentials is the thing the setting exists to stop.
+
+**The console reads the sessions too.** `S` in `just cli` lists every live session, who it
+belongs to, how long it has been up and what is running inside it, with `x` to kill one and `X` to
+kill all. It reads the runtime rather than the engine, so it works when the engine is down, and it
+shows a session that outlived the setting that created it. Turning the sandbox off is
+`[tools.sandbox] enabled = false`, or `@Zipy disable sandbox` for one org.
+
+The image carries the engine's own parsers, so the text a file yields is the same either way. That
+works because `memory/ingest/parsers/` imports nothing from `engine` — `ParseError` is its own, and
+`files.py` translates it to `IngestError` at the boundary. `tests/test_deploy.py` lays the package
+out the way the Dockerfile does and runs the extractor against it, so a parser that grows an engine
+import fails the gate rather than the first upload.
+
+### MCP endpoints
+
+The endpoint is not a tunable. It decides where the org's OAuth token is sent, so `RemoteTool`
+lists it in `locked` and `Registry.settings_for` refuses it as a per-org override; it is https or
+the config does not load. An org may still tune `timeout_secs` and `max_result_chars`.
+
+The server is not trusted past its schema either. A reply that is not JSON, a handshake naming
+another protocol revision, and a body over `max_result_chars` are each refused or cut before
+anything reaches the model.
+
+MCP replaces the request building and response parsing, and nothing else. The org's OAuth grant,
+the token refresh worker, the role check, the action type, the confirmation, the per-provider rate
+limit and the audit entry are all unchanged. It also has no document feed: `drive` keeps its Drive
+API client for `documents()`, which asks for every file changed since a time, because MCP publishes
+no tool that answers that.
 
 No change to the gateway, orchestrator, prompt builder, classifier, API, workers or any other
 plugin. The `add-tool` and `add-platform` skills walk through both.
@@ -645,9 +724,16 @@ the width of the pgvector column, and `test_data.py` holds the two together.
 file would be misread. A mismatched file fails at load with the version this Zipy reads; the
 release notes for that version say how to update the file.
 
-**Per-org overrides** live in `org_tool_config`. `@Zipy config calendar reminder 15` writes
-`{"default_reminder_minutes": 15}` for that org and tool; the registry merges it over the file and
-validates it with the tool's settings model. Orgs never edit `zipy.toml`. Everything they customize
+Version 2 moved the Google tools onto MCP servers. To update a version 1 file: set
+`config_version = 2`; give `[tools.calendar]`, `[tools.drive]`, `[tools.gmail]` and
+`[tools.workspace]` an `endpoint`, and drop `default_event_minutes`, `default_reminder_minutes`
+and `[tools.drive].max_results`; replace each of their `[tools.*.actions]` tables with the tools
+its `catalog.json` exposes.
+
+**Per-org overrides** live in `org_tool_config`. `@Zipy config drive sync_hours 6` writes
+`{"sync_hours": 6}` for that org and tool; the registry merges it over the file and validates it
+with the tool's settings model. A setting the tool lists in `locked` is refused rather than
+merged, which is how an org cannot move a tool's `endpoint`. Orgs never edit `zipy.toml`. Everything they customize
 is a command parsed from the text, the same on every platform:
 
 ```
@@ -655,7 +741,7 @@ is a command parsed from the text, the same on every platform:
 @Zipy connect google                 private OAuth link
 @Zipy enable zoom                    enable a tool for this org
 @Zipy disable drive                  disable a tool for this org
-@Zipy config calendar reminder 15    per-org tool setting
+@Zipy config drive sync_hours 6      per-org tool setting
 @Zipy remember <fact>                store an org fact
 @Zipy forget <key>                   remove an org fact
 @Zipy status                         connections, tools, spend

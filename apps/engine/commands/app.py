@@ -1,10 +1,11 @@
-"""zipy serve, chat, eval, eval-add, traces, config, plugins and db."""
+"""zipy serve, chat, eval, eval-add, traces, config, plugins, mcp and db."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
@@ -193,6 +194,77 @@ def plugins() -> None:
         actions = ", ".join(f"{a} ({k.value})" for a, k in table.actions.items())
         grid.add_row("tool", name, str(table.enabled), table.provider, actions)
     console.print(grid)
+
+
+def _differs(known: dict[str, object], fetched: dict[str, object]) -> bool:
+    """Whether a tool's description or input schema moved since the catalog was taken."""
+    return any(known.get(key) != fetched.get(key) for key in ("description", "inputSchema"))
+
+
+@app.command("mcp")
+def mcp(
+    tool: str = typer.Argument(..., help="an MCP-backed tool, such as calendar or gmail"),
+    write: bool = typer.Option(False, "--write", help="rewrite catalog.json with what came back"),
+) -> None:
+    """Re-fetch one MCP server's tool list and say what changed since its catalog was taken."""
+    import inspect
+
+    from engine.tools.remote import CATALOG_NAME, RemoteTool, list_tools, suggested_type
+
+    try:
+        cfg = load()
+        registry = Registry(cfg.tools)
+        if tool not in registry.names:
+            raise ZipyError(f"no tool {tool}")
+        cls = registry.tool_class(tool)
+        if not issubclass(cls, RemoteTool):
+            raise ZipyError(f"{tool} is not backed by an MCP server")
+        endpoint = str(cfg.tools[tool].options.get("endpoint", ""))
+        fetched = asyncio.run(list_tools(endpoint))
+    except ZipyError as exc:
+        raise fail(exc) from exc
+    known = cls.catalog.by_name()
+    names = {str(entry["name"]): entry for entry in fetched}
+    grid = Table("tool", "state", "exposed", "action type")
+    changed = []
+    for name in sorted(set(names) | set(known)):
+        if name not in known:
+            state, hint = "new", suggested_type(names[name]).value
+        elif name not in names:
+            state, hint = "gone", ""
+        elif _differs(known[name], names[name]):
+            state, hint = "changed", suggested_type(names[name]).value
+            changed.append(name)
+        else:
+            state, hint = "same", suggested_type(names[name]).value
+        exposed = "yes" if name in cls.catalog.exposed else "no"
+        grid.add_row(name, state, exposed, hint)
+    console.print(grid)
+    console.print(
+        f"{len(names)} tool{'' if len(names) == 1 else 's'} at {endpoint}. Nothing new reaches "
+        f"the model until it is listed in catalog.json and given a type in "
+        f"[tools.{tool}.actions].",
+        markup=False,
+        highlight=False,
+    )
+    exposed_changes = [name for name in changed if name in cls.catalog.exposed]
+    if exposed_changes:
+        console.print(
+            f"[yellow]read the diff[/yellow]: {', '.join(exposed_changes)} changed description "
+            f"or schema, and both reach the model as the server wrote them."
+        )
+    if not write:
+        return
+    path = Path(inspect.getfile(cls)).with_name(CATALOG_NAME)
+    catalog = cls.catalog.model_copy(
+        update={
+            "tools": fetched,
+            "fetched_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "exposed": [name for name in cls.catalog.exposed if name in names],
+        }
+    )
+    path.write_text(catalog.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    console.print(f"wrote {path}")
 
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})

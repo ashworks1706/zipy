@@ -28,6 +28,17 @@ This is what the files say, read for you. A line naming a file and a reason inst
 is a file that could not be read. Answer from what is here, and say so when it does not cover the
 question. The whole of each file is searchable, so recall may hold more than this shows.
 {% endif %}
+{% if sandbox %}
+# The sandbox
+
+You can run shell commands in a throwaway Linux container. Use it to compute, convert, parse or
+check something rather than doing it in your head: arithmetic over a list of numbers, a date
+calculation, counting or reshaping text a tool returned.
+
+It has no network and cannot reach the org's accounts, so nothing in it can read or change the
+org's data. Its filesystem is empty apart from what you write there, and it is gone when the
+session ends. Name a session to keep files across several commands.
+{% endif %}
 {% if collaborator %}
 # How this person works
 

@@ -8,9 +8,18 @@ import httpx
 import pytest
 
 from engine.core.config import Files
-from engine.core.types import Attachment, IngestError
+from engine.core.doubles import MemorySandbox
+from engine.core.types import Attachment, IngestError, SandboxOutput
 from engine.memory.ingest import files as reader
-from engine.memory.ingest.parsers import PARSERS, archive, office, parser_for, text, unhandled
+from engine.memory.ingest.parsers import (
+    PARSERS,
+    ParseError,
+    archive,
+    office,
+    parser_for,
+    text,
+    unhandled,
+)
 
 
 def _docx(paragraphs):
@@ -141,10 +150,11 @@ def test_a_pdf_comes_back_as_the_text_on_its_pages():
     assert "Budget due 30 September" in read
 
 
-def test_a_file_that_is_not_what_it_claims_is_an_ingest_error():
-    with pytest.raises(IngestError, match="could not be read"):
+def test_a_file_that_is_not_what_it_claims_is_a_parse_error():
+    """A parser raises its own error: it runs in the sandbox too, where no engine code is."""
+    with pytest.raises(ParseError, match="could not be read"):
         office.read_docx(b"not a docx", 100)
-    with pytest.raises(IngestError, match="could not be read"):
+    with pytest.raises(ParseError, match="could not be read"):
         PARSERS["application/pdf"](b"not a pdf", 100)
 
 
@@ -180,8 +190,8 @@ def test_an_archive_stops_once_its_entries_unpack_past_the_total():
     assert "more than this reads" in read
 
 
-def test_something_that_is_not_an_archive_is_an_ingest_error():
-    with pytest.raises(IngestError, match="could not be opened"):
+def test_something_that_is_not_an_archive_is_a_parse_error():
+    with pytest.raises(ParseError, match="could not be opened"):
         archive.read(b"not a zip", 100)
 
 
@@ -325,3 +335,103 @@ async def test_only_max_per_message_files_are_read(cfg, ctx):
         replace(ctx, files=many)
     )
     assert len(seen.splitlines()) == 3, "two files, one blank line between them"
+
+
+# ---------------------------------------------------------------- parsing in the sandbox
+
+
+def sandboxed(cfg, **over):
+    """The file settings with sandbox parsing on."""
+    return cfg.files.model_copy(update={"sandbox": True, **over})
+
+
+def _said(text):
+    """What the extractor prints for a file it read."""
+    return SandboxOutput(exit_code=0, stdout=json.dumps({"text": text}), stderr="", session="files")
+
+
+@pytest.mark.anyio
+async def test_with_the_sandbox_on_the_bytes_are_parsed_in_the_container(cfg, ctx):
+    transport, _ = _serving(b"budget notes")
+    box = MemorySandbox(
+        default=SandboxOutput(
+            exit_code=0, stdout='{"text": "budget notes"}', stderr="", session="files"
+        )
+    )
+    attachment = Attachment(url="https://x/notes.txt", media_type="text/plain", name="notes.txt")
+
+    document = await reader.read(attachment, sandboxed(cfg), transport, ctx=ctx, sandbox=box)
+
+    assert document.text == "budget notes"
+    # The bytes went into the workspace, and the command named the extractor.
+    assert any(key.endswith(".txt") for key in box.written)
+    assert "/opt/zipy/extract.py" in box.ran[0][1]
+    assert box.ran[0][2] == reader.PARSE_SESSION
+
+
+@pytest.mark.anyio
+async def test_the_sandbox_never_sees_another_orgs_workspace(cfg, ctx):
+    transport, _ = _serving(b"hi")
+    box = MemorySandbox(default=_said("hi"))
+    attachment = Attachment(url="https://x/a.txt", media_type="text/plain", name="a.txt")
+
+    await reader.read(attachment, sandboxed(cfg), transport, ctx=ctx, sandbox=box)
+
+    assert all(key.startswith(f"{ctx.org_id}/") for key in box.written)
+    assert box.ran[0][0] == ctx.org_id
+
+
+@pytest.mark.anyio
+async def test_the_sandbox_is_never_asked_to_run_what_a_file_is_called(cfg, ctx):
+    """A name is not a command: it reaches the container quoted, and not as the stored name."""
+    transport, _ = _serving(b"hi")
+    box = MemorySandbox(default=_said("hi"))
+    attachment = Attachment(url="https://x/a.txt", media_type="text/plain", name="; rm -rf / #.txt")
+
+    await reader.read(attachment, sandboxed(cfg), transport, ctx=ctx, sandbox=box)
+
+    assert "rm -rf" not in box.ran[0][1]
+
+
+@pytest.mark.anyio
+async def test_a_file_the_sandbox_could_not_read_says_so_rather_than_answering(cfg, ctx):
+    transport, _ = _serving(b"not a pdf")
+    box = MemorySandbox()
+    box.answers["x"] = SandboxOutput(exit_code=0, stdout="", stderr="", session="files")
+    attachment = Attachment(url="https://x/a.pdf", media_type="application/pdf", name="a.pdf")
+
+    with pytest.raises(IngestError, match="could not be read"):
+        await reader.read(attachment, sandboxed(cfg), transport, ctx=ctx, sandbox=box)
+
+
+@pytest.mark.anyio
+async def test_an_extractor_error_reaches_the_person_as_the_reason(cfg, ctx):
+    transport, _ = _serving(b"x")
+    box = MemorySandbox()
+    box.answers = {}
+    attachment = Attachment(url="https://x/a.pdf", media_type="application/pdf", name="a.pdf")
+
+    async def failed(request_ctx, request):
+        box.ran.append((request_ctx.org_id, request.command, request.session))
+        return SandboxOutput(
+            exit_code=1, stdout='{"error": "that file is not a pdf"}', stderr="", session="files"
+        )
+
+    box.run = failed  # type: ignore[method-assign]
+
+    with pytest.raises(IngestError, match="not a pdf"):
+        await reader.read(attachment, sandboxed(cfg), transport, ctx=ctx, sandbox=box)
+
+
+@pytest.mark.anyio
+async def test_sandbox_parsing_never_quietly_falls_back_to_this_process(cfg, ctx):
+    """The point is that an untrusted file is not read beside the org's credentials."""
+    transport, _ = _serving(b"plain text")
+    attachment = Attachment(url="https://x/a.txt", media_type="text/plain", name="a.txt")
+
+    with pytest.raises(IngestError, match="no sandbox is wired"):
+        await reader.read(attachment, sandboxed(cfg), transport, ctx=ctx, sandbox=None)
+
+
+def test_the_sandbox_is_off_until_someone_turns_it_on(cfg):
+    assert cfg.files.sandbox is False

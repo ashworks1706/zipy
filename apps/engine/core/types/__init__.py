@@ -39,6 +39,7 @@ from engine.core.types.errors import (
     PermissionDenied,
     PlatformError,
     RateLimited,
+    SandboxError,
     StoreError,
     ToolError,
     UnknownWorkspace,
@@ -61,6 +62,13 @@ from engine.core.types.records import (
     Job,
     ProviderAuth,
     RecallHit,
+)
+from engine.core.types.sandbox import (
+    SandboxOutput,
+    SandboxRequest,
+    SandboxSession,
+    session_name,
+    workspace_path,
 )
 
 __all__ = [
@@ -89,6 +97,7 @@ __all__ = [
     "Document",
     "FactCategory",
     "IngestError",
+    "SandboxError",
     "Job",
     "MemberRef",
     "ModelError",
@@ -121,5 +130,10 @@ __all__ = [
     "ZipyError",
     "from_wire",
     "progress",
+    "SandboxOutput",
+    "SandboxRequest",
+    "SandboxSession",
+    "session_name",
+    "workspace_path",
     "wire_name",
 ]

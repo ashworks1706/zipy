@@ -15,7 +15,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 from pydantic import SecretStr as Secret
 
-from engine.core.types import ConfigError, OrgId, ProviderAuth, ToolError
+from engine.core.types import ConfigError, OrgId, ProviderAuth, RequestContext, ToolError
 from engine.tools.base import BaseTool, qualified
 from engine.tools.registry import Registry
 
@@ -31,6 +31,7 @@ def replayed(cls: type[BaseTool[Any]], answers: dict[str, dict[str, Any]]) -> ty
 
         async def execute(
             self,
+            ctx: RequestContext,  # noqa: ARG002 - a fixture is the same for every org
             action: str,
             params: BaseModel,  # noqa: ARG002 - the fixture is the same whatever was asked
             auth: ProviderAuth | None,  # noqa: ARG002 - a fixture needs no credential

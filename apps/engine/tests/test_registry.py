@@ -15,8 +15,11 @@ def test_the_committed_config_matches_every_tool(cfg):
         "calendar",
         "drive",
         "github",
+        "gmail",
         "notion",
+        "sandbox",
         "search",
+        "workspace",
         "zoom",
     ]
 
@@ -40,9 +43,15 @@ def test_an_action_missing_from_the_config_fails_at_startup(cfg):
 def test_only_connected_and_enabled_tools_are_offered(cfg):
     registry = Registry(cfg.tools)
     assert registry.available(frozenset(), {}) == ["search"]
-    assert registry.available(frozenset({"google"}), {}) == ["calendar", "drive", "search"]
+    assert registry.available(frozenset({"google"}), {}) == [
+        "calendar",
+        "drive",
+        "gmail",
+        "search",
+        "workspace",
+    ]
     off = {"drive": OrgToolConfig("drive", enabled=False, overrides={})}
-    assert registry.available(frozenset({"google"}), off) == ["calendar", "search"]
+    assert "drive" not in registry.available(frozenset({"google"}), off)
 
 
 def test_an_org_that_turns_a_tool_off_is_not_offered_it(cfg):
@@ -63,9 +72,10 @@ def test_a_tool_whose_provider_is_not_connected_is_not_offered(cfg):
 
 def test_an_org_override_is_merged_over_the_file(cfg):
     registry = Registry(cfg.tools)
-    override = OrgToolConfig("calendar", enabled=True, overrides={"default_reminder_minutes": 15})
+    override = OrgToolConfig("calendar", enabled=True, overrides={"max_result_chars": 500})
     settings = registry.settings_for("calendar", override)
-    assert settings.model_dump() == {"default_event_minutes": 60, "default_reminder_minutes": 15}
+    assert settings.model_dump()["max_result_chars"] == 500
+    assert settings.model_dump()["endpoint"] == cfg.tools["calendar"].options["endpoint"]
 
 
 def test_an_unknown_override_key_is_rejected(cfg):
@@ -94,3 +104,20 @@ def test_the_config_not_the_model_decides_what_needs_confirmation(cfg):
     assert needs_confirmation(registry, ToolCall("2", "calendar.update_event", {}))
     with pytest.raises(ConfigError):
         needs_confirmation(registry, ToolCall("3", "calendar.drop_everything", {}))
+
+
+def test_the_sandbox_ships_off_and_is_not_offered_until_an_org_turns_it_on(cfg):
+    """It runs arbitrary commands and needs a container runtime the engine can reach."""
+    assert cfg.tools["sandbox"].enabled is False
+    registry = Registry(cfg.tools)
+    assert "sandbox" not in registry.available(frozenset(), {})
+    on = {"sandbox": OrgToolConfig("sandbox", enabled=True, overrides={})}
+    assert "sandbox" in registry.available(frozenset(), on)
+
+
+def test_an_org_cannot_change_what_a_sandbox_container_may_do(cfg):
+    registry = Registry(cfg.tools)
+    for key in ("image", "runtime", "memory", "pids", "workspace_mb"):
+        override = OrgToolConfig("sandbox", enabled=True, overrides={key: "anything"})
+        with pytest.raises(ConfigError, match="not overridable per org"):
+            registry.settings_for("sandbox", override)

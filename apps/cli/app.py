@@ -26,11 +26,13 @@ from textual.app import App, ComposeResult, SuspendNotSupported
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
+from cli import sandboxes
 from cli.chat import Transcript, decode
 from cli.core.config import Config, ConfigError
 from cli.logs import LogBuffer, LogLine, LogWriter, Stream
 from cli.meters import Meters
 from cli.runner import Runner
+from cli.sandboxes import Session
 from cli.splash import Splash
 from cli.status import Snapshot, snapshot
 from cli.units import Command, Kind, Unit, adhoc, catalog, parse_command
@@ -105,6 +107,7 @@ HELP = """keys
   /  then n  N               search the selected unit's logs
   C                          clear the selected unit's logs
   :                          command line
+  S                          the sandbox sessions the engine has open, and what each is running
   ?                          this help; any key closes it
   q                          quit; running units are stopped
 
@@ -172,6 +175,7 @@ class ConsoleApp(App[None]):
         units: Sequence[Unit] | None = None,
         launcher: Sequence[str] = ("just",),
         probe: Callable[[Config], Snapshot] = snapshot,
+        reader: sandboxes.Reader = sandboxes.read,
     ) -> None:
         super().__init__()
         self.cfg = cfg
@@ -192,9 +196,13 @@ class ConsoleApp(App[None]):
         self.hit: int | None = None
         self.notice = ""
         self.show_help = False
+        self.show_sandboxes = False
+        self.sandboxes: list[Session] = []
+        self.sandbox_row = 0
         self.pending_g = False
         self.snap: Snapshot | None = None
         self.probe = probe
+        self.reader = reader
         self.writer = LogWriter(root / cfg.console.log_dir)
         self.runner = Runner(root, self._on_line, self._on_exit, launcher)
         self._pending: set[asyncio.Task[None]] = set()
@@ -271,6 +279,9 @@ class ConsoleApp(App[None]):
         # The spinner turns while the agent works.
         if self._closing or self._handed_over:
             return
+        # The timer starts before the layout is mounted and outlives it on the way out.
+        if not self.query("#units"):
+            return
         if self._dirty or self.transcript.waiting:
             self._dirty = False
             self._paint()
@@ -333,7 +344,9 @@ class ConsoleApp(App[None]):
         event.stop()
         event.prevent_default()
         self.notice = ""
-        if self.show_help:
+        if self.show_sandboxes:
+            self._key_sandboxes(event)
+        elif self.show_help:
             self.show_help = False
         elif self.key_mode is Mode.NORMAL:
             await self._key_normal(event)
@@ -350,6 +363,8 @@ class ConsoleApp(App[None]):
             self._quit()
         elif char == "?":
             self.show_help = True
+        elif char == "S":
+            self._open_sandboxes()
         elif char == "i":
             self.key_mode = Mode.CHAT
             self.pane = Pane.CHAT
@@ -642,6 +657,76 @@ class ConsoleApp(App[None]):
         else:
             await self._start(tracked)
 
+    # ---------- sandbox sessions ----------
+
+    def _open_sandboxes(self) -> None:
+        """Read the sessions the engine has open and show them over the log pane."""
+        self.show_sandboxes = True
+        self._read_sandboxes()
+
+    def _read_sandboxes(self) -> None:
+        self.sandboxes = sandboxes.live(self.cfg.sandbox.runtime, self.reader)
+        self.sandbox_row = min(self.sandbox_row, max(len(self.sandboxes) - 1, 0))
+
+    def _key_sandboxes(self, event: events.Key) -> None:
+        """Move, kill one, kill all, or close. Anything else closes."""
+        char = event.character if event.is_printable else None
+        if char == "j":
+            self.sandbox_row = min(self.sandbox_row + 1, max(len(self.sandboxes) - 1, 0))
+        elif char == "k":
+            self.sandbox_row = max(self.sandbox_row - 1, 0)
+        elif char == "r":
+            self._read_sandboxes()
+        elif char == "x":
+            self._kill_selected()
+        elif char == "X":
+            gone = sandboxes.kill_all(self.cfg.sandbox.runtime, self.reader)
+            self.notice = f"killed {gone} session{'' if gone == 1 else 's'}"
+            self._read_sandboxes()
+        else:
+            self.show_sandboxes = False
+
+    def _kill_selected(self) -> None:
+        if not self.sandboxes:
+            return
+        name = self.sandboxes[self.sandbox_row].name
+        went = sandboxes.kill(name, self.cfg.sandbox.runtime, self.reader)
+        self.notice = f"killed {name}" if went else f"{name} would not go"
+        self._read_sandboxes()
+
+    def _sandbox_text(self) -> Text:
+        """The overlay: one line a session, with what is running in it under it."""
+        if not self.sandboxes:
+            # A session outlives the setting, so what is running is shown before what is set.
+            if not self.cfg.sandbox.enabled:
+                return Text(
+                    "no sandbox sessions are open, and the sandbox is off in zipy.toml\n\n"
+                    "turn it on with [tools.sandbox] enabled = true, or per org from chat "
+                    "with @Zipy enable sandbox",
+                    style="dim",
+                )
+            return Text("no sandbox sessions are open", style="dim")
+        body = Text(no_wrap=True, overflow="ellipsis")
+        for index, session in enumerate(self.sandboxes):
+            if index:
+                body.append("\n")
+            row = Text(no_wrap=True, overflow="ellipsis")
+            row.append(f"{session.name}  ", "bold")
+            row.append(f"{session.org_id} · {session.member}  ", "dim")
+            row.append(_elapsed(session.age_secs), "dim")
+            row.append(
+                "  running" if session.busy else "  idle", "yellow" if session.busy else "dim"
+            )
+            if index == self.sandbox_row:
+                row.stylize("reverse")
+            body.append_text(row)
+            for command in session.processes:
+                body.append("\n")
+                body.append_text(
+                    Text(f"    {command}", style="cyan", no_wrap=True, overflow="ellipsis")
+                )
+        return body
+
     async def _run(self, command: Command) -> None:
         verb = command.verb
         if verb == "quit":
@@ -760,6 +845,11 @@ class ConsoleApp(App[None]):
 
     def _paint_logs(self, logs: Static) -> None:
         tracked = self.current
+        if self.show_sandboxes:
+            logs.border_title = f"sandbox sessions ({len(self.sandboxes)})"
+            logs.border_subtitle = "j k move · x kill · X kill all · r refresh · any key closes"
+            logs.update(self._sandbox_text())
+            return
         if self.show_help:
             logs.border_title = "help"
             logs.border_subtitle = "any key closes"

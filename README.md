@@ -22,9 +22,14 @@ layer, the permissions, the memory and the traces that a team's agents need, wit
 as one surface rather than the product.
 
 A team configures its agents, their tools, providers and knowledge once, and talks to them where
-it already works (Discord today, Slack next), against the org's shared Google Calendar, Drive,
-Notion and Zoom accounts. Nothing breaks when an officer graduates. Built first for university
+it already works (Discord today, Slack next), against the org's shared Google Workspace, Notion,
+GitHub and Zoom accounts. Nothing breaks when an officer graduates. Built first for university
 student orgs, which have the turnover to prove it.
+
+Calendar, Drive, Gmail and cross-Workspace search run on Google's own MCP servers, so those tools
+are a catalog and a table rather than a client: a new server becomes a tool without new code. What
+a tool is allowed to do is never the server's call. Every action's type is pinned in `zipy.toml`,
+and that is what decides whether it runs at once or waits for a confirmation.
 
 <img width="1671" height="833" alt="image" src="https://github.com/user-attachments/assets/7a2c95a6-5387-4702-89e4-3ebb247d259a" />
 

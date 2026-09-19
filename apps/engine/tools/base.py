@@ -10,16 +10,27 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from engine.core.types import CredentialError, Document, ProviderAuth, wire_name
+from engine.core.types import (
+    CredentialError,
+    Document,
+    ProviderAuth,
+    RequestContext,
+    wire_name,
+)
 
 
 @dataclass(frozen=True)
 class Action:
-    """One action a tool exposes. Its type comes from zipy.toml, not from here."""
+    """One action a tool exposes. Its type comes from zipy.toml, not from here.
+
+    parameters is the schema the model is shown when it is not the params model's own, which is
+    how a remote tool passes on the schema its server published.
+    """
 
     description: str
     params: type[BaseModel]
     result: type[BaseModel]
+    parameters: dict[str, Any] | None = None
 
 
 class BaseTool[S: BaseModel](ABC):
@@ -27,13 +38,15 @@ class BaseTool[S: BaseModel](ABC):
 
     provider names the [providers.*] account the tool needs, or is empty. owns lists the
     third-party libraries only this plugin may import. syncs is true when documents() yields
-    searchable documents for semantic recall.
+    searchable documents for semantic recall. locked names settings an org may not override,
+    which is every setting that decides where a credential is sent.
     """
 
     name: ClassVar[str]
     provider: ClassVar[str] = ""
     owns: ClassVar[tuple[str, ...]] = ()
     syncs: ClassVar[bool] = False
+    locked: ClassVar[frozenset[str]] = frozenset()
     settings_model: ClassVar[type[BaseModel]]
     actions: ClassVar[Mapping[str, Action]]
 
@@ -41,7 +54,9 @@ class BaseTool[S: BaseModel](ABC):
         self.settings = settings
 
     @abstractmethod
-    async def execute(self, action: str, params: BaseModel, auth: ProviderAuth | None) -> BaseModel:
+    async def execute(
+        self, ctx: RequestContext, action: str, params: BaseModel, auth: ProviderAuth | None
+    ) -> BaseModel:
         """Run one action with validated params. Provider failures raise ToolError."""
 
     def target(self, action: str, params: BaseModel) -> str:  # noqa: ARG002 - overridable hook
@@ -86,6 +101,6 @@ def function_schema(tool: str, action_name: str, action: Action) -> dict[str, An
         "function": {
             "name": wire_name(qualified(tool, action_name)),
             "description": action.description,
-            "parameters": action.params.model_json_schema(),
+            "parameters": action.parameters or action.params.model_json_schema(),
         },
     }

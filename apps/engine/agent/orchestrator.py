@@ -130,7 +130,8 @@ class Orchestrator:
         """
         org = await self._org(ctx)
         context = await self._memory.build(ctx, message)
-        messages = self._prompts.build(ctx, org, markup, context, message)
+        offered = await self._offered(ctx)
+        messages = self._prompts.build(ctx, org, markup, context, message, tools=offered)
         return await self._run(ctx, org, messages, Budget())
 
     async def confirm(self, ctx: RequestContext, confirmation_id: str, markup: str) -> AgentResult:
@@ -150,7 +151,8 @@ class Orchestrator:
         if pending.sub_agent is not None:
             resumed = await self._resume(ctx, org, pending.sub_agent, outcome)
         context = await self._memory.build(ctx, pending.summary)
-        messages = self._prompts.build(ctx, org, markup, context, "", (resumed,))
+        offered = await self._offered(ctx)
+        messages = self._prompts.build(ctx, org, markup, context, "", (resumed,), offered)
         return await self._run(ctx, org, messages, Budget())
 
     async def _resume(

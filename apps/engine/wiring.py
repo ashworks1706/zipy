@@ -49,7 +49,9 @@ from engine.telemetry.progress import ProgressSink
 from engine.telemetry.trace import Fanout, JsonlTrace
 from engine.tools.executor import Executor
 from engine.tools.registry import Registry
-from engine.workers.cleanup import cleanup
+from engine.tools.sandbox.container import ContainerSandbox
+from engine.tools.sandbox.schemas import SandboxSettings
+from engine.workers.cleanup import cleanup, reap_sandboxes
 from engine.workers.ingestion import Ingestion
 from engine.workers.scheduler import Consumer, DailyAt, MonthlyFirst, Periodic, Scheduler
 from engine.workers.spend import reset_monthly_spend
@@ -183,6 +185,9 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
 
     conversations = Conversations()
     provider_limiter = RedisProviderLimiter(config.data, config.rate_limit)
+    sandbox = ContainerSandbox(
+        SandboxSettings.model_validate(registry.settings_for("sandbox").model_dump())
+    )
     memory = MemoryManager(
         memory=config.memory,
         conversation=conversations,
@@ -193,6 +198,7 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
         settings=config.collaboration,
         conditioning=config.models["chat"].conditioning,
         files=config.files,
+        sandbox=sandbox,
     )
     orchestrator = Orchestrator(
         agent=config.agent,
@@ -254,6 +260,11 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
                     workers.cleanup_hour_utc,
                     lambda: cleanup(config.memory, confirmations, documents),
                 ).tick,
+            ),
+            Periodic(
+                name="sandbox_reap",
+                interval=timedelta(minutes=5),
+                run=lambda: reap_sandboxes(sandbox),
             ),
             Periodic(
                 name="spend_reset",

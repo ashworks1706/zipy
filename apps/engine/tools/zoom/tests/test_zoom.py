@@ -6,11 +6,34 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
-from engine.core.types import CredentialError, OrgId, ProviderAuth, ToolError
+from engine.core.types import (
+    ChannelRef,
+    CredentialError,
+    MemberRef,
+    OrgId,
+    ProviderAuth,
+    RequestContext,
+    Role,
+    ToolError,
+    WorkspaceRef,
+)
 from engine.tools.zoom import tool as tool_module
 from engine.tools.zoom.client import ZoomClient
 from engine.tools.zoom.schemas import LatestSummaryParams, ListRecordingsParams, ZoomSettings
 from engine.tools.zoom.tool import ZoomTool
+
+
+def context():
+    return RequestContext(
+        org_id=OrgId("org-1"),
+        channel=ChannelRef(WorkspaceRef("discord", "g1"), "c1"),
+        member=MemberRef("discord", "u1"),
+        role=Role.OFFICER,
+        display_name="Ash",
+        request_id="req-1",
+        received_at=datetime(2026, 9, 19, tzinfo=UTC),
+    )
+
 
 TOKEN = "zoom-oauth-access-token"
 VTT = """WEBVTT
@@ -106,7 +129,9 @@ async def test_list_recordings_asks_for_the_window_and_answers_newest_first(monk
     api = zoom(monkeypatch, {"/users/me/recordings": [(200, {"meetings": [EXEC, SOCIAL]})]})
     since = recently()
 
-    result = await tool().execute("list_recordings", ListRecordingsParams(since=since), auth())
+    result = await tool().execute(
+        context(), "list_recordings", ListRecordingsParams(since=since), auth()
+    )
 
     sent = api.requests[0]
     assert sent.url.params["from"] == since.date().isoformat()
@@ -129,7 +154,9 @@ async def test_list_recordings_follows_zooms_page_token(monkeypatch):
         },
     )
 
-    result = await tool().execute("list_recordings", ListRecordingsParams(since=recently()), auth())
+    result = await tool().execute(
+        context(), "list_recordings", ListRecordingsParams(since=recently()), auth()
+    )
 
     assert api.requests[1].url.params["next_page_token"] == "page-2"
     assert len(result.recordings) == 2
@@ -145,7 +172,9 @@ async def test_latest_summary_downloads_the_newest_matching_transcript(monkeypat
         },
     )
 
-    result = await tool().execute("latest_summary", LatestSummaryParams(topic="exec"), auth())
+    result = await tool().execute(
+        context(), "latest_summary", LatestSummaryParams(topic="exec"), auth()
+    )
 
     assert "abc" in str(sent_to(api, "/meetings/")[0].url)
     assert sent_to(api, "/rec/download/")[0].headers["Authorization"] == f"Bearer {TOKEN}"
@@ -157,7 +186,9 @@ async def test_latest_summary_says_when_no_recording_matches(monkeypatch):
     zoom(monkeypatch, {"/users/me/recordings": [(200, {"meetings": [SOCIAL]})]})
 
     with pytest.raises(ToolError, match="about budget"):
-        await tool().execute("latest_summary", LatestSummaryParams(topic="budget"), auth())
+        await tool().execute(
+            context(), "latest_summary", LatestSummaryParams(topic="budget"), auth()
+        )
 
 
 async def test_a_recording_without_a_transcript_file_says_so(monkeypatch):
@@ -170,7 +201,7 @@ async def test_a_recording_without_a_transcript_file_says_so(monkeypatch):
     )
 
     with pytest.raises(ToolError, match="has no transcript"):
-        await tool().execute("latest_summary", LatestSummaryParams(), auth())
+        await tool().execute(context(), "latest_summary", LatestSummaryParams(), auth())
 
 
 async def test_a_meeting_uuid_holding_a_slash_is_escaped_twice(monkeypatch):
@@ -184,7 +215,7 @@ async def test_a_meeting_uuid_holding_a_slash_is_escaped_twice(monkeypatch):
         },
     )
 
-    await tool().execute("latest_summary", LatestSummaryParams(), auth())
+    await tool().execute(context(), "latest_summary", LatestSummaryParams(), auth())
 
     assert "%252F" in str(sent_to(api, "/meetings/")[0].url)
 
@@ -213,7 +244,9 @@ async def test_a_zoom_refusal_becomes_a_tool_error_naming_the_message(monkeypatc
     zoom(monkeypatch, {"/users/me/recordings": [(429, {"message": "Too many requests"})]})
 
     with pytest.raises(ToolError) as caught:
-        await tool().execute("list_recordings", ListRecordingsParams(since=recently()), auth())
+        await tool().execute(
+            context(), "list_recordings", ListRecordingsParams(since=recently()), auth()
+        )
 
     assert "429" in str(caught.value)
     assert "Too many requests" in str(caught.value)
@@ -223,33 +256,37 @@ async def test_an_expired_token_becomes_a_credential_error(monkeypatch):
     zoom(monkeypatch, {"/users/me/recordings": [(401, {"message": "Access token is expired"})]})
 
     with pytest.raises(CredentialError, match="expired or revoked"):
-        await tool().execute("list_recordings", ListRecordingsParams(since=recently()), auth())
+        await tool().execute(
+            context(), "list_recordings", ListRecordingsParams(since=recently()), auth()
+        )
 
 
 async def test_a_zoom_that_does_not_answer_becomes_a_tool_error(monkeypatch):
     zoom(monkeypatch, failure=httpx.ConnectError("no route to host"))
 
     with pytest.raises(ToolError, match="did not answer"):
-        await tool().execute("list_recordings", ListRecordingsParams(since=recently()), auth())
+        await tool().execute(
+            context(), "list_recordings", ListRecordingsParams(since=recently()), auth()
+        )
 
 
 async def test_a_tool_without_the_orgs_zoom_account_refuses_to_run():
     params = ListRecordingsParams(since=recently())
 
     with pytest.raises(CredentialError, match="zoom is not connected"):
-        await tool().execute("list_recordings", params, None)
+        await tool().execute(context(), "list_recordings", params, None)
 
     with pytest.raises(CredentialError, match="zoom is not connected"):
-        await tool().execute("list_recordings", params, auth(provider="google"))
+        await tool().execute(context(), "list_recordings", params, auth(provider="google"))
 
 
 async def test_the_token_reaches_neither_a_result_nor_an_error(monkeypatch):
     zoom(monkeypatch, {"/users/me/recordings": [(200, {"meetings": [EXEC]})]})
     params = ListRecordingsParams(since=recently())
-    result = await tool().execute("list_recordings", params, auth())
+    result = await tool().execute(context(), "list_recordings", params, auth())
     assert TOKEN not in result.model_dump_json()
 
     zoom(monkeypatch, {"/users/me/recordings": [(401, {"message": "Access token is expired"})]})
     with pytest.raises(CredentialError) as caught:
-        await tool().execute("list_recordings", params, auth())
+        await tool().execute(context(), "list_recordings", params, auth())
     assert TOKEN not in str(caught.value)

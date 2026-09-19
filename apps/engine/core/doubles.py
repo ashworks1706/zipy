@@ -27,6 +27,9 @@ from engine.core.types import (
     RecallHit,
     RequestContext,
     Role,
+    SandboxOutput,
+    SandboxRequest,
+    SandboxSession,
     Signal,
     Workspace,
     WorkspaceRef,
@@ -335,3 +338,40 @@ class MemoryTrace:
     def event(self, ctx: RequestContext, name: str, data: dict[str, Any]) -> None:
         self.events.append((name, data))
         self.levels.append((name, ctx.depth, ctx.parent))
+
+
+@dataclass
+class MemorySandbox:
+    """A sandbox that records what it was asked and answers from a script."""
+
+    answers: dict[str, SandboxOutput] = field(default_factory=dict)
+    default: SandboxOutput | None = None
+    ran: list[tuple[OrgId, str, str | None]] = field(default_factory=list)
+    written: dict[str, bytes] = field(default_factory=dict)
+    live: list[SandboxSession] = field(default_factory=list)
+    killed: list[str] = field(default_factory=list)
+
+    async def run(self, ctx: RequestContext, request: SandboxRequest) -> SandboxOutput:
+        self.ran.append((ctx.org_id, request.command, request.session))
+        for needle, answer in self.answers.items():
+            if needle in request.command:
+                return answer
+        if self.default is not None:
+            return self.default
+        return SandboxOutput(exit_code=0, stdout="", stderr="", session=request.session)
+
+    async def put(self, ctx: RequestContext, session: str, name: str, content: bytes) -> str:
+        self.written[f"{ctx.org_id}/{session}/{name}"] = content
+        return f"/tmp/{name}"
+
+    async def sessions(self, org_id: OrgId | None = None) -> list[SandboxSession]:
+        return [s for s in self.live if org_id is None or s.org_id == org_id]
+
+    async def kill(self, name: str) -> bool:
+        self.killed.append(name)
+        before = len(self.live)
+        self.live = [s for s in self.live if s.name != name]
+        return len(self.live) < before
+
+    async def reap_idle(self) -> list[str]:
+        return []

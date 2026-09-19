@@ -10,7 +10,7 @@ from __future__ import annotations
 import io
 import zipfile
 
-from engine.core.types import IngestError
+from engine.memory.ingest.parsers.errors import ParseError
 
 #: Entries read before the rest are only listed.
 MAX_ENTRIES = 50
@@ -29,12 +29,12 @@ def _skipped(name: str, why: str) -> str:
 
 def read(raw: bytes, limit: int) -> str:
     """The text entries of an archive, each under its name."""
-    from engine.memory.ingest.parsers import parser_for
+    from engine.memory.ingest.parsers.registry import parser_for
 
     try:
         archive = zipfile.ZipFile(io.BytesIO(raw))
     except (zipfile.BadZipFile, OSError) as exc:
-        raise IngestError(f"that archive could not be opened: {type(exc).__name__}") from exc
+        raise ParseError(f"that archive could not be opened: {type(exc).__name__}") from exc
     parts: list[str] = []
     unpacked = 0
     with archive:

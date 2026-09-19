@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 
-from engine.core.types import IngestError
+from engine.memory.ingest.parsers.errors import ParseError
 
 #: Pages read before the rest is left. A limit in characters alone would still walk every page.
 MAX_PAGES = 500
@@ -25,5 +25,5 @@ def read(raw: bytes, limit: int) -> str:
             if size >= limit:
                 break
     except (PyPdfError, ValueError, OSError) as exc:
-        raise IngestError(f"that PDF could not be read: {type(exc).__name__}") from exc
+        raise ParseError(f"that PDF could not be read: {type(exc).__name__}") from exc
     return "\n\n".join(parts)[:limit]

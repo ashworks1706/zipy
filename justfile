@@ -129,6 +129,10 @@ migrate *ARGS="upgrade head":
 revision MESSAGE:
     uv run zipy db revision "{{MESSAGE}}"
 
+# One MCP server's tool list, against the tool's committed catalog. --write updates it
+mcp tool *args:
+    uv run zipy mcp {{tool}} {{args}}
+
 # Every platform, provider and tool plugin, checked against zipy.toml
 plugins:
     uv run zipy plugins
@@ -154,6 +158,20 @@ stop *SERVICES:
 # Stop and remove every compose service
 down:
     {{compose}} --profile '*' down
+    @just sandbox-down
+
+# Build the sandbox image the sandbox tool and file parsing run in
+sandbox-image tag="ghcr.io/ashworks1706/zipy-sandbox:main":
+    docker build -f deploy/sandbox/Dockerfile -t {{tag}} .
+
+# Remove every sandbox session container, which compose does not own
+sandbox-down:
+    #!/usr/bin/env sh
+    ids=$(docker ps -aq --filter label=zipy.sandbox=1 2>/dev/null)
+    if [ -n "$ids" ]; then
+        docker rm --force $ids >/dev/null
+        echo "removed $(echo "$ids" | wc -l | tr -d ' ') sandbox session(s)"
+    fi
 
 # Follow the logs of compose services, all of them by default
 logs *SERVICES:

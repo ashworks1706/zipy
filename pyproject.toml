@@ -41,6 +41,8 @@ known-first-party = ["engine", "cli", "training"]
 "tests/*" = ["ANN", "ARG"]
 # Alembic loads these by path; they are not part of the package.
 "apps/engine/data/migrations/*" = ["ANN"]
+# The extractor runs in the sandbox image, where stdout is how it answers the engine.
+"deploy/sandbox/extract.py" = ["T20"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["typer.Option", "typer.Argument"]

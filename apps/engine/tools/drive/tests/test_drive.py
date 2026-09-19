@@ -1,4 +1,7 @@
-"""The drive tool: its schemas, the queries it builds, and the documents it yields."""
+"""The drive document feed: the queries it builds and the documents it yields.
+
+The tool's actions run on the Drive MCP server; tests/test_remote.py covers them.
+"""
 
 from datetime import UTC, datetime
 
@@ -6,14 +9,15 @@ import pytest
 from googleapiclient.errors import HttpError
 from pydantic import SecretStr
 
-from engine.core.types import CredentialError, OrgId, ProviderAuth, ToolError
+from engine.core.types import CredentialError, Document, OrgId, ProviderAuth, ToolError
 from engine.tools.drive import client as client_module
-from engine.tools.drive.schemas import DriveSettings, ListFolderParams, SearchFilesParams
+from engine.tools.drive.schemas import DriveSettings
 from engine.tools.drive.tool import DriveTool
 
 TOKEN = "ya29.a-google-access-token"
 FOLDER_MIME = "application/vnd.google-apps.folder"
 DOCUMENT_MIME = "application/vnd.google-apps.document"
+ENDPOINT = "https://drivemcp.googleapis.com/mcp/v1"
 
 
 class FakeRequest:
@@ -81,7 +85,7 @@ def auth(provider="google"):
 
 
 def tool(**settings):
-    return DriveTool(DriveSettings(**settings))
+    return DriveTool(DriveSettings(endpoint=ENDPOINT, **settings))
 
 
 def http_error(status, message):
@@ -103,78 +107,13 @@ FILE = {
 }
 
 
-def test_a_file_search_parses():
-    assert SearchFilesParams(query="officer contact list").query == "officer contact list"
-
-
-def test_drive_is_read_only():
-    assert set(DriveTool.actions) == {"search_files", "list_folder"}
-
-
-async def test_search_files_asks_for_name_and_content_matches(monkeypatch):
-    service = google(monkeypatch, {"files.list": [{"files": [FILE]}]})
-
-    result = await tool().execute("search_files", SearchFilesParams(query="contact list"), auth())
-
-    name, sent = service.calls[0]
-    assert name == "files.list"
-    assert "name contains 'contact list'" in sent["q"]
-    assert "fullText contains 'contact list'" in sent["q"]
-    assert "trashed = false" in sent["q"]
-    assert sent["pageSize"] == 10
-    assert sent["orderBy"] == "modifiedTime desc"
-    found = result.files[0]
-    assert found.id == "file-1"
-    assert found.name == "Officer contact list"
-    assert found.modified_at.year == 2026
-    assert found.link.endswith("file-1")
-
-
-async def test_search_files_escapes_a_quote_in_the_query(monkeypatch):
-    service = google(monkeypatch, {"files.list": [{"files": []}]})
-
-    await tool().execute("search_files", SearchFilesParams(query="Ash's notes"), auth())
-
-    assert "Ash\\'s notes" in service.calls[0][1]["q"]
-
-
-async def test_search_files_stops_at_the_orgs_max_results(monkeypatch):
-    many = [dict(FILE, id=f"file-{n}") for n in range(5)]
-    google(monkeypatch, {"files.list": [{"files": many}]})
-
-    result = await tool(max_results=2).execute(
-        "search_files", SearchFilesParams(query="notes"), auth()
-    )
-
-    assert [f.id for f in result.files] == ["file-0", "file-1"]
-
-
-async def test_search_files_needs_a_query(monkeypatch):
-    google(monkeypatch)
-
-    with pytest.raises(ToolError, match="needs a query"):
-        await tool().execute("search_files", SearchFilesParams(query="  "), auth())
-
-
-async def test_list_folder_looks_the_folder_up_by_name_then_lists_its_children(monkeypatch):
-    folder = {"id": "folder-9", "name": "Events", "mimeType": FOLDER_MIME}
-    service = google(monkeypatch, {"files.list": [{"files": [folder]}, {"files": [FILE]}]})
-
-    result = await tool().execute("list_folder", ListFolderParams(folder="Events"), auth())
-
-    lookup, children = service.calls
-    assert f"mimeType = '{FOLDER_MIME}'" in lookup[1]["q"]
-    assert "name = 'Events'" in lookup[1]["q"]
-    assert children[1]["q"] == "'folder-9' in parents and trashed = false"
-    assert [f.id for f in result.files] == ["file-1"]
-
-
-async def test_list_folder_falls_back_to_treating_the_folder_as_an_id(monkeypatch):
-    service = google(monkeypatch, {"files.list": [{"files": []}, {"files": []}]})
-
-    await tool().execute("list_folder", ListFolderParams(folder="folder-9"), auth())
-
-    assert service.calls[1][1]["q"] == "'folder-9' in parents and trashed = false"
+def test_drive_reads_and_never_writes():
+    assert set(DriveTool.actions) == {
+        "search_files",
+        "list_recent_files",
+        "get_file_metadata",
+        "read_file_content",
+    }
 
 
 async def test_documents_exports_google_docs_and_skips_what_has_no_text(monkeypatch):
@@ -208,7 +147,7 @@ async def test_documents_for_one_file_fetches_that_file(monkeypatch):
 
     found = [doc async for doc in tool().documents(auth(), None, "file-3")]
 
-    assert service.calls[0] == ("files.get", service.calls[0][1])
+    assert service.calls[0][0] == "files.get"
     assert service.calls[0][1]["fileId"] == "file-3"
     assert found[0].text == "budget notes"
 
@@ -217,7 +156,7 @@ async def test_a_google_refusal_becomes_a_tool_error_naming_the_reason(monkeypat
     google(monkeypatch, error=http_error(403, "Insufficient Permission"))
 
     with pytest.raises(ToolError) as caught:
-        await tool().execute("search_files", SearchFilesParams(query="notes"), auth())
+        [doc async for doc in tool().documents(auth(), None)]
 
     assert "403" in str(caught.value)
     assert "Insufficient Permission" in str(caught.value)
@@ -227,23 +166,23 @@ async def test_an_expired_token_becomes_a_credential_error(monkeypatch):
     google(monkeypatch, error=http_error(401, "Invalid Credentials"))
 
     with pytest.raises(CredentialError, match="expired or revoked"):
-        await tool().execute("search_files", SearchFilesParams(query="notes"), auth())
+        [doc async for doc in tool().documents(auth(), None)]
 
 
-async def test_a_tool_without_the_orgs_google_account_refuses_to_run():
+async def test_a_feed_without_the_orgs_google_account_refuses_to_run():
     with pytest.raises(CredentialError, match="google is not connected"):
-        await tool().execute("search_files", SearchFilesParams(query="notes"), None)
+        tool().documents(None, None)
 
     with pytest.raises(CredentialError, match="google is not connected"):
-        await tool().execute("search_files", SearchFilesParams(query="notes"), auth("notion"))
+        tool().documents(auth("notion"), None)
 
 
-async def test_the_token_reaches_neither_a_result_nor_an_error(monkeypatch):
-    google(monkeypatch, {"files.list": [{"files": [FILE]}]})
-    result = await tool().execute("search_files", SearchFilesParams(query="notes"), auth())
-    assert TOKEN not in result.model_dump_json()
+async def test_the_token_reaches_neither_a_document_nor_an_error(monkeypatch):
+    google(monkeypatch, {"files.list": [{"files": [FILE]}], "files.export": [b"text"]})
+    found: list[Document] = [doc async for doc in tool().documents(auth(), None)]
+    assert TOKEN not in repr(found[0])
 
     google(monkeypatch, error=http_error(401, "Invalid Credentials"))
     with pytest.raises(CredentialError) as caught:
-        await tool().execute("search_files", SearchFilesParams(query="notes"), auth())
+        [doc async for doc in tool().documents(auth(), None)]
     assert TOKEN not in str(caught.value)
