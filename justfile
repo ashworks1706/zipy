@@ -129,6 +129,10 @@ migrate *ARGS="upgrade head":
 revision MESSAGE:
     uv run zipy db revision "{{MESSAGE}}"
 
+# One MCP server's tool list, against the tool's committed catalog. --write updates it
+mcp tool *args:
+    uv run zipy mcp {{tool}} {{args}}
+
 # Every platform, provider and tool plugin, checked against zipy.toml
 plugins:
     uv run zipy plugins

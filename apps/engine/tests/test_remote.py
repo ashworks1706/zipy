@@ -7,13 +7,21 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from engine.core.config import load
-from engine.core.types import ConfigError, CredentialError, OrgId, ProviderAuth, ToolError
+from engine.core.types import (
+    ConfigError,
+    CredentialError,
+    OrgId,
+    OrgToolConfig,
+    ProviderAuth,
+    ToolError,
+)
 from engine.tools.base import function_schema
 from engine.tools.calendar.tool import CalendarTool
 from engine.tools.drive.tool import DriveTool
 from engine.tools.gmail.tool import GmailTool
 from engine.tools.registry import Registry
 from engine.tools.remote import (
+    PROTOCOL_VERSION,
     Catalog,
     RemoteSettings,
     RemoteTool,
@@ -30,16 +38,20 @@ ENDPOINT = "https://calendarmcp.googleapis.com/mcp/v1"
 #: Every tool whose actions come from a server rather than from Python.
 REMOTE = (CalendarTool, DriveTool, GmailTool, WorkspaceTool)
 
+#: What a server answers an initialize with when it speaks this client's revision.
+HANDSHAKE = {"result": {"protocolVersion": PROTOCOL_VERSION, "capabilities": {"tools": {}}}}
+
 
 class Server:
     """A stand-in MCP server that records what it was asked and answers from a script."""
 
-    def __init__(self, answers=None, stream=False, status=200):
+    def __init__(self, answers=None, stream=False, status=200, body=None):
         self.requests = []
         self.bodies = []
-        self._answers = answers or {}
+        self._answers = {"initialize": HANDSHAKE, **(answers or {})}
         self._stream = stream
         self._status = status
+        self._body = body
 
     def handle(self, request):
         body = json.loads(request.content)
@@ -47,6 +59,8 @@ class Server:
         self.bodies.append(body)
         if self._status != 200:
             return httpx.Response(self._status, json={"error": "no"})
+        if self._body is not None:
+            return httpx.Response(200, text=self._body)
         if "id" not in body:
             return httpx.Response(202)
         answer = {"jsonrpc": "2.0", "id": body["id"], **self._answers.get(body["method"], {})}
@@ -104,7 +118,7 @@ def test_every_remote_tool_points_at_the_endpoint_its_catalog_was_taken_from():
 
 def test_a_tool_the_server_offers_but_the_catalog_does_not_expose_is_not_an_action():
     offered = set(CalendarTool.catalog.by_name())
-    assert offered  # the catalog is not empty, so the next assertion means something
+    assert offered
     assert set(CalendarTool.actions) <= offered
 
 
@@ -361,3 +375,74 @@ def test_drive_exposes_nothing_that_writes_while_its_scope_is_read_only():
     table = load().tools["drive"]
     assert table.scopes == ["https://www.googleapis.com/auth/drive.readonly"]
     assert all(kind.value == "read" for kind in table.actions.values())
+
+
+# ---------------------------------------------------------------- what an org may not change
+
+
+def test_an_org_cannot_move_a_tools_endpoint():
+    registry = Registry(load().tools)
+    override = OrgToolConfig("calendar", enabled=True, overrides={"endpoint": "https://elsewhere"})
+    with pytest.raises(ConfigError, match="not overridable per org"):
+        registry.settings_for("calendar", override)
+
+
+def test_every_remote_tool_locks_its_endpoint():
+    for cls in REMOTE:
+        assert "endpoint" in cls.locked, cls.name
+
+
+def test_an_endpoint_that_is_not_https_is_refused():
+    for bad in ("http://mcp.example/v1", "ftp://mcp.example", "mcp.example"):
+        with pytest.raises(ValidationError, match="https"):
+            RemoteSettings(endpoint=bad)
+
+
+def test_a_limit_that_would_silence_every_result_is_refused_at_load():
+    for bad in ({"max_result_chars": 0}, {"max_result_chars": -1}, {"timeout_secs": 0}):
+        with pytest.raises(ValidationError):
+            settings(**bad)
+
+
+# ---------------------------------------------------------------- what a server may not do
+
+
+@pytest.mark.anyio
+async def test_a_body_that_is_not_json_is_a_tool_error():
+    server = Server(body="<html>a proxy sign-in page</html>")
+    params = CalendarTool.actions["list_calendars"].params()
+    with pytest.raises(ToolError, match="not JSON"):
+        await calendar(server).execute("list_calendars", params, auth())
+
+
+@pytest.mark.anyio
+async def test_a_server_speaking_another_revision_is_refused_before_the_call():
+    server = Server({"initialize": {"result": {"protocolVersion": "1999-01-01"}}})
+    params = CalendarTool.actions["list_calendars"].params()
+    with pytest.raises(ToolError, match="1999-01-01"):
+        await calendar(server).execute("list_calendars", params, auth())
+    assert [body["method"] for body in server.bodies] == ["initialize"]
+
+
+@pytest.mark.anyio
+async def test_structured_content_over_the_limit_is_dropped_rather_than_passed_on():
+    big = {"rows": ["x" * 100 for _ in range(50)]}
+    server = Server({"tools/call": text_result("ok", structuredContent=big)})
+    tool = CalendarTool(settings(max_result_chars=50), transport=httpx.MockTransport(server.handle))
+    result = await tool.execute(
+        "list_calendars", CalendarTool.actions["list_calendars"].params(), auth()
+    )
+    assert result.structured is None
+    assert result.truncated
+
+
+@pytest.mark.anyio
+async def test_a_failure_the_server_reports_is_cut_to_the_same_limit():
+    server = Server({"tools/call": {"result": {"isError": True, "content": [{"text": "y" * 200}]}}})
+    tool = CalendarTool(settings(max_result_chars=20), transport=httpx.MockTransport(server.handle))
+    with pytest.raises(ToolError) as caught:
+        await tool.execute(
+            "list_calendars", CalendarTool.actions["list_calendars"].params(), auth()
+        )
+    assert "y" * 20 in str(caught.value)
+    assert "y" * 21 not in str(caught.value)

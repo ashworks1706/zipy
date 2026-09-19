@@ -73,6 +73,7 @@ of type create or destructive needs it, and say so in the table's comment.
 - Let the model choose an action type, or put one in the tool class.
 - Take an MCP server's `annotations` as the action type, or expose a catalog entry without pinning
   one in `zipy.toml`.
+- Leave a setting that decides where a credential is sent out of the tool's `locked` set.
 - Put a token, header or raw credential in a params or result model.
 - Import another tool, or a library another plugin owns.
 - Add the tool name to an enum, an if-chain, or a list anywhere outside its folder and its table.

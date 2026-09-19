@@ -295,6 +295,14 @@ overwriting an event the org already announced is destructive here. A catalog th
 nobody listed fails at startup rather than reaching the model, because the registry already
 requires the plugin's actions and the table's actions to be the same set.
 
+The endpoint is not a tunable. It decides where the org's OAuth token is sent, so `RemoteTool`
+lists it in `locked` and `Registry.settings_for` refuses it as a per-org override; it is https or
+the config does not load. An org may still tune `timeout_secs` and `max_result_chars`.
+
+The server is not trusted past its schema either. A reply that is not JSON, a handshake naming
+another protocol revision, and a body over `max_result_chars` are each refused or cut before
+anything reaches the model.
+
 MCP replaces the request building and response parsing, and nothing else. The org's OAuth grant,
 the token refresh worker, the role check, the action type, the confirmation, the per-provider rate
 limit and the audit entry are all unchanged. It also has no document feed: `drive` keeps its Drive
@@ -672,9 +680,16 @@ the width of the pgvector column, and `test_data.py` holds the two together.
 file would be misread. A mismatched file fails at load with the version this Zipy reads; the
 release notes for that version say how to update the file.
 
-**Per-org overrides** live in `org_tool_config`. `@Zipy config calendar reminder 15` writes
-`{"default_reminder_minutes": 15}` for that org and tool; the registry merges it over the file and
-validates it with the tool's settings model. Orgs never edit `zipy.toml`. Everything they customize
+Version 2 moved the Google tools onto MCP servers. To update a version 1 file: set
+`config_version = 2`; give `[tools.calendar]`, `[tools.drive]`, `[tools.gmail]` and
+`[tools.workspace]` an `endpoint`, and drop `default_event_minutes`, `default_reminder_minutes`
+and `[tools.drive].max_results`; replace each of their `[tools.*.actions]` tables with the tools
+its `catalog.json` exposes.
+
+**Per-org overrides** live in `org_tool_config`. `@Zipy config drive sync_hours 6` writes
+`{"sync_hours": 6}` for that org and tool; the registry merges it over the file and validates it
+with the tool's settings model. A setting the tool lists in `locked` is refused rather than
+merged, which is how an org cannot move a tool's `endpoint`. Orgs never edit `zipy.toml`. Everything they customize
 is a command parsed from the text, the same on every platform:
 
 ```
@@ -682,7 +697,7 @@ is a command parsed from the text, the same on every platform:
 @Zipy connect google                 private OAuth link
 @Zipy enable zoom                    enable a tool for this org
 @Zipy disable drive                  disable a tool for this org
-@Zipy config calendar reminder 15    per-org tool setting
+@Zipy config drive sync_hours 6      per-org tool setting
 @Zipy remember <fact>                store an org fact
 @Zipy forget <key>                   remove an org fact
 @Zipy status                         connections, tools, spend

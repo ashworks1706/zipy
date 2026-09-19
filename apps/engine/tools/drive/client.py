@@ -1,7 +1,6 @@
 """The Drive document feed, over the Google Drive API.
 
-The tool's actions run on the Drive MCP server. This is the ingestion side, which asks for every
-file changed since a time; MCP publishes no such tool, so it stays on the API.
+The tool's actions run on the Drive MCP server. This asks for every file changed since a time.
 """
 
 from __future__ import annotations

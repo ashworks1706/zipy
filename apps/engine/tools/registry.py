@@ -62,9 +62,19 @@ class Registry:
         return table.actions[action]
 
     def settings_for(self, name: str, override: OrgToolConfig | None = None) -> BaseModel:
-        """The tool's settings: zipy.toml, with the org's overrides merged over it."""
+        """The tool's settings: zipy.toml, with the org's overrides merged over it.
+
+        A setting the tool locks is refused rather than merged. An org may tune how a tool
+        behaves; where its credential is sent is set in zipy.toml alone.
+        """
         cls: ToolClass = self._classes[name]
-        merged = {**self._tables[name].options, **(override.overrides if override else {})}
+        supplied = override.overrides if override else {}
+        locked = sorted(set(supplied) & cls.locked)
+        if locked:
+            raise ConfigError(
+                f"tools.{name} settings are not overridable per org: {', '.join(locked)}"
+            )
+        merged = {**self._tables[name].options, **supplied}
         try:
             settings: BaseModel = cls.settings_model.model_validate(merged)
         except ValidationError as exc:

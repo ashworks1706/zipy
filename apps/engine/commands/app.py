@@ -196,6 +196,11 @@ def plugins() -> None:
     console.print(grid)
 
 
+def _differs(known: dict[str, object], fetched: dict[str, object]) -> bool:
+    """Whether a tool's description or input schema moved since the catalog was taken."""
+    return any(known.get(key) != fetched.get(key) for key in ("description", "inputSchema"))
+
+
 @app.command("mcp")
 def mcp(
     tool: str = typer.Argument(..., help="an MCP-backed tool, such as calendar or gmail"),
@@ -221,17 +226,20 @@ def mcp(
     known = cls.catalog.by_name()
     names = {str(entry["name"]): entry for entry in fetched}
     grid = Table("tool", "state", "exposed", "action type")
+    changed = []
     for name in sorted(set(names) | set(known)):
         if name not in known:
-            state, hint = "new", suggested_type(names[name])
+            state, hint = "new", suggested_type(names[name]).value
         elif name not in names:
             state, hint = "gone", ""
+        elif _differs(known[name], names[name]):
+            state, hint = "changed", suggested_type(names[name]).value
+            changed.append(name)
         else:
-            state, hint = "same", suggested_type(names[name])
+            state, hint = "same", suggested_type(names[name]).value
         exposed = "yes" if name in cls.catalog.exposed else "no"
         grid.add_row(name, state, exposed, hint)
     console.print(grid)
-    # The message names a table, which rich would read as markup.
     console.print(
         f"{len(names)} tool{'' if len(names) == 1 else 's'} at {endpoint}. Nothing new reaches "
         f"the model until it is listed in catalog.json and given a type in "
@@ -239,6 +247,12 @@ def mcp(
         markup=False,
         highlight=False,
     )
+    exposed_changes = [name for name in changed if name in cls.catalog.exposed]
+    if exposed_changes:
+        console.print(
+            f"[yellow]read the diff[/yellow]: {', '.join(exposed_changes)} changed description "
+            f"or schema, and both reach the model as the server wrote them."
+        )
     if not write:
         return
     path = Path(inspect.getfile(cls)).with_name(CATALOG_NAME)

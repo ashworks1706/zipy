@@ -32,13 +32,15 @@ class BaseTool[S: BaseModel](ABC):
 
     provider names the [providers.*] account the tool needs, or is empty. owns lists the
     third-party libraries only this plugin may import. syncs is true when documents() yields
-    searchable documents for semantic recall.
+    searchable documents for semantic recall. locked names settings an org may not override,
+    which is every setting that decides where a credential is sent.
     """
 
     name: ClassVar[str]
     provider: ClassVar[str] = ""
     owns: ClassVar[tuple[str, ...]] = ()
     syncs: ClassVar[bool] = False
+    locked: ClassVar[frozenset[str]] = frozenset()
     settings_model: ClassVar[type[BaseModel]]
     actions: ClassVar[Mapping[str, Action]]
 

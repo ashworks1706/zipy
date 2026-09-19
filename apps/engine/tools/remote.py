@@ -1,30 +1,45 @@
 """Tools whose actions run on a remote MCP server rather than a client written here.
 
 A remote tool declares no actions in Python. It ships a catalog: the server's own tools/list
-response, fetched by zipy mcp refresh and committed, plus the list of tools this deployment
-exposes. Actions are built from the exposed entries at import, so the tools the model is offered
-change with a file rather than with code, and a tool the catalog gains is refused until someone
-lists it and gives it an action type in zipy.toml.
+response, committed, plus the list of tools this deployment exposes. Actions are built from the
+exposed entries at import. A tool the catalog gains reaches the model only once it is listed in
+exposed and given an action type in zipy.toml.
 
-The server describes what a tool takes; zipy.toml decides what the tool is allowed to be. Action
-types, permissions, confirmation, rate limits and the audit log are unchanged and stay here.
+The server states what a tool takes. zipy.toml states what it may do: action types, permissions,
+confirmation, rate limits and the audit log all stay here.
 """
 
 from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from importlib import metadata
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, create_model
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, create_model, field_validator
 
-from engine.core.types import ConfigError, CredentialError, ProviderAuth, ToolError
+from engine.core.types import (
+    ActionType,
+    ConfigError,
+    CredentialError,
+    ProviderAuth,
+    ToolError,
+)
 from engine.tools.base import Action, BaseTool, require_auth
 
 #: The MCP revision this client speaks.
 PROTOCOL_VERSION = "2025-06-18"
+
+
+def _version() -> str:
+    """The engine's version, as the handshake reports it."""
+    try:
+        return metadata.version("engine")
+    except metadata.PackageNotFoundError:
+        return "0"
+
 
 #: The file each remote tool ships beside its tool.py.
 CATALOG_NAME = "catalog.json"
@@ -44,8 +59,16 @@ class RemoteSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     endpoint: str
-    timeout_secs: float = 30.0
-    max_result_chars: int = 4000
+    timeout_secs: float = Field(default=30.0, gt=0)
+    max_result_chars: int = Field(default=4000, gt=0)
+
+    @field_validator("endpoint")
+    @classmethod
+    def _https(cls, value: str) -> str:
+        """The endpoint, which must be https."""
+        if not value.startswith("https://"):
+            raise ValueError(f"endpoint must be an https URL, not {value!r}")
+        return value
 
 
 class RemoteResult(BaseModel):
@@ -86,17 +109,45 @@ def load_catalog(package_file: str) -> Catalog:
     return catalog
 
 
+def _scalar(kind: Any) -> Any:
+    """The type one JSON Schema type keyword names. A list of them becomes their union."""
+    if isinstance(kind, list):
+        union: Any = None
+        for one in kind:
+            found = SCALARS.get(str(one))
+            if found is None:
+                return Any
+            union = found if union is None else union | found
+        return Any if union is None else union
+    return SCALARS.get(str(kind), Any)
+
+
+def _choices(schema: Mapping[str, Any]) -> Any:
+    """The values an enum allows, as a Literal. None when the property is not an enum."""
+    values = schema.get("enum")
+    if not isinstance(values, list) or not values:
+        return None
+    if not all(isinstance(value, str | int | bool) for value in values):
+        return None
+    return Literal[tuple(values)]
+
+
 def _annotated(schema: Mapping[str, Any], required: bool) -> tuple[Any, Any]:
-    """One property as a pydantic field. An unsupported schema is accepted unvalidated."""
+    """One property as a pydantic field. A shape with no Python type is accepted unvalidated."""
     kind = schema.get("type")
-    if kind == "array":
+    annotation = _choices(schema)
+    if annotation is not None:
+        pass
+    elif kind == "array":
         item = schema.get("items", {})
-        inner = SCALARS.get(str(item.get("type")), Any) if isinstance(item, dict) else Any
-        annotation: Any = list[inner]  # type: ignore[valid-type]
+        inner = Any
+        if isinstance(item, dict):
+            inner = _choices(item) or _scalar(item.get("type"))
+        annotation = list[inner]  # type: ignore[valid-type]
     elif kind == "object":
         annotation = dict[str, Any]
     else:
-        annotation = SCALARS.get(str(kind), Any)
+        annotation = _scalar(kind)
     description = str(schema.get("description", ""))
     if required:
         return annotation, Field(description=description)
@@ -141,7 +192,7 @@ def actions_from(catalog: Catalog, tool: str) -> dict[str, Action]:
 async def list_tools(
     endpoint: str, timeout_secs: float = 30.0, transport: httpx.AsyncBaseTransport | None = None
 ) -> list[dict[str, Any]]:
-    """Every tool a server offers. Needs no credential: tools/list describes, it does not act."""
+    """Every tool a server offers. Sent without a credential."""
     settings = RemoteSettings(endpoint=endpoint, timeout_secs=timeout_secs)
     session = Session(settings, SecretStr(""), transport)
     async with httpx.AsyncClient(timeout=timeout_secs, transport=transport) as client:
@@ -150,23 +201,31 @@ async def list_tools(
     return [tool for tool in tools if isinstance(tool, dict)]
 
 
-def suggested_type(entry: Mapping[str, Any]) -> str:
-    """The action type a server's annotations suggest. Pinning it in zipy.toml stays manual."""
+def suggested_type(entry: Mapping[str, Any]) -> ActionType:
+    """The action type a server's annotations suggest. zipy.toml pins the one that applies."""
     hints = entry.get("annotations", {})
     hints = hints if isinstance(hints, dict) else {}
     if hints.get("destructiveHint"):
-        return "destructive"
-    return "read" if hints.get("readOnlyHint") else "create"
+        return ActionType.DESTRUCTIVE
+    return ActionType.READ if hints.get("readOnlyHint") else ActionType.CREATE
+
+
+def _decoded(raw: str) -> Any:
+    """One JSON document. A body that is not JSON is a ToolError, not a decoder failure."""
+    try:
+        return json.loads(raw)
+    except ValueError as exc:
+        raise ToolError(f"the MCP server sent a body that is not JSON: {exc}") from exc
 
 
 def _payload(response: httpx.Response) -> dict[str, Any]:
     """One JSON-RPC response, whether the server answered as JSON or as an event stream."""
     if "text/event-stream" not in response.headers.get("content-type", ""):
-        parsed = response.json()
+        parsed = _decoded(response.text)
         return parsed if isinstance(parsed, dict) else {}
     for line in response.text.splitlines():
         if line.startswith("data:"):
-            parsed = json.loads(line[len("data:") :].strip())
+            parsed = _decoded(line[len("data:") :].strip())
             if isinstance(parsed, dict) and ("result" in parsed or "error" in parsed):
                 return parsed
     raise ToolError("the MCP server sent an event stream with no response in it")
@@ -203,24 +262,41 @@ class Session:
         async with httpx.AsyncClient(
             timeout=self._settings.timeout_secs, transport=self._transport
         ) as client:
-            await self.request(client, "initialize", self._handshake())
+            agreed = await self.request(client, "initialize", self._handshake())
+            self._agreed(agreed)
             await self._notify(client, "notifications/initialized")
             result = await self.request(
                 client, "tools/call", {"name": tool, "arguments": dict(arguments)}
             )
         if result.get("isError"):
-            raise ToolError(f"{tool} failed: {_text_of(result) or 'the server gave no reason'}")
+            reason = self._cut(_text_of(result)) or "the server gave no reason"
+            raise ToolError(f"{tool} failed: {reason}")
         return self._trimmed(result)
 
+    def _agreed(self, result: Mapping[str, Any]) -> None:
+        """Stop unless the server speaks the one revision this client speaks."""
+        spoken = str(result.get("protocolVersion", ""))
+        if spoken != PROTOCOL_VERSION:
+            raise ToolError(
+                f"the MCP server speaks {spoken or 'no stated revision'}, "
+                f"and this client speaks {PROTOCOL_VERSION}"
+            )
+
+    def _cut(self, text: str) -> str:
+        """One piece of server text at the length the model is allowed to read."""
+        return text[: self._settings.max_result_chars]
+
     def _trimmed(self, result: Mapping[str, Any]) -> RemoteResult:
-        """The result the model reads, cut to max_result_chars."""
+        """The result the model reads, with every part of it cut to max_result_chars."""
         text = _text_of(result)
         limit = self._settings.max_result_chars
         structured = result.get("structuredContent")
+        structured = structured if isinstance(structured, dict) else None
+        dropped = structured is not None and len(json.dumps(structured)) > limit
         return RemoteResult(
-            text=text[:limit],
-            structured=structured if isinstance(structured, dict) else None,
-            truncated=len(text) > limit,
+            text=self._cut(text),
+            structured=None if dropped else structured,
+            truncated=len(text) > limit or dropped,
         )
 
     def _handshake(self) -> dict[str, Any]:
@@ -228,7 +304,7 @@ class Session:
         return {
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "zipy", "version": "0.1.0"},
+            "clientInfo": {"name": "zipy", "version": _version()},
         }
 
     def _headers(self) -> dict[str, str]:
@@ -287,17 +363,19 @@ class RemoteTool[S: RemoteSettings](BaseTool[S]):
 
     catalog: ClassVar[Catalog]
     settings_model: ClassVar[type[BaseModel]] = RemoteSettings
+    locked: ClassVar[frozenset[str]] = frozenset({"endpoint"})
 
     def __init__(self, settings: S, transport: httpx.AsyncBaseTransport | None = None) -> None:
         super().__init__(settings)
         self._transport = transport
 
     def target(self, action: str, params: BaseModel) -> str:
-        """The first required field of the action, which is what the server acts on."""
+        """What the action acts on: its first required field, or the first one the call carries."""
         schema = self.actions[action].parameters or {}
-        for name in schema.get("required", []):
-            value = getattr(params, str(name), None)
-            if isinstance(value, str | int) and value != "":
+        required = [str(name) for name in schema.get("required", [])]
+        for name in required + [n for n in params.model_fields_set if n not in required]:
+            value = getattr(params, name, None)
+            if isinstance(value, str | int) and not isinstance(value, bool) and value != "":
                 return str(value)
         return ""
 

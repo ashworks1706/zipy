@@ -20,8 +20,7 @@ CATALOG = load_catalog(__file__)
 class DriveTool(RemoteTool[DriveSettings]):
     """Google Drive for the org's shared drive.
 
-    The actions run on the MCP server. The document feed stays on the Drive API, which is the only
-    one of the two that can say what changed since a time.
+    The actions run on the MCP server. The document feed runs on the Drive API.
     """
 
     name: ClassVar[str] = "drive"

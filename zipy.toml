@@ -13,7 +13,7 @@
 # A folder without a table, or a table without a folder, fails at startup.
 
 # Bumped only when a table changes shape so an older file would be misread.
-config_version = 1
+config_version = 2
 
 [app]
 # dev prints readable logs; prod prints JSON lines.
@@ -288,7 +288,7 @@ enabled = true
 #
 # calendar, drive, gmail and workspace declare no actions in Python. Each ships a catalog.json
 # holding its server's own tools/list response and the tools this deployment exposes from it;
-# zipy mcp refresh re-fetches one and reports what changed. The actions below must match that
+# zipy mcp <tool> re-fetches one and reports what changed. The actions below must match that
 # exposed list exactly, or the engine refuses to start: a server that grows a tool cannot reach
 # the model until someone lists it here and says what kind of action it is.
 #

@@ -36,6 +36,7 @@ just eval [--case id]   # the eval cases against the configured model; not part 
 just data ...           # export | verify | review | curate | stats: the dataset from real runs
 just train sft          # post-training over the curated set; needs a GPU and the gpu extra
 just plugins            # every platform, provider and tool plugin, checked against zipy.toml
+just mcp <tool>         # an MCP server's tool list against the tool's catalog; --write updates it
 just config [table]     # the resolved configuration, secrets masked
 just fernet-key         # a key for ZIPY_DATA__FERNET_KEY
 just console            # the developer console (TUI): units, logs, chat, metrics; alias: just cli

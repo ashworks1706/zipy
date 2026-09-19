@@ -71,7 +71,7 @@ __all__ = [
     "load",
 ]
 
-CONFIG_VERSION = 1
+CONFIG_VERSION = 2
 
 # chat runs the tool loop, summary condenses transcripts and long results, embedding feeds recall.
 MODEL_ROLES = ("chat", "summary", "embedding")

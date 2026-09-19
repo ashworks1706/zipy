@@ -1,7 +1,6 @@
 """Settings of the drive tool, and the file shape its document feed works in.
 
-The actions are the MCP server's, so nothing here describes them. What remains is the ingestion
-feed, which MCP has no contract for and which still runs on the Drive API.
+The actions are the MCP server's. What remains here is the ingestion feed.
 """
 
 from __future__ import annotations
