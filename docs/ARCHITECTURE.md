@@ -325,6 +325,12 @@ and `openpyxl` read bytes nobody vetted. With `files.sandbox` on, the bytes go i
 no fallback: a sandbox that will not run is a file that is not read, because quietly parsing an
 untrusted file beside the org's credentials is the thing the setting exists to stop.
 
+**The console reads the sessions too.** `S` in `just cli` lists every live session, who it
+belongs to, how long it has been up and what is running inside it, with `x` to kill one and `X` to
+kill all. It reads the runtime rather than the engine, so it works when the engine is down, and it
+shows a session that outlived the setting that created it. Turning the sandbox off is
+`[tools.sandbox] enabled = false`, or `@Zipy disable sandbox` for one org.
+
 The image carries the engine's own parsers, so the text a file yields is the same either way. That
 works because `memory/ingest/parsers/` imports nothing from `engine` — `ParseError` is its own, and
 `files.py` translates it to `IngestError` at the boundary. `tests/test_deploy.py` lays the package

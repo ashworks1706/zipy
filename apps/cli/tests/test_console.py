@@ -234,10 +234,17 @@ def _snapshot(_cfg) -> Snapshot:
     return Snapshot(platforms=("discord",), engine_up=False, traces=0, last_trace="", git="abc1234")
 
 
-def _app(cfg, tmp_path, *units: Unit, launcher=("sh", "-c"), probe=_snapshot):
+def _app(cfg, tmp_path, *units: Unit, launcher=("sh", "-c"), probe=_snapshot, reader=None):
     from cli.app import ConsoleApp
 
-    return ConsoleApp(cfg, tmp_path, units=list(units), launcher=launcher, probe=probe)
+    return ConsoleApp(
+        cfg,
+        tmp_path,
+        units=list(units),
+        launcher=launcher,
+        probe=probe,
+        reader=reader or FakeRuntime(),
+    )
 
 
 async def _until(pilot, condition, timeout: float = 20.0) -> None:
@@ -446,3 +453,144 @@ def test_the_splash_plays_then_hands_over_and_a_key_skips_it(cfg, tmp_path, monk
 
     asyncio.run(scenario(skip=False))
     asyncio.run(scenario(skip=True))
+
+
+# ---------------------------------------------------------------- sandbox sessions
+
+
+STARTED = "2026-09-19T07:00:00Z"
+
+
+class FakeRuntime:
+    """A stand-in container runtime. Records what it was asked and answers from a script."""
+
+    def __init__(self, names=(), running=()):
+        self.asked: list[list[str]] = []
+        self.names = list(names)
+        self.running = list(running)
+
+    def __call__(self, args):
+        self.asked.append(list(args))
+        joined = " ".join(args)
+        if "ps --quiet" in joined:
+            return "\n".join(f"id{i}" for i in range(len(self.names)))
+        if "inspect --format" in joined:
+            return "\n".join(
+                f"/{name}\torg-{i + 1}\tdiscord:u{i + 1}\t{STARTED}"
+                for i, name in enumerate(self.names)
+            )
+        if " top " in joined:
+            return "ARGS\n" + "\n".join(self.running) if self.running else "ARGS\nsleep infinity"
+        if "rm --force" in joined:
+            gone = args[-1]
+            self.names = [n for n in self.names if n != gone]
+            return f"{gone}\n"
+        return ""
+
+
+def test_the_console_reads_sessions_from_the_runtime_not_the_engine():
+    from cli import sandboxes
+
+    runtime = FakeRuntime(names=["zipy-sb-aaaa-build"], running=["python3 /opt/zipy/extract.py"])
+    found = sandboxes.live("docker", runtime)
+
+    assert [s.name for s in found] == ["zipy-sb-aaaa-build"]
+    assert found[0].org_id == "org-1"
+    assert found[0].processes == ("python3 /opt/zipy/extract.py",)
+    assert found[0].busy
+
+
+def test_a_session_holding_itself_open_reads_as_idle():
+    from cli import sandboxes
+
+    found = sandboxes.live("docker", FakeRuntime(names=["zipy-sb-aaaa-build"]))
+    assert not found[0].busy
+
+
+def test_no_runtime_is_no_sessions_rather_than_a_crash():
+    from cli import sandboxes
+
+    assert sandboxes.live("docker", lambda args: "") == []
+
+
+def test_capital_s_shows_the_sessions_and_what_each_is_running(cfg, tmp_path):
+    async def scenario() -> None:
+        runtime = FakeRuntime(names=["zipy-sb-aaaa-build"], running=["python3 extract.py a.pdf"])
+        app = _app(cfg, tmp_path, *_tasks("true"), reader=runtime)
+        async with app.run_test(size=(120, 30)) as pilot:
+            await pilot.press("S")
+            await _until(pilot, lambda: app.show_sandboxes)
+            assert [s.name for s in app.sandboxes] == ["zipy-sb-aaaa-build"]
+            shown = app._sandbox_text().plain
+            assert "zipy-sb-aaaa-build" in shown
+            assert "python3 extract.py a.pdf" in shown
+
+    asyncio.run(scenario())
+
+
+def test_x_kills_the_selected_session(cfg, tmp_path):
+    async def scenario() -> None:
+        runtime = FakeRuntime(names=["zipy-sb-aaaa-one", "zipy-sb-bbbb-two"])
+        app = _app(cfg, tmp_path, *_tasks("true"), reader=runtime)
+        async with app.run_test(size=(120, 30)) as pilot:
+            await pilot.press("S")
+            await _until(pilot, lambda: len(app.sandboxes) == 2)
+            killed = app.sandboxes[app.sandbox_row].name
+            await pilot.press("x")
+            await _until(pilot, lambda: len(app.sandboxes) == 1)
+            assert killed not in [s.name for s in app.sandboxes]
+            assert any("rm --force" in " ".join(call) for call in runtime.asked)
+
+    asyncio.run(scenario())
+
+
+def test_capital_x_kills_every_session(cfg, tmp_path):
+    async def scenario() -> None:
+        runtime = FakeRuntime(names=["zipy-sb-aaaa-one", "zipy-sb-bbbb-two"])
+        app = _app(cfg, tmp_path, *_tasks("true"), reader=runtime)
+        async with app.run_test(size=(120, 30)) as pilot:
+            await pilot.press("S")
+            await _until(pilot, lambda: len(app.sandboxes) == 2)
+            await pilot.press("X")
+            await _until(pilot, lambda: app.sandboxes == [])
+            assert "killed 2 sessions" in app.notice
+
+    asyncio.run(scenario())
+
+
+def test_any_other_key_closes_the_overlay(cfg, tmp_path):
+    async def scenario() -> None:
+        app = _app(cfg, tmp_path, *_tasks("true"), reader=FakeRuntime(names=["zipy-sb-a-one"]))
+        async with app.run_test(size=(120, 30)) as pilot:
+            await pilot.press("S")
+            await _until(pilot, lambda: app.show_sandboxes)
+            await pilot.press("escape")
+            await _until(pilot, lambda: not app.show_sandboxes)
+
+    asyncio.run(scenario())
+
+
+def test_a_live_session_is_shown_even_when_the_setting_says_the_sandbox_is_off(cfg, tmp_path):
+    """A container outlives the setting, and one still running is the one worth killing."""
+
+    async def scenario() -> None:
+        app = _app(cfg, tmp_path, *_tasks("true"), reader=FakeRuntime(names=["zipy-sb-a-left"]))
+        async with app.run_test(size=(120, 30)) as pilot:
+            await pilot.press("S")
+            await _until(pilot, lambda: app.show_sandboxes)
+            assert not app.cfg.sandbox.enabled
+            assert "zipy-sb-a-left" in app._sandbox_text().plain
+
+    asyncio.run(scenario())
+
+
+def test_the_overlay_says_the_sandbox_is_off_rather_than_showing_nothing(cfg, tmp_path):
+    async def scenario() -> None:
+        app = _app(cfg, tmp_path, *_tasks("true"), reader=FakeRuntime())
+        async with app.run_test(size=(120, 30)) as pilot:
+            await pilot.press("S")
+            await _until(pilot, lambda: app.show_sandboxes)
+            assert not app.cfg.sandbox.enabled
+            assert "the sandbox is off" in app._sandbox_text().plain
+
+    asyncio.run(scenario())

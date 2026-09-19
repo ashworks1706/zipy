@@ -42,6 +42,13 @@ class Api(_Foreign):
     port: int = 8080
 
 
+class Sandbox(_Foreign):
+    """[tools.sandbox], for the console's view of the sessions the engine has open."""
+
+    enabled: bool = False
+    runtime: str = "docker"
+
+
 class Console(BaseModel):
     """The developer console. Every line a unit prints is also appended under log_dir."""
 
@@ -80,6 +87,7 @@ class Config(BaseSettings):
     platforms: dict[str, Platform] = {}
     telemetry: Telemetry = Field(default_factory=Telemetry)
     api: Api = Field(default_factory=Api)
+    tools: dict[str, Sandbox] = {}
 
     @classmethod
     def settings_customise_sources(
@@ -96,6 +104,11 @@ class Config(BaseSettings):
             dotenv_settings,
             TomlConfigSettingsSource(settings_cls, toml_file=_toml_files()),
         )
+
+    @property
+    def sandbox(self) -> Sandbox:
+        """The sandbox table, at its defaults when zipy.toml has none."""
+        return self.tools.get("sandbox", Sandbox())
 
     @property
     def enabled_platforms(self) -> list[str]:
