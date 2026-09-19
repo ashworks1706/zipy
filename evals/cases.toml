@@ -34,7 +34,7 @@ confirms = true
 [[case]]
 id = "calendar-free-slots"
 ask = "Am I free Thursday between 2 and 5?"
-calls = ["calendar.find_free_slots"]
+calls = ["calendar.suggest_time"]
 
 # ---------------------------------------------------------------- notion
 
@@ -71,9 +71,9 @@ calls = ["drive.search_files"]
 contains = ["drive.example/fl-1"]
 
 [[case]]
-id = "drive-list-folder"
-ask = "What's in the Events folder?"
-calls = ["drive.list_folder"]
+id = "drive-list-recent"
+ask = "What have we touched in Drive this week?"
+calls = ["drive.list_recent_files"]
 contains = ["Workshop signup sheet"]
 
 [[case]]

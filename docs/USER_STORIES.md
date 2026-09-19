@@ -35,7 +35,7 @@ The multi-turn case: read, reason, write.
 ### calendar-free-slots
 > Am I free Thursday between 2 and 5?
 
-Calls `calendar.find_free_slots` (read). Answers with the open windows, or says the time is taken.
+Calls `calendar.suggest_time` (read). Answers with the open windows, or says the time is taken.
 
 ## Notion and task management
 
@@ -69,10 +69,10 @@ Calls `notion.create_page` (create) with title, assignee and due date filled in.
 
 Calls `drive.search_files` (read). Answers with the file name and its link.
 
-### drive-list-folder
-> What's in the Events folder?
+### drive-list-recent
+> What have we touched in Drive this week?
 
-Calls `drive.list_folder` (read). Answers with file names and when each was last modified.
+Calls `drive.list_recent_files` (read). Answers with file names and when each was last modified.
 
 ### drive-find-by-term
 > Find the budget spreadsheet from last semester.

@@ -193,8 +193,8 @@ apps/engine/
   llm/                  client.py, embeddings.py, tracing.py
   auth/                 permissions.py, state.py
   auth/providers/       base.py, registry.py, <provider>/provider.py
-  tools/                base.py, registry.py, executor.py
-  tools/<tool>/         tool.py, client.py, schemas.py, tests/
+  tools/                base.py, registry.py, executor.py, remote.py
+  tools/<tool>/         tool.py, and either client.py + schemas.py or catalog.json
   memory/               manager.py, triggers.py, org_context.py, recall.py
   memory/ingest/        chunking.py, pipeline.py
   agent/                orchestrator.py, prompt.py, classifier.py, templates/system.md.j2
@@ -262,17 +262,44 @@ are `/auth/<provider>/callback` and webhooks `/webhooks/<provider>`, so a new pr
 route.
 
 **A tool** names the provider it needs (or none), exposes actions with pydantic params and
-results, and executes them through its client. A tool with `syncs = True` implements
-`documents()`, yielding documents changed since a time or one named document; the workers chunk,
-embed and store them. Several tools can share one provider (calendar and drive both use google).
+results, and executes them. A tool with `syncs = True` implements `documents()`, yielding documents
+changed since a time or one named document; the workers chunk, embed and store them. Several tools
+can share one provider (calendar, drive, gmail and workspace all use google).
 
-Adding Trello, for example:
+A tool gets its actions one of two ways.
+
+**From a client written here** (`github`, `notion`, `zoom`, `search`): `client.py` calls the
+provider's REST API and `schemas.py` declares the params and result models. Adding Trello that way:
 
 1. `auth/providers/trello/` if Trello needs its own OAuth, and `[providers.trello]`.
 2. `tools/trello/` with `tool.py`, `client.py`, `schemas.py`, `tests/`, and `[tools.trello]` giving
    every action a type.
 3. `syncs = True` and `documents()` if cards should be searchable, and `sync_hours` in the table.
 4. Add the packages to `apps/engine/pyproject.toml`. `just check`, then `just plugins`.
+
+**From an MCP server** (`calendar`, `drive`, `gmail`, `workspace`): `tools/remote.py` holds one
+JSON-RPC client over streamable HTTP, and the tool ships a `catalog.json` instead of a client. The
+catalog is the server's own `tools/list` response plus the `exposed` list this deployment offers;
+`RemoteTool` turns each exposed entry into an `Action` whose params model validates what the server
+said it takes and whose description and schema reach the model verbatim. Adding a server:
+
+1. `[tools.<name>]` with its `endpoint`, and the provider whose token is the bearer.
+2. `tools/<name>/tool.py`, six lines subclassing `RemoteTool`, and a `catalog.json` holding
+   the endpoint and two empty lists.
+3. `zipy mcp <name> --write` to fetch the server's tools, then list the ones to offer in `exposed`.
+4. Give every exposed tool a type in `[tools.<name>.actions]`.
+
+The server never decides what it is allowed to do. Its `annotations` suggest a type and `zipy mcp`
+prints the suggestion, but `zipy.toml` pins it: Google marks `update_event` non-destructive, and
+overwriting an event the org already announced is destructive here. A catalog that gains a tool
+nobody listed fails at startup rather than reaching the model, because the registry already
+requires the plugin's actions and the table's actions to be the same set.
+
+MCP replaces the request building and response parsing, and nothing else. The org's OAuth grant,
+the token refresh worker, the role check, the action type, the confirmation, the per-provider rate
+limit and the audit entry are all unchanged. It also has no document feed: `drive` keeps its Drive
+API client for `documents()`, which asks for every file changed since a time, because MCP publishes
+no tool that answers that.
 
 No change to the gateway, orchestrator, prompt builder, classifier, API, workers or any other
 plugin. The `add-tool` and `add-platform` skills walk through both.

@@ -1,4 +1,8 @@
-"""Params, results and settings of the drive tool."""
+"""Settings of the drive tool, and the file shape its document feed works in.
+
+The actions are the MCP server's, so nothing here describes them. What remains is the ingestion
+feed, which MCP has no contract for and which still runs on the Drive API.
+"""
 
 from __future__ import annotations
 
@@ -6,42 +10,22 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-
-class _Model(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+from engine.tools.remote import RemoteSettings
 
 
-class DriveSettings(_Model):
+class DriveSettings(RemoteSettings):
     """[tools.drive] settings an org may override."""
 
     sync_hours: int = 12
 
-    max_results: int = 10
 
+class File(BaseModel):
+    """One Drive file or folder, as the document feed reads it."""
 
-class File(_Model):
-    """One Drive file or folder."""
+    model_config = ConfigDict(extra="forbid")
 
     id: str
     name: str
     mime_type: str
     link: str
     modified_at: datetime
-
-
-class SearchFilesParams(_Model):
-    """Files whose name or content matches a query."""
-
-    query: str
-
-
-class ListFolderParams(_Model):
-    """The contents of a folder, by name or id."""
-
-    folder: str
-
-
-class FileList(_Model):
-    """Files, most recently modified first."""
-
-    files: list[File]

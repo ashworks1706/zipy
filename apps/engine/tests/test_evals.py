@@ -210,7 +210,7 @@ async def test_a_fixture_that_no_longer_fits_the_schema_fails_rather_than_passin
     )
     params = registry.tool_class("calendar").actions["list_events"].params
 
-    with pytest.raises(ConfigError, match="is not a EventList"):
+    with pytest.raises(ConfigError, match="is not a RemoteResult"):
         await tool.execute("list_events", params.model_construct(), None)
 
 

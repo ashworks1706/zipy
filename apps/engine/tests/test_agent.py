@@ -589,9 +589,10 @@ def test_every_tool_names_what_it_acted_on_for_the_audit_log():
 
     registry = ToolRegistry(load_config().tools)
     named = {
-        "calendar.update_event": {"event_id": "e1"},
-        "calendar.create_event": {"title": "Exec board", "start": "2026-09-15T15:00:00Z"},
-        "drive.list_folder": {"folder": "Sponsorship"},
+        "calendar.update_event": {"eventId": "e1"},
+        "calendar.delete_event": {"eventId": "e1"},
+        "drive.read_file_content": {"fileId": "fl-1"},
+        "gmail.get_thread": {"threadId": "th-1"},
         "notion.get_page": {"page_id": "p1"},
         "search.web_search": {"query": "asu robotics"},
     }

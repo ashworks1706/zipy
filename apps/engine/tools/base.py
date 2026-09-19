@@ -15,11 +15,16 @@ from engine.core.types import CredentialError, Document, ProviderAuth, wire_name
 
 @dataclass(frozen=True)
 class Action:
-    """One action a tool exposes. Its type comes from zipy.toml, not from here."""
+    """One action a tool exposes. Its type comes from zipy.toml, not from here.
+
+    parameters is the schema the model is shown when it is not the params model's own, which is
+    how a remote tool passes on the schema its server published.
+    """
 
     description: str
     params: type[BaseModel]
     result: type[BaseModel]
+    parameters: dict[str, Any] | None = None
 
 
 class BaseTool[S: BaseModel](ABC):
@@ -86,6 +91,6 @@ def function_schema(tool: str, action_name: str, action: Action) -> dict[str, An
         "function": {
             "name": wire_name(qualified(tool, action_name)),
             "description": action.description,
-            "parameters": action.params.model_json_schema(),
+            "parameters": action.parameters or action.params.model_json_schema(),
         },
     }

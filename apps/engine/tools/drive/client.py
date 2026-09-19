@@ -1,4 +1,8 @@
-"""The Google Drive API."""
+"""The Drive document feed, over the Google Drive API.
+
+The tool's actions run on the Drive MCP server. This is the ingestion side, which asks for every
+file changed since a time; MCP publishes no such tool, so it stays on the API.
+"""
 
 from __future__ import annotations
 
@@ -12,13 +16,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from engine.core.types import CredentialError, Document, ProviderAuth, ToolError, ZipyError
-from engine.tools.drive.schemas import (
-    DriveSettings,
-    File,
-    FileList,
-    ListFolderParams,
-    SearchFilesParams,
-)
+from engine.tools.drive.schemas import DriveSettings, File
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
 DOCUMENT_MIME = "application/vnd.google-apps.document"
@@ -53,11 +51,6 @@ async def _run(action: str, call: Callable[[], Any]) -> Any:
         raise _failed(action, exc) from exc
 
 
-def _quote(value: str) -> str:
-    """One value inside a Drive query string."""
-    return value.replace("\\", "\\\\").replace("'", "\\'")
-
-
 def _modified(raw: str) -> datetime:
     """The file's modification time, as an aware UTC time."""
     if not raw:
@@ -84,30 +77,6 @@ class DriveClient:
         self._auth = auth
         self._settings = settings
 
-    async def search_files(self, params: SearchFilesParams) -> FileList:
-        """Files matching the query, at most max_results."""
-        query = params.query.strip()
-        if not query:
-            raise ToolError("search_files needs a query")
-        term = _quote(query)
-        return await self._list(
-            "search_files",
-            f"(name contains '{term}' or fullText contains '{term}') and trashed = false",
-            self._settings.max_results,
-        )
-
-    async def list_folder(self, params: ListFolderParams) -> FileList:
-        """The files in the folder."""
-        folder = params.folder.strip()
-        if not folder:
-            raise ToolError("list_folder needs a folder name or id")
-        folder_id = await self._folder_id("list_folder", folder)
-        return await self._list(
-            "list_folder",
-            f"'{_quote(folder_id)}' in parents and trashed = false",
-            self._settings.max_results,
-        )
-
     async def documents(
         self, since: datetime | None, source_id: str = ""
     ) -> AsyncIterator[Document]:
@@ -132,10 +101,6 @@ class DriveClient:
             if document is not None:
                 yield document
 
-    async def _list(self, action: str, query: str, limit: int) -> FileList:
-        """The files matching a Drive query, newest first."""
-        return FileList(files=[_file(item) for item in await self._page(action, query, limit)])
-
     async def _page(self, action: str, query: str, limit: int) -> list[dict[str, Any]]:
         """Every raw file matching a Drive query, stopping at limit when it is set."""
         service = _service(self._auth)
@@ -159,12 +124,6 @@ class DriveClient:
             if not token or (limit and len(found) >= limit):
                 break
         return found[:limit] if limit else found
-
-    async def _folder_id(self, action: str, folder: str) -> str:
-        """The folder's id, looking it up by name and falling back to treating it as an id."""
-        query = f"name = '{_quote(folder)}' and mimeType = '{FOLDER_MIME}' and trashed = false"
-        matches = await self._page(action, query, 1)
-        return str(matches[0].get("id", "")) if matches else folder
 
     async def _document(self, item: File) -> Document | None:
         """One file as a searchable document, or None when it holds no plain text."""

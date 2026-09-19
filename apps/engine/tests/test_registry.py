@@ -15,8 +15,10 @@ def test_the_committed_config_matches_every_tool(cfg):
         "calendar",
         "drive",
         "github",
+        "gmail",
         "notion",
         "search",
+        "workspace",
         "zoom",
     ]
 
@@ -40,9 +42,15 @@ def test_an_action_missing_from_the_config_fails_at_startup(cfg):
 def test_only_connected_and_enabled_tools_are_offered(cfg):
     registry = Registry(cfg.tools)
     assert registry.available(frozenset(), {}) == ["search"]
-    assert registry.available(frozenset({"google"}), {}) == ["calendar", "drive", "search"]
+    assert registry.available(frozenset({"google"}), {}) == [
+        "calendar",
+        "drive",
+        "gmail",
+        "search",
+        "workspace",
+    ]
     off = {"drive": OrgToolConfig("drive", enabled=False, overrides={})}
-    assert registry.available(frozenset({"google"}), off) == ["calendar", "search"]
+    assert "drive" not in registry.available(frozenset({"google"}), off)
 
 
 def test_an_org_that_turns_a_tool_off_is_not_offered_it(cfg):
@@ -63,9 +71,10 @@ def test_a_tool_whose_provider_is_not_connected_is_not_offered(cfg):
 
 def test_an_org_override_is_merged_over_the_file(cfg):
     registry = Registry(cfg.tools)
-    override = OrgToolConfig("calendar", enabled=True, overrides={"default_reminder_minutes": 15})
+    override = OrgToolConfig("calendar", enabled=True, overrides={"max_result_chars": 500})
     settings = registry.settings_for("calendar", override)
-    assert settings.model_dump() == {"default_event_minutes": 60, "default_reminder_minutes": 15}
+    assert settings.model_dump()["max_result_chars"] == 500
+    assert settings.model_dump()["endpoint"] == cfg.tools["calendar"].options["endpoint"]
 
 
 def test_an_unknown_override_key_is_rejected(cfg):

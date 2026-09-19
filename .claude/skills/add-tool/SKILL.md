@@ -19,7 +19,29 @@ Nothing in the gateway, agent, API, workers, or another plugin changes.
 3. `.env.example`: `ZIPY_PROVIDERS__<NAME>__CLIENT_ID` and `__CLIENT_SECRET`.
 4. `deploy/README.md` needs nothing: redirects are `/auth/<name>/callback` for every provider.
 
-## A new tool
+## Check for an MCP server first
+
+If the service runs an official MCP server, back the tool with it instead of writing a client. That
+path is in the next section; a hand-written client is for a service that has no server, or for a
+feed MCP does not publish, such as `drive.documents()`.
+
+## A new tool backed by an MCP server
+
+1. `apps/engine/tools/<name>/` with `__init__.py`, a `tool.py` subclassing `RemoteTool` with
+   `name`, `provider`, `catalog` and `actions = actions_from(CATALOG, "<name>")`, and a
+   `catalog.json` holding the endpoint, `"exposed": []` and `"tools": []`.
+2. `zipy.toml`: `[tools.<name>]` with the provider, `endpoint`, `timeout_secs`,
+   `max_result_chars`, and an empty `[tools.<name>.actions]`.
+3. `zipy mcp <name> --write` to fetch the server's tools. Put the ones to offer in `exposed`, and
+   give each one a type in `[tools.<name>.actions]`. The report's suggested type comes from the
+   server's annotations and is a suggestion: decide each one against what the org would lose.
+4. `apps/engine/pyproject.toml`: the package, and `catalog.json` under `package-data`.
+5. Cover it in `apps/engine/tests/test_remote.py`, which already holds the shared assertions.
+
+Expose the smallest set that answers the user stories. A server offering 23 tools is not a reason
+to offer 23 actions, and every exposed tool widens the OAuth scopes the org is asked to grant.
+
+## A new tool with a client written here
 
 1. `apps/engine/tools/<name>/` with:
    - `__init__.py`: one-line docstring naming the service and what the tool does.
@@ -49,6 +71,8 @@ of type create or destructive needs it, and say so in the table's comment.
 ## Never
 
 - Let the model choose an action type, or put one in the tool class.
+- Take an MCP server's `annotations` as the action type, or expose a catalog entry without pinning
+  one in `zipy.toml`.
 - Put a token, header or raw credential in a params or result model.
 - Import another tool, or a library another plugin owns.
 - Add the tool name to an enum, an if-chain, or a list anywhere outside its folder and its table.

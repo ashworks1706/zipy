@@ -4,6 +4,9 @@
 # fixture that stops fitting the schema fails the run. The fixture does not look at the params: an
 # action answers the same thing however it was called, and what the case scores is whether the
 # right action ran and whether the answer carried what the fixture holds.
+#
+# A tool backed by an MCP server returns text and, when its server sends any, structured content.
+# Its fixtures carry the same two fields rather than a shape written here.
 
 [org]
 name = "Robotics Club"
@@ -20,36 +23,45 @@ value = "Wednesdays at 6pm in CPCOM 210"
 # ---------------------------------------------------------------- calendar
 
 [tools."calendar.list_events"]
+text = """
+Exec board meeting, Wed 23 Sep 6:00pm to 7:00pm, CPCOM 210, officers@robotics.asu.edu
+https://calendar.example/ev-1
+Intro to LLMs workshop, Fri 25 Sep 6:00pm to 7:30pm, CPCOM 120
+https://calendar.example/ev-2
+"""
+
+[tools."calendar.list_events".structured]
 events = [
-  { id = "ev-1", title = "Exec board meeting", start = "2026-09-23T18:00:00Z", end = "2026-09-23T19:00:00Z", location = "CPCOM 210", attendees = ["officers@robotics.asu.edu"], link = "https://calendar.example/ev-1" },
-  { id = "ev-2", title = "Intro to LLMs workshop", start = "2026-09-25T18:00:00Z", end = "2026-09-25T19:30:00Z", location = "CPCOM 120", attendees = [], link = "https://calendar.example/ev-2" },
+  { id = "ev-1", summary = "Exec board meeting", start = "2026-09-23T18:00:00Z", end = "2026-09-23T19:00:00Z", location = "CPCOM 210" },
+  { id = "ev-2", summary = "Intro to LLMs workshop", start = "2026-09-25T18:00:00Z", end = "2026-09-25T19:30:00Z", location = "CPCOM 120" },
 ]
 
-[tools."calendar.find_free_slots"]
-slots = [
-  { start = "2026-09-24T14:00:00Z", end = "2026-09-24T15:30:00Z" },
-]
+[tools."calendar.suggest_time"]
+text = "Thu 24 Sep 2:00pm to 3:30pm is free on the primary calendar."
+
+[tools."calendar.search_events"]
+text = """
+Intro to LLMs workshop, Fri 25 Sep 6:00pm to 7:30pm, CPCOM 120
+https://calendar.example/ev-2
+"""
+
+[tools."calendar.list_calendars"]
+text = "primary (Robotics Club), rooms@asu.edu (CPCOM rooms)"
+
+[tools."calendar.get_event"]
+text = "Exec board meeting, Wed 23 Sep 6:00pm to 7:00pm, CPCOM 210, https://calendar.example/ev-1"
 
 [tools."calendar.create_event"]
-id = "ev-9"
-title = "Intro to LLMs workshop"
-start = "2026-09-22T18:00:00Z"
-end = "2026-09-22T19:00:00Z"
-location = "CPCOM 210"
-attendees = ["sarah@asu.edu"]
-link = "https://calendar.example/ev-9"
+text = "Created Intro to LLMs workshop, Tue 22 Sep 6:00pm to 7:00pm, CPCOM 210, sarah@asu.edu invited. https://calendar.example/ev-9"
 
 [tools."calendar.update_event"]
-id = "ev-1"
-title = "Exec board meeting"
-start = "2026-09-23T20:00:00Z"
-end = "2026-09-23T21:00:00Z"
-location = "CPCOM 210"
-attendees = []
-link = "https://calendar.example/ev-1"
+text = "Moved Exec board meeting to Wed 23 Sep 8:00pm to 9:00pm, CPCOM 210. https://calendar.example/ev-1"
+
+[tools."calendar.respond_to_event"]
+text = "Replied yes to Intro to LLMs workshop."
 
 [tools."calendar.delete_event"]
-ok = true
+text = "Deleted ev-1."
 
 # ---------------------------------------------------------------- notion
 
@@ -79,15 +91,28 @@ properties = { Owner = "Ben", Status = "in progress" }
 # ---------------------------------------------------------------- drive
 
 [tools."drive.search_files"]
-files = [
-  { id = "fl-1", name = "Officer contact list", mime_type = "application/vnd.google-apps.spreadsheet", link = "https://drive.example/fl-1", modified_at = "2026-09-10T17:04:00Z" },
-]
+text = """
+Officer contact list, Google Sheets, modified 10 Sep 2026
+https://drive.example/fl-1
+Fall kickoff run of show, Google Docs, modified 8 Sep 2026
+https://drive.example/fl-2
+Workshop signup sheet, Google Sheets, modified 9 Sep 2026
+https://drive.example/fl-3
+"""
 
-[tools."drive.list_folder"]
-files = [
-  { id = "fl-2", name = "Fall kickoff run of show", mime_type = "application/vnd.google-apps.document", link = "https://drive.example/fl-2", modified_at = "2026-09-08T12:00:00Z" },
-  { id = "fl-3", name = "Workshop signup sheet", mime_type = "application/vnd.google-apps.spreadsheet", link = "https://drive.example/fl-3", modified_at = "2026-09-09T09:30:00Z" },
-]
+[tools."drive.list_recent_files"]
+text = """
+Workshop signup sheet, Google Sheets, modified 9 Sep 2026
+https://drive.example/fl-3
+Fall kickoff run of show, Google Docs, modified 8 Sep 2026
+https://drive.example/fl-2
+"""
+
+[tools."drive.get_file_metadata"]
+text = "Officer contact list, Google Sheets, modified 10 Sep 2026, https://drive.example/fl-1"
+
+[tools."drive.read_file_content"]
+text = "Name, Role, Email\nAsh, President, ash@asu.edu\nMaria, Treasurer, maria@asu.edu"
 
 # ---------------------------------------------------------------- zoom
 

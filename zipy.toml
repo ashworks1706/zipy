@@ -284,30 +284,95 @@ enabled = true
 # when its provider is connected and the org has it enabled. A tool that syncs documents for
 # recall has sync_hours.
 
+# ---------------------------------------------------------------- tools on an MCP server
+#
+# calendar, drive, gmail and workspace declare no actions in Python. Each ships a catalog.json
+# holding its server's own tools/list response and the tools this deployment exposes from it;
+# zipy mcp refresh re-fetches one and reports what changed. The actions below must match that
+# exposed list exactly, or the engine refuses to start: a server that grows a tool cannot reach
+# the model until someone lists it here and says what kind of action it is.
+#
+# The server's annotations suggest a type. They are not taken: Google marks update_event
+# non-destructive, and overwriting an event the org already announced is destructive here.
+
 [tools.calendar]
 provider = "google"
 enabled = true
 scopes = ["https://www.googleapis.com/auth/calendar"]
-default_event_minutes = 60
-default_reminder_minutes = 10
+endpoint = "https://calendarmcp.googleapis.com/mcp/v1"
+timeout_secs = 30.0
+# Characters of a result the model reads. The rest is cut and the result says it was.
+max_result_chars = 4000
 
 [tools.calendar.actions]
 list_events = "read"
-find_free_slots = "read"
+list_calendars = "read"
+get_event = "read"
+search_events = "read"
+suggest_time = "read"
 create_event = "create"
+respond_to_event = "create"
 update_event = "destructive"
 delete_event = "destructive"
 
 [tools.drive]
 provider = "google"
 enabled = true
+# Read-only. The server also offers create_file and copy_file; exposing either means widening
+# this to drive.file, which is a decision for whoever wants them, not a default.
 scopes = ["https://www.googleapis.com/auth/drive.readonly"]
-max_results = 10
+endpoint = "https://drivemcp.googleapis.com/mcp/v1"
+timeout_secs = 30.0
+max_result_chars = 4000
 sync_hours = 12
 
 [tools.drive.actions]
 search_files = "read"
-list_folder = "read"
+list_recent_files = "read"
+get_file_metadata = "read"
+read_file_content = "read"
+
+[tools.gmail]
+provider = "google"
+enabled = true
+# compose covers create_draft. Nothing exposed here sends, trashes or marks spam, though the
+# server offers all three.
+scopes = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.compose",
+]
+endpoint = "https://gmailmcp.googleapis.com/mcp/v1"
+timeout_secs = 30.0
+max_result_chars = 4000
+
+[tools.gmail.actions]
+search_threads = "read"
+get_thread = "read"
+get_message = "read"
+list_labels = "read"
+list_drafts = "read"
+get_draft = "read"
+create_draft = "create"
+
+[tools.workspace]
+provider = "google"
+enabled = true
+# One search over Drive, Gmail, Calendar and Chat, for a question that names no product. It reads
+# all four, so it asks for all four.
+scopes = [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/chat.messages.readonly",
+]
+endpoint = "https://workspacemcp.googleapis.com/mcp/v1"
+timeout_secs = 30.0
+max_result_chars = 4000
+
+[tools.workspace.actions]
+search_corpus = "read"
+
+# ---------------------------------------------------------------- tools with a client here
 
 [tools.notion]
 provider = "notion"

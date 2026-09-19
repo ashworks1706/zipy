@@ -127,6 +127,14 @@ tools/<name>/tool.py               BaseTool       [tools.<name>]       actions t
 
 Each declares `name` (folder and table), `owns` (libraries only it imports) and `settings_model`
 (its own table keys, secrets included). Adding one never edits the gateway, agent, API or workers.
+
+A tool gets its actions from a client written here (`github`, `notion`, `zoom`, `search`) or from an
+MCP server (`calendar`, `drive`, `gmail`, `workspace`). A server-backed tool subclasses `RemoteTool`
+and ships `catalog.json`, the server's own tools/list response plus the `exposed` list this
+deployment offers; `zipy mcp <tool>` re-fetches it and says what changed. The server describes what
+its tools take. It never says what they may do: `[tools.<name>.actions]` pins every exposed tool's
+action type by hand, and a catalog entry nobody listed fails at startup rather than reaching the
+model.
 Use the `add-platform` and `add-tool` skills.
 
 ## The seams
