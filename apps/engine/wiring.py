@@ -23,7 +23,7 @@ from engine.api.routes.webhooks import WebhookRoutes
 from engine.auth.providers.registry import Providers
 from engine.core.config import Config, PlatformSettings
 from engine.core.protocols import JobQueue, TraceSink
-from engine.core.types import ChannelRef, ChatMessage, ConfigError
+from engine.core.types import ChannelRef, ChatMessage, ConfigError, SandboxError
 from engine.data.cache import RedisProviderLimiter, RedisQueue, RedisRateLimiter
 from engine.data.crypto import Vault
 from engine.data.db import create_engine, sessions
@@ -160,8 +160,23 @@ def routers(platforms: Platforms) -> dict[str, APIRouter]:
     return mounted
 
 
-def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
-    """Every dependency, composed from configuration. Builds nothing that talks to the network."""
+def assemble(config: Config, only: Sequence[str] = (), sandbox_ready: bool = True) -> Assembled:
+    """Every dependency, composed from configuration. Builds nothing that talks to the network.
+
+    sandbox_ready is what probe_sandbox found. False leaves the tool unoffered and attached files
+    unread rather than failing at the first call.
+    """
+    if not sandbox_ready:
+        config = config.model_copy(
+            update={
+                "tools": {
+                    **config.tools,
+                    "sandbox": config.tools["sandbox"].model_copy(update={"enabled": False}),
+                },
+                # files stays on: an attachment then says why it was not read, rather than
+                # being dropped without a word.
+            }
+        )
     engine = create_engine(config.data)
     factory = sessions(engine)
     vault = Vault(config.data.fernet_key)
@@ -185,9 +200,8 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
 
     conversations = Conversations()
     provider_limiter = RedisProviderLimiter(config.data, config.rate_limit)
-    sandbox = ContainerSandbox(
-        SandboxSettings.model_validate(registry.settings_for("sandbox").model_dump())
-    )
+    settings = SandboxSettings.model_validate(registry.settings_for("sandbox").model_dump())
+    sandbox = ContainerSandbox(settings) if sandbox_ready else None
     memory = MemoryManager(
         memory=config.memory,
         conversation=conversations,
@@ -247,33 +261,36 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
         registry, config.memory, credentials, embedder, documents, provider_limiter
     )
     workers = config.workers
-    scheduler = Scheduler(
-        [
-            Periodic(
-                name="token_refresh",
-                interval=timedelta(minutes=workers.token_refresh_minutes),
-                run=lambda: refresh_expiring(workers, credentials, providers, platforms),
-            ),
-            Periodic(
-                name="cleanup",
-                interval=timedelta(minutes=15),
-                run=DailyAt(
-                    workers.cleanup_hour_utc,
-                    lambda: cleanup(config.memory, confirmations, documents),
-                ).tick,
-            ),
+    periodic = [
+        Periodic(
+            name="token_refresh",
+            interval=timedelta(minutes=workers.token_refresh_minutes),
+            run=lambda: refresh_expiring(workers, credentials, providers, platforms),
+        ),
+        Periodic(
+            name="cleanup",
+            interval=timedelta(minutes=15),
+            run=DailyAt(
+                workers.cleanup_hour_utc,
+                lambda: cleanup(config.memory, confirmations, documents),
+            ).tick,
+        ),
+        Periodic(
+            name="spend_reset",
+            interval=timedelta(hours=1),
+            run=MonthlyFirst(lambda: reset_monthly_spend(orgs)).tick,
+        ),
+    ]
+    if sandbox is not None:
+        reaper = sandbox
+        periodic.append(
             Periodic(
                 name="sandbox_reap",
                 interval=timedelta(minutes=5),
-                run=lambda: reap_sandboxes(sandbox),
-            ),
-            Periodic(
-                name="spend_reset",
-                interval=timedelta(hours=1),
-                run=MonthlyFirst(lambda: reset_monthly_spend(orgs)).tick,
-            ),
-        ]
-    )
+                run=lambda: reap_sandboxes(reaper),
+            )
+        )
+    scheduler = Scheduler(periodic)
     return Assembled(
         platforms=platforms,
         providers=providers,
@@ -293,6 +310,35 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
     )
 
 
+async def probe_sandbox(config: Config) -> bool:
+    """Whether the container runtime answers.
+
+    A runtime that does not answer is a ConfigError when the sandbox is required, and otherwise
+    one line in the log: the sandbox tool goes unoffered and attached files go unread, and the
+    rest of Zipy runs.
+    """
+    table = config.tools["sandbox"]
+    if not table.enabled:
+        return False
+    settings = SandboxSettings.model_validate(table.options)
+    try:
+        await ContainerSandbox(settings).probe()
+    except SandboxError as exc:
+        if settings.required:
+            raise ConfigError(
+                f"tools.sandbox is required and {settings.runtime} did not answer: {exc}"
+            ) from exc
+        log.warning(
+            "sandbox unavailable",
+            runtime=settings.runtime,
+            why=str(exc),
+            effect="no sandbox tool, and attached files are not read",
+            fix="start the runtime and run just sandbox-image, or set tools.sandbox.enabled false",
+        )
+        return False
+    return True
+
+
 async def serve(config: Config, only: Sequence[str] = ()) -> None:
     """Build stores, models, registries, agent, gateway, platforms, API and workers; run them.
 
@@ -301,7 +347,7 @@ async def serve(config: Config, only: Sequence[str] = ()) -> None:
     """
     log_setup.configure(config.app)
     sentry.configure(config.telemetry, config.app.env, RELEASE)
-    parts = assemble(config, only)
+    parts = assemble(config, only, sandbox_ready=await probe_sandbox(config))
     mounted = routers(parts.platforms)
     log.info(
         "starting",

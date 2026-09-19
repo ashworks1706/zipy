@@ -203,7 +203,8 @@ def _attachment(media_type="text/plain", name="notes.txt", size=0):
 
 
 def _limits(**over):
-    return Files(**over)
+    """The file settings with parsing in this process, for the deployments that set it so."""
+    return Files(**{"sandbox": False, **over})
 
 
 def _serving(body=b"", status=200):
@@ -429,9 +430,10 @@ async def test_sandbox_parsing_never_quietly_falls_back_to_this_process(cfg, ctx
     transport, _ = _serving(b"plain text")
     attachment = Attachment(url="https://x/a.txt", media_type="text/plain", name="a.txt")
 
-    with pytest.raises(IngestError, match="no sandbox is wired"):
+    with pytest.raises(IngestError, match="the sandbox is not running"):
         await reader.read(attachment, sandboxed(cfg), transport, ctx=ctx, sandbox=None)
 
 
-def test_the_sandbox_is_off_until_someone_turns_it_on(cfg):
-    assert cfg.files.sandbox is False
+def test_files_are_read_in_the_sandbox_by_default(cfg):
+    """A fresh clone parses an upload in a container, not beside the org's credentials."""
+    assert cfg.files.sandbox is True

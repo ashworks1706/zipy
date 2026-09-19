@@ -39,6 +39,8 @@ The stand-in proves the code, not that the provider agrees with it.
 - [x] Attached files read into text and stored for recall: pdf, docx, pptx, xlsx, csv, json, zip
 - [x] A sandbox tool: a sealed container per command, sessions named by the member, the runtime
       as the session registry, idle reaping, and `just down` removing every one
+- [x] On by default: `just bootstrap` builds the image, a `sandboxd` sidecar gives compose a
+      runtime, and a boot probe degrades loudly where there is none
 - [x] A sub-agent gets its own sandbox workspace, reaped when it ends. Its loop stays in the
       engine: a container holding the model's network and the org's tokens is not a sandbox
 - [x] Attached files parsed inside the sandbox, not in the engine process, behind files.sandbox

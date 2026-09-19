@@ -10,6 +10,7 @@ class SandboxSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    required: bool = False
     runtime: str = "docker"
     image: str = "ghcr.io/ashworks1706/zipy-sandbox:main"
     memory: str = "256m"

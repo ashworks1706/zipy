@@ -24,11 +24,27 @@ services:
       ZIPY_MODELS__CHAT__API_BASE: ${ZIPY_MODELS__CHAT__API_BASE:-http://chat:8000/v1}
       ZIPY_MODELS__SUMMARY__API_BASE: ${ZIPY_MODELS__SUMMARY__API_BASE:-http://chat:8000/v1}
       ZIPY_MODELS__EMBEDDING__API_BASE: ${ZIPY_MODELS__EMBEDDING__API_BASE:-http://embed:8001/v1}
+      # The sandbox drives sandboxd, never the runtime this container itself runs under.
+      DOCKER_HOST: tcp://sandboxd:2375
     ports: ["127.0.0.1:8080:8080"]
     volumes: [zipydata:/var/lib/zipy]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
+      sandboxd: { condition: service_started }
+    restart: unless-stopped
+
+  # The runtime the sandbox tool drives: a daemon of its own, so driving it is not driving the
+  # host's. No host port, so only the compose network reaches it. It needs egress to pull the
+  # sandbox image; the containers it starts get --network none.
+  sandboxd:
+    profiles: [app]
+    image: docker:27-dind
+    privileged: true
+    command: ["dockerd", "--host=tcp://0.0.0.0:2375", "--tls=false"]
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    volumes: [sandboxdata:/var/lib/docker]
     restart: unless-stopped
 
   postgres:
@@ -200,6 +216,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  sandboxdata:
   zipydata:
   pgdata:
   redisdata:

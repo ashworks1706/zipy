@@ -120,7 +120,10 @@ async def read(
     raw = await download(attachment, limits, transport)
     if limits.sandbox:
         if sandbox is None or ctx is None:
-            raise IngestError("files.sandbox is on and no sandbox is wired; nothing was read")
+            raise IngestError(
+                "the sandbox is not running, so this was not read. Files are read inside it so "
+                "that nothing untrusted runs beside the org's credentials."
+            )
         text = await _in_sandbox(ctx, attachment, raw, limits, sandbox)
         return _document(attachment, raw, text)
     try:
