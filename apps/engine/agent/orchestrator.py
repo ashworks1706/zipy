@@ -23,6 +23,7 @@ from engine.core.protocols import (
     ConfirmationStore,
     CredentialStore,
     OrgStore,
+    Sandbox,
     ToolConfigStore,
     TraceSink,
 )
@@ -110,6 +111,7 @@ class Orchestrator:
         tool_config: ToolConfigStore,
         confirmations: ConfirmationStore,
         trace: TraceSink,
+        sandbox: Sandbox | None = None,
     ) -> None:
         self._agent = agent
         self._model = model
@@ -122,6 +124,7 @@ class Orchestrator:
         self._tool_config = tool_config
         self._confirmations = confirmations
         self._trace = trace
+        self._sandbox = sandbox
 
     async def handle(self, ctx: RequestContext, message: str, markup: str) -> AgentResult:
         """Answer one message, or stop at a destructive call. Over budget is BudgetExceeded.
@@ -316,15 +319,13 @@ class Orchestrator:
         tools = delegation.tools_of(call, await self._offered(ctx))
         self._trace.event(ctx, "delegate", {"id": call.id, "task": task, "tools": tools})
         messages = self._prompts.delegated(org, task)
+        inner = replace(ctx, depth=delegation.SUB_AGENT_DEPTH, parent=call.id)
         try:
             result = await self._run(
-                replace(ctx, depth=delegation.SUB_AGENT_DEPTH, parent=call.id),
-                replace(org, spent_cents=spent),
-                messages,
-                budget,
-                only=tools,
+                inner, replace(org, spent_cents=spent), messages, budget, only=tools
             )
         except ZipyError as exc:
+            await self._clear_workspace(inner)
             self._trace.event(ctx, "delegate_failed", {"id": call.id, "error": str(exc)})
             return _failed(call, str(exc)), spent
         if not isinstance(result, AgentReply):
@@ -332,10 +333,23 @@ class Orchestrator:
             # confirm takes it up again and then rebuilds this level around what it produced.
             self._trace.event(ctx, "delegate_held", {"id": call.id})
             return result, spent
+        await self._clear_workspace(inner)
         spent += result.usage.cost_cents
         text = delegation.result(result.text, list(result.ran))
         self._trace.event(ctx, "delegate_done", {"id": call.id, "chars": len(text)})
         return ToolOutcome(call=call, ok=True, content=text), spent
+
+    async def _clear_workspace(self, ctx: RequestContext) -> None:
+        """Remove the sandbox sessions a sub-agent opened. It is over; its files are not wanted."""
+        if self._sandbox is None:
+            return
+        try:
+            gone = await self._sandbox.reap_scope(ctx)
+        except ZipyError as exc:
+            self._trace.event(ctx, "delegate_workspace", {"error": str(exc)})
+            return
+        if gone:
+            self._trace.event(ctx, "delegate_workspace", {"sessions": len(gone)})
 
     def _call_event(self, turn: int, completion: Completion) -> dict[str, Any]:
         """What one model call records on the trace. The text itself is not recorded here."""

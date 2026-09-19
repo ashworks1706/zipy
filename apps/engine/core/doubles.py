@@ -350,6 +350,7 @@ class MemorySandbox:
     written: dict[str, bytes] = field(default_factory=dict)
     live: list[SandboxSession] = field(default_factory=list)
     killed: list[str] = field(default_factory=list)
+    reaped: list[str] = field(default_factory=list)
 
     async def run(self, ctx: RequestContext, request: SandboxRequest) -> SandboxOutput:
         self.ran.append((ctx.org_id, request.command, request.session))
@@ -372,6 +373,12 @@ class MemorySandbox:
         before = len(self.live)
         self.live = [s for s in self.live if s.name != name]
         return len(self.live) < before
+
+    async def reap_scope(self, ctx: RequestContext) -> list[str]:
+        gone = [s.name for s in self.live if s.org_id == ctx.org_id]
+        self.reaped.extend(gone)
+        self.live = [s for s in self.live if s.org_id != ctx.org_id]
+        return gone
 
     async def reap_idle(self) -> list[str]:
         return []

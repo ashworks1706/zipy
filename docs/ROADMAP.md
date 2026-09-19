@@ -39,7 +39,8 @@ The stand-in proves the code, not that the provider agrees with it.
 - [x] Attached files read into text and stored for recall: pdf, docx, pptx, xlsx, csv, json, zip
 - [x] A sandbox tool: a sealed container per command, sessions named by the member, the runtime
       as the session registry, idle reaping, and `just down` removing every one
-- [ ] Sub-agents in their own sandbox env rather than in the engine process
+- [x] A sub-agent gets its own sandbox workspace, reaped when it ends. Its loop stays in the
+      engine: a container holding the model's network and the org's tokens is not a sandbox
 - [x] Attached files parsed inside the sandbox, not in the engine process, behind files.sandbox
 - [x] The console shows live sessions and what each is running, and can kill one or all
 - [x] One level of delegation: a named subtask, a subset of the tools, its own turn limit, and a

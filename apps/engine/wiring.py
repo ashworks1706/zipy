@@ -225,6 +225,7 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
         tool_config=tool_config,
         confirmations=confirmations,
         trace=trace,
+        sandbox=sandbox,
     )
     gateway = Gateway(
         config=config,
