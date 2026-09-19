@@ -31,7 +31,7 @@ are a catalog and a table rather than a client: a new server becomes a tool with
 a tool is allowed to do is never the server's call. Every action's type is pinned in `zipy.toml`,
 and that is what decides whether it runs at once or waits for a confirmation.
 
-<img width="1671" height="833" alt="image" src="https://github.com/user-attachments/assets/7a2c95a6-5387-4702-89e4-3ebb247d259a" />
+<img width="1239" height="649" alt="Screenshot 2026-09-19 at 2 06 50 PM" src="https://github.com/user-attachments/assets/f0235b40-e913-431c-82a9-6eb421a686a5" />
 
 
 Asking is one way in. Whatever the surface, the same runtime resolves the org and the asker's
