@@ -2,12 +2,23 @@
 
 import base64
 import json
+from datetime import UTC, datetime
 
 import httpx
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from engine.core.types import CredentialError, OrgId, ProviderAuth, ToolError
+from engine.core.types import (
+    ChannelRef,
+    CredentialError,
+    MemberRef,
+    OrgId,
+    ProviderAuth,
+    RequestContext,
+    Role,
+    ToolError,
+    WorkspaceRef,
+)
 from engine.tools.github.client import MAX_FILE_BYTES, GithubClient
 from engine.tools.github.schemas import (
     CommentParams,
@@ -19,6 +30,19 @@ from engine.tools.github.schemas import (
     SearchIssuesParams,
 )
 from engine.tools.github.tool import GithubTool
+
+
+def context():
+    return RequestContext(
+        org_id=OrgId("org-1"),
+        channel=ChannelRef(WorkspaceRef("discord", "g1"), "c1"),
+        member=MemberRef("discord", "u1"),
+        role=Role.OFFICER,
+        display_name="Ash",
+        request_id="req-1",
+        received_at=datetime(2026, 9, 19, tzinfo=UTC),
+    )
+
 
 TOKEN = "gho_a-github-token-value"
 
@@ -283,7 +307,11 @@ def test_the_tool_needs_its_own_provider():
     with pytest.raises(Missing):
         import asyncio
 
-        asyncio.run(tool.execute("list_issues", ListIssuesParams(repo="soda/zipy"), auth("google")))
+        asyncio.run(
+            tool.execute(
+                context(), "list_issues", ListIssuesParams(repo="soda/zipy"), auth("google")
+            )
+        )
 
 
 def test_the_target_names_what_an_action_touches():

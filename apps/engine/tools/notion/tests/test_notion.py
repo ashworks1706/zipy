@@ -7,7 +7,17 @@ import pytest
 from notion_client.errors import APIResponseError
 from pydantic import SecretStr
 
-from engine.core.types import CredentialError, OrgId, ProviderAuth, ToolError
+from engine.core.types import (
+    ChannelRef,
+    CredentialError,
+    MemberRef,
+    OrgId,
+    ProviderAuth,
+    RequestContext,
+    Role,
+    ToolError,
+    WorkspaceRef,
+)
 from engine.tools.notion import client as client_module
 from engine.tools.notion.schemas import (
     CreatePageParams,
@@ -17,6 +27,19 @@ from engine.tools.notion.schemas import (
     UpdatePageParams,
 )
 from engine.tools.notion.tool import NotionTool
+
+
+def context():
+    return RequestContext(
+        org_id=OrgId("org-1"),
+        channel=ChannelRef(WorkspaceRef("discord", "g1"), "c1"),
+        member=MemberRef("discord", "u1"),
+        role=Role.OFFICER,
+        display_name="Ash",
+        request_id="req-1",
+        received_at=datetime(2026, 9, 19, tzinfo=UTC),
+    )
+
 
 TOKEN = "secret_a-notion-workspace-token"
 DATA_SOURCE = "11111111-2222-3333-4444-555555555555"
@@ -156,7 +179,9 @@ async def test_query_database_finds_the_database_by_name_and_queries_its_data_so
         },
     )
 
-    result = await tool().execute("query_database", QueryDatabaseParams(database="Tasks"), auth())
+    result = await tool().execute(
+        context(), "query_database", QueryDatabaseParams(database="Tasks"), auth()
+    )
 
     search, query = fake.calls
     assert search[1]["query"] == "Tasks"
@@ -187,7 +212,7 @@ async def test_query_database_prefers_the_data_source_whose_name_matches(monkeyp
         },
     )
 
-    await tool().execute("query_database", QueryDatabaseParams(database="tasks"), auth())
+    await tool().execute(context(), "query_database", QueryDatabaseParams(database="tasks"), auth())
 
     assert fake.calls[1][1]["data_source_id"] == DATA_SOURCE
 
@@ -201,7 +226,9 @@ async def test_query_database_resolves_a_database_id_through_its_data_sources(mo
         },
     )
 
-    await tool().execute("query_database", QueryDatabaseParams(database=DATABASE_ID), auth())
+    await tool().execute(
+        context(), "query_database", QueryDatabaseParams(database=DATABASE_ID), auth()
+    )
 
     assert fake.calls[0] == ("databases.retrieve", {"database_id": DATABASE_ID})
     assert fake.calls[1][1]["data_source_id"] == DATA_SOURCE
@@ -221,7 +248,7 @@ async def test_query_database_passes_a_filter_and_sorts_through(monkeypatch):
         sorts=[{"property": "Due", "direction": "ascending"}],
     )
 
-    await tool().execute("query_database", params, auth())
+    await tool().execute(context(), "query_database", params, auth())
 
     sent = fake.calls[1][1]
     assert sent["filter"] == {"property": "Done", "checkbox": {"equals": False}}
@@ -232,13 +259,15 @@ async def test_a_database_no_one_shared_says_so(monkeypatch):
     notion(monkeypatch, {"search": [{"results": []}]})
 
     with pytest.raises(ToolError, match="no Notion database named Budget"):
-        await tool().execute("query_database", QueryDatabaseParams(database="Budget"), auth())
+        await tool().execute(
+            context(), "query_database", QueryDatabaseParams(database="Budget"), auth()
+        )
 
 
 async def test_get_page_returns_the_page_and_its_block_text(monkeypatch):
     notion(monkeypatch, {"pages.retrieve": [PAGE], "blocks.children.list": [BLOCKS]})
 
-    result = await tool().execute("get_page", GetPageParams(page_id="page-1"), auth())
+    result = await tool().execute(context(), "get_page", GetPageParams(page_id="page-1"), auth())
 
     assert result.page.id == "page-1"
     assert result.text == "Notes\nIgnore this line."
@@ -259,7 +288,7 @@ async def test_create_page_builds_notion_property_values_from_plain_ones(monkeyp
         properties={"Assignee": "Maria", "Due": "2026-09-25", "Done": False, "Tags": ["design"]},
     )
 
-    result = await tool().execute("create_page", params, auth())
+    result = await tool().execute(context(), "create_page", params, auth())
 
     sent = fake.calls[-1][1]
     assert sent["parent"] == {"type": "data_source_id", "data_source_id": DATA_SOURCE}
@@ -282,7 +311,7 @@ async def test_a_property_the_database_does_not_have_names_the_ones_it_does(monk
     params = CreatePageParams(database="Tasks", title="x", properties={"Owner": "Maria"})
 
     with pytest.raises(ToolError) as caught:
-        await tool().execute("create_page", params, auth())
+        await tool().execute(context(), "create_page", params, auth())
 
     assert "no property Owner" in str(caught.value)
     assert "Assignee" in str(caught.value)
@@ -299,7 +328,7 @@ async def test_a_property_type_zipy_cannot_write_says_so(monkeypatch):
     params = CreatePageParams(database="Tasks", title="x", properties={"Files": ["a.png"]})
 
     with pytest.raises(ToolError, match="Files is a files"):
-        await tool().execute("create_page", params, auth())
+        await tool().execute(context(), "create_page", params, auth())
 
 
 async def test_update_page_reads_the_pages_schema_before_writing(monkeypatch):
@@ -309,7 +338,7 @@ async def test_update_page_reads_the_pages_schema_before_writing(monkeypatch):
     )
     params = UpdatePageParams(page_id="page-1", properties={"Done": True})
 
-    await tool().execute("update_page", params, auth())
+    await tool().execute(context(), "update_page", params, auth())
 
     assert [call[0] for call in fake.calls] == [
         "pages.retrieve",
@@ -324,7 +353,7 @@ async def test_update_page_without_a_change_says_so(monkeypatch):
 
     with pytest.raises(ToolError, match="at least one property"):
         await tool().execute(
-            "update_page", UpdatePageParams(page_id="page-1", properties={}), auth()
+            context(), "update_page", UpdatePageParams(page_id="page-1", properties={}), auth()
         )
 
 
@@ -359,7 +388,7 @@ async def test_a_notion_refusal_becomes_a_tool_error_naming_the_message(monkeypa
     notion(monkeypatch, error=api_error(400, "validation_error", "body failed validation"))
 
     with pytest.raises(ToolError) as caught:
-        await tool().execute("get_page", GetPageParams(page_id="page-1"), auth())
+        await tool().execute(context(), "get_page", GetPageParams(page_id="page-1"), auth())
 
     assert "400" in str(caught.value)
     assert "body failed validation" in str(caught.value)
@@ -369,25 +398,25 @@ async def test_a_revoked_token_becomes_a_credential_error(monkeypatch):
     notion(monkeypatch, error=api_error(401, "unauthorized", "API token is invalid"))
 
     with pytest.raises(CredentialError, match="expired or revoked"):
-        await tool().execute("get_page", GetPageParams(page_id="page-1"), auth())
+        await tool().execute(context(), "get_page", GetPageParams(page_id="page-1"), auth())
 
 
 async def test_a_tool_without_the_orgs_notion_account_refuses_to_run():
     params = GetPageParams(page_id="page-1")
 
     with pytest.raises(CredentialError, match="notion is not connected"):
-        await tool().execute("get_page", params, None)
+        await tool().execute(context(), "get_page", params, None)
 
     with pytest.raises(CredentialError, match="notion is not connected"):
-        await tool().execute("get_page", params, auth(provider="google"))
+        await tool().execute(context(), "get_page", params, auth(provider="google"))
 
 
 async def test_the_token_reaches_neither_a_result_nor_an_error(monkeypatch):
     notion(monkeypatch, {"pages.retrieve": [PAGE], "blocks.children.list": [BLOCKS]})
-    result = await tool().execute("get_page", GetPageParams(page_id="page-1"), auth())
+    result = await tool().execute(context(), "get_page", GetPageParams(page_id="page-1"), auth())
     assert TOKEN not in result.model_dump_json()
 
     notion(monkeypatch, error=api_error(401, "unauthorized", "API token is invalid"))
     with pytest.raises(CredentialError) as caught:
-        await tool().execute("get_page", GetPageParams(page_id="page-1"), auth())
+        await tool().execute(context(), "get_page", GetPageParams(page_id="page-1"), auth())
     assert TOKEN not in str(caught.value)

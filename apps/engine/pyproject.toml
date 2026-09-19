@@ -75,6 +75,7 @@ packages = [
     "engine.tools.drive",
     "engine.tools.notion",
     "engine.tools.zoom",
+    "engine.tools.sandbox",
     "engine.tools.search",
     "engine.memory",
     "engine.memory.ingest",

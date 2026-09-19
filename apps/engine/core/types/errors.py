@@ -61,3 +61,7 @@ class PlatformError(ZipyError):
 
 class IngestError(ZipyError):
     """A document could not be fetched, chunked or embedded."""
+
+
+class SandboxError(ZipyError):
+    """A sandboxed command was refused, could not be started, or ran past its budget."""

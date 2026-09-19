@@ -8,7 +8,7 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from engine.core.types import Document, ProviderAuth
+from engine.core.types import Document, ProviderAuth, RequestContext
 from engine.tools.base import Action, BaseTool, first_set, require_auth
 from engine.tools.notion import schemas as s
 from engine.tools.notion.client import NotionClient
@@ -33,7 +33,13 @@ class NotionTool(BaseTool[s.NotionSettings]):
         """The page or database an action acts on."""
         return first_set(params, "page_id", "database")
 
-    async def execute(self, action: str, params: BaseModel, auth: ProviderAuth | None) -> BaseModel:
+    async def execute(
+        self,
+        ctx: RequestContext,  # noqa: ARG002 - notion is scoped by the org's token
+        action: str,
+        params: BaseModel,
+        auth: ProviderAuth | None,
+    ) -> BaseModel:
         client = NotionClient(require_auth(auth, self.provider), self.settings)
         handlers: dict[str, Callable[[Any], Awaitable[BaseModel]]] = {
             "query_database": client.query_database,

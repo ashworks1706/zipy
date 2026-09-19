@@ -192,17 +192,17 @@ async def test_a_contrast_runs_the_same_case_at_both_ends_and_leaves_no_state_be
     assert stack.collaboration.by_member == {}
 
 
-async def test_an_action_with_no_fixture_says_so_rather_than_answering_something(cfg):
+async def test_an_action_with_no_fixture_says_so_rather_than_answering_something(cfg, ctx):
     registry = Registry(cfg.tools)
     replayed = fixtures.replayed(registry.tool_class("calendar"), {})
     tool = replayed(registry.settings_for("calendar"))
     params = registry.tool_class("calendar").actions["list_events"].params
 
     with pytest.raises(ToolError, match="no fixture for calendar.list_events"):
-        await tool.execute("list_events", params.model_construct(), None)
+        await tool.execute(ctx, "list_events", params.model_construct(), None)
 
 
-async def test_a_fixture_that_no_longer_fits_the_schema_fails_rather_than_passing(cfg):
+async def test_a_fixture_that_no_longer_fits_the_schema_fails_rather_than_passing(cfg, ctx):
     registry = Registry(cfg.tools)
     wrong = {"calendar.list_events": {"events": "not a list of events"}}
     tool = fixtures.replayed(registry.tool_class("calendar"), wrong)(
@@ -211,7 +211,7 @@ async def test_a_fixture_that_no_longer_fits_the_schema_fails_rather_than_passin
     params = registry.tool_class("calendar").actions["list_events"].params
 
     with pytest.raises(ConfigError, match="is not a RemoteResult"):
-        await tool.execute("list_events", params.model_construct(), None)
+        await tool.execute(ctx, "list_events", params.model_construct(), None)
 
 
 # ---------------------------------------------------------------- drafting from a trace

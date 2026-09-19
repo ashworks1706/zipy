@@ -28,6 +28,9 @@ from engine.core.types import (
     RecallHit,
     RequestContext,
     Role,
+    SandboxOutput,
+    SandboxRequest,
+    SandboxSession,
     Signal,
     Workspace,
     WorkspaceRef,
@@ -149,6 +152,20 @@ class CredentialStore(Protocol):
     async def expiring(self, before: datetime) -> list[ProviderAuth]: ...
 
     async def mark_invalid(self, org_id: OrgId, provider: str) -> None: ...
+
+
+class Sandbox(Protocol):
+    """Runs a command in an isolated environment."""
+
+    async def run(self, ctx: RequestContext, request: SandboxRequest) -> SandboxOutput: ...
+
+    async def put(self, ctx: RequestContext, session: str, name: str, content: bytes) -> str: ...
+
+    async def sessions(self, org_id: OrgId | None = None) -> list[SandboxSession]: ...
+
+    async def kill(self, name: str) -> bool: ...
+
+    async def reap_idle(self) -> list[str]: ...
 
 
 class ToolConfigStore(Protocol):

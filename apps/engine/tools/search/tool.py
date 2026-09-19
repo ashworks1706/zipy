@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from engine.core.types import ProviderAuth
+from engine.core.types import ProviderAuth, RequestContext
 from engine.tools.base import Action, BaseTool, first_set
 from engine.tools.search import schemas as s
 from engine.tools.search.client import SearchClient
@@ -32,6 +32,7 @@ class SearchTool(BaseTool[s.SearchSettings]):
 
     async def execute(
         self,
+        ctx: RequestContext,  # noqa: ARG002 - search is the same for every org
         action: str,
         params: BaseModel,
         auth: ProviderAuth | None,  # noqa: ARG002 - search needs no credential

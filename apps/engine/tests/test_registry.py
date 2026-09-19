@@ -17,6 +17,7 @@ def test_the_committed_config_matches_every_tool(cfg):
         "github",
         "gmail",
         "notion",
+        "sandbox",
         "search",
         "workspace",
         "zoom",
@@ -103,3 +104,20 @@ def test_the_config_not_the_model_decides_what_needs_confirmation(cfg):
     assert needs_confirmation(registry, ToolCall("2", "calendar.update_event", {}))
     with pytest.raises(ConfigError):
         needs_confirmation(registry, ToolCall("3", "calendar.drop_everything", {}))
+
+
+def test_the_sandbox_ships_off_and_is_not_offered_until_an_org_turns_it_on(cfg):
+    """It runs arbitrary commands and needs a container runtime the engine can reach."""
+    assert cfg.tools["sandbox"].enabled is False
+    registry = Registry(cfg.tools)
+    assert "sandbox" not in registry.available(frozenset(), {})
+    on = {"sandbox": OrgToolConfig("sandbox", enabled=True, overrides={})}
+    assert "sandbox" in registry.available(frozenset(), on)
+
+
+def test_an_org_cannot_change_what_a_sandbox_container_may_do(cfg):
+    registry = Registry(cfg.tools)
+    for key in ("image", "runtime", "memory", "pids", "workspace_mb"):
+        override = OrgToolConfig("sandbox", enabled=True, overrides={key: "anything"})
+        with pytest.raises(ConfigError, match="not overridable per org"):
+            registry.settings_for("sandbox", override)

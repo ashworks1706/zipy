@@ -39,6 +39,7 @@ def test_every_plugin_kind_is_discovered():
             "github",
             "gmail",
             "notion",
+            "sandbox",
             "search",
             "workspace",
             "zoom",

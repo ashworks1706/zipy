@@ -101,12 +101,13 @@ class PromptBuilder:
         context: Context,
         message: str,
         outcomes: Sequence[ToolOutcome] = (),
+        tools: Sequence[str] = (),
     ) -> list[ChatMessage]:
         """System prompt, recalled context, history, the quoted reply, the message, tool results.
 
         markup names the formatting the platform renders, such as discord-markdown or slack-mrkdwn.
         An empty message adds no user turn: a resumed request reads the ask from the history the
-        platform holds.
+        platform holds. tools names what this org is offered, so the prompt describes only those.
         """
         system = self._template.render(
             app_name=self._app_name,
@@ -118,6 +119,7 @@ class PromptBuilder:
             org_facts=context.org_facts,
             collaborator=context.collaborator,
             attachments=context.attachments,
+            sandbox="sandbox" in tools,
         )
         messages = [ChatMessage(speaker=Speaker.SYSTEM, content=system.strip())]
         recalled = recalled_block(context)

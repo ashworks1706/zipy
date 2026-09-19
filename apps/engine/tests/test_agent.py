@@ -39,6 +39,7 @@ from engine.core.types import (
     OrgId,
     ProviderAuth,
     RateLimited,
+    RequestContext,
     Role,
     Speaker,
     ToolCall,
@@ -101,7 +102,9 @@ class Diary(BaseTool[Settings]):
         super().__init__(settings)
         self.calls: list[tuple[str, BaseModel]] = []
 
-    async def execute(self, action: str, params: BaseModel, auth: ProviderAuth | None) -> BaseModel:
+    async def execute(
+        self, ctx: RequestContext, action: str, params: BaseModel, auth: ProviderAuth | None
+    ) -> BaseModel:
         if auth is None:
             raise ToolError("no credential reached the tool")
         self.calls.append((action, params))
@@ -118,7 +121,9 @@ class Breaks(Diary):
 
     name = "breaks"
 
-    async def execute(self, action: str, params: BaseModel, auth: ProviderAuth | None) -> BaseModel:
+    async def execute(
+        self, ctx: RequestContext, action: str, params: BaseModel, auth: ProviderAuth | None
+    ) -> BaseModel:
         raise ToolError("the provider said no")
 
 

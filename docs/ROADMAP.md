@@ -37,6 +37,11 @@ The stand-in proves the code, not that the provider agrees with it.
 - [ ] Summary model role for transcripts; retention pruning
 - [ ] Cross-tool digests: "what's happening this week", exec meeting rundown
 - [x] Attached files read into text and stored for recall: pdf, docx, pptx, xlsx, csv, json, zip
+- [x] A sandbox tool: a sealed container per command, sessions named by the member, the runtime
+      as the session registry, idle reaping, and `just down` removing every one
+- [ ] Sub-agents in their own sandbox env rather than in the engine process
+- [ ] Attached files parsed inside the sandbox, not in the engine process
+- [ ] The console shows live sessions and what each ran, and can kill one
 - [x] One level of delegation: a named subtask, a subset of the tools, its own turn limit, and a
       destructive call inside it suspends and resumes
 

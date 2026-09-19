@@ -10,7 +10,13 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from engine.core.types import CredentialError, Document, ProviderAuth, wire_name
+from engine.core.types import (
+    CredentialError,
+    Document,
+    ProviderAuth,
+    RequestContext,
+    wire_name,
+)
 
 
 @dataclass(frozen=True)
@@ -48,7 +54,9 @@ class BaseTool[S: BaseModel](ABC):
         self.settings = settings
 
     @abstractmethod
-    async def execute(self, action: str, params: BaseModel, auth: ProviderAuth | None) -> BaseModel:
+    async def execute(
+        self, ctx: RequestContext, action: str, params: BaseModel, auth: ProviderAuth | None
+    ) -> BaseModel:
         """Run one action with validated params. Provider failures raise ToolError."""
 
     def target(self, action: str, params: BaseModel) -> str:  # noqa: ARG002 - overridable hook

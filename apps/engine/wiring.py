@@ -49,7 +49,9 @@ from engine.telemetry.progress import ProgressSink
 from engine.telemetry.trace import Fanout, JsonlTrace
 from engine.tools.executor import Executor
 from engine.tools.registry import Registry
-from engine.workers.cleanup import cleanup
+from engine.tools.sandbox.container import ContainerSandbox
+from engine.tools.sandbox.schemas import SandboxSettings
+from engine.workers.cleanup import cleanup, reap_sandboxes
 from engine.workers.ingestion import Ingestion
 from engine.workers.scheduler import Consumer, DailyAt, MonthlyFirst, Periodic, Scheduler
 from engine.workers.spend import reset_monthly_spend
@@ -239,6 +241,9 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
     ingestion = Ingestion(
         registry, config.memory, credentials, embedder, documents, provider_limiter
     )
+    sandbox = ContainerSandbox(
+        SandboxSettings.model_validate(registry.settings_for("sandbox").model_dump())
+    )
     workers = config.workers
     scheduler = Scheduler(
         [
@@ -254,6 +259,11 @@ def assemble(config: Config, only: Sequence[str] = ()) -> Assembled:
                     workers.cleanup_hour_utc,
                     lambda: cleanup(config.memory, confirmations, documents),
                 ).tick,
+            ),
+            Periodic(
+                name="sandbox_reap",
+                interval=timedelta(minutes=5),
+                run=lambda: reap_sandboxes(sandbox),
             ),
             Periodic(
                 name="spend_reset",

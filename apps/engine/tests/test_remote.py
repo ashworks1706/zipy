@@ -1,6 +1,7 @@
 """The MCP seam: catalogs, the params models they become, and one call over the wire."""
 
 import json
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -8,12 +9,17 @@ from pydantic import SecretStr, ValidationError
 
 from engine.core.config import load
 from engine.core.types import (
+    ChannelRef,
     ConfigError,
     CredentialError,
+    MemberRef,
     OrgId,
     OrgToolConfig,
     ProviderAuth,
+    RequestContext,
+    Role,
     ToolError,
+    WorkspaceRef,
 )
 from engine.tools.base import function_schema
 from engine.tools.calendar.tool import CalendarTool
@@ -72,6 +78,18 @@ class Server:
             text=f"event: message\ndata: {json.dumps(answer)}\n\n",
             headers={"content-type": "text/event-stream"},
         )
+
+
+def context():
+    return RequestContext(
+        org_id=OrgId("org-1"),
+        channel=ChannelRef(WorkspaceRef("discord", "g1"), "c1"),
+        member=MemberRef("discord", "u1"),
+        role=Role.OFFICER,
+        display_name="Ash",
+        request_id="req-1",
+        received_at=datetime(2026, 9, 19, tzinfo=UTC),
+    )
 
 
 def auth(provider="google"):
@@ -223,7 +241,7 @@ def test_a_tool_without_an_input_schema_is_a_config_error():
 async def test_a_call_initializes_then_runs_the_tool_with_the_orgs_token():
     server = Server({"tools/call": text_result("2 events")})
     params = CalendarTool.actions["list_events"].params(calendarId="primary")
-    result = await calendar(server).execute("list_events", params, auth())
+    result = await calendar(server).execute(context(), "list_events", params, auth())
     assert result.text == "2 events"
     assert [body["method"] for body in server.bodies] == [
         "initialize",
@@ -241,7 +259,7 @@ async def test_a_call_initializes_then_runs_the_tool_with_the_orgs_token():
 async def test_a_field_the_model_left_out_is_not_sent_as_null():
     server = Server({"tools/call": text_result("ok")})
     params = CalendarTool.actions["list_events"].params(calendarId="primary")
-    await calendar(server).execute("list_events", params, auth())
+    await calendar(server).execute(context(), "list_events", params, auth())
     assert called(server)["params"]["arguments"] == {"calendarId": "primary"}
 
 
@@ -249,7 +267,7 @@ async def test_a_field_the_model_left_out_is_not_sent_as_null():
 async def test_an_event_stream_answer_is_read_like_a_json_one():
     server = Server({"tools/call": text_result("streamed")}, stream=True)
     params = CalendarTool.actions["list_calendars"].params()
-    result = await calendar(server).execute("list_calendars", params, auth())
+    result = await calendar(server).execute(context(), "list_calendars", params, auth())
     assert result.text == "streamed"
 
 
@@ -257,7 +275,7 @@ async def test_an_event_stream_answer_is_read_like_a_json_one():
 async def test_structured_content_comes_back_beside_the_text():
     server = Server({"tools/call": text_result("one", structuredContent={"count": 1})})
     params = CalendarTool.actions["list_calendars"].params()
-    result = await calendar(server).execute("list_calendars", params, auth())
+    result = await calendar(server).execute(context(), "list_calendars", params, auth())
     assert result.structured == {"count": 1}
 
 
@@ -266,7 +284,7 @@ async def test_a_long_result_is_cut_and_says_so():
     server = Server({"tools/call": text_result("x" * 50)})
     tool = CalendarTool(settings(max_result_chars=10), transport=httpx.MockTransport(server.handle))
     result = await tool.execute(
-        "list_calendars", CalendarTool.actions["list_calendars"].params(), auth()
+        context(), "list_calendars", CalendarTool.actions["list_calendars"].params(), auth()
     )
     assert result.text == "x" * 10
     assert result.truncated
@@ -279,7 +297,7 @@ async def test_a_tool_that_reports_a_failure_is_a_tool_error():
     )
     params = CalendarTool.actions["list_calendars"].params()
     with pytest.raises(ToolError, match="no such calendar"):
-        await calendar(server).execute("list_calendars", params, auth())
+        await calendar(server).execute(context(), "list_calendars", params, auth())
 
 
 @pytest.mark.anyio
@@ -287,7 +305,7 @@ async def test_a_jsonrpc_error_is_a_tool_error():
     server = Server({"tools/call": {"error": {"code": -32602, "message": "bad argument"}}})
     params = CalendarTool.actions["list_calendars"].params()
     with pytest.raises(ToolError, match="bad argument"):
-        await calendar(server).execute("list_calendars", params, auth())
+        await calendar(server).execute(context(), "list_calendars", params, auth())
 
 
 @pytest.mark.anyio
@@ -296,7 +314,7 @@ async def test_a_rejected_token_tells_the_org_to_reconnect():
         server = Server(status=status)
         params = CalendarTool.actions["list_calendars"].params()
         with pytest.raises(CredentialError, match="reconnect google") as caught:
-            await calendar(server).execute("list_calendars", params, auth())
+            await calendar(server).execute(context(), "list_calendars", params, auth())
         assert str(status) in str(caught.value)
         assert TOKEN not in str(caught.value)
 
@@ -306,7 +324,7 @@ async def test_an_http_failure_names_the_status_and_never_the_token():
     server = Server(status=503)
     params = CalendarTool.actions["list_calendars"].params()
     with pytest.raises(ToolError) as caught:
-        await calendar(server).execute("list_calendars", params, auth())
+        await calendar(server).execute(context(), "list_calendars", params, auth())
     assert "503" in str(caught.value)
     assert TOKEN not in str(caught.value)
 
@@ -319,7 +337,7 @@ async def test_an_unreachable_server_is_a_tool_error():
     tool = CalendarTool(settings(), transport=httpx.MockTransport(refuse))
     params = CalendarTool.actions["list_calendars"].params()
     with pytest.raises(ToolError, match="could not be reached"):
-        await tool.execute("list_calendars", params, auth())
+        await tool.execute(context(), "list_calendars", params, auth())
 
 
 @pytest.mark.anyio
@@ -327,7 +345,7 @@ async def test_a_tool_of_another_provider_is_a_credential_error():
     server = Server({"tools/call": text_result("ok")})
     params = CalendarTool.actions["list_calendars"].params()
     with pytest.raises(CredentialError, match="google is not connected"):
-        await calendar(server).execute("list_calendars", params, auth(provider="notion"))
+        await calendar(server).execute(context(), "list_calendars", params, auth(provider="notion"))
 
 
 @pytest.mark.anyio
@@ -340,7 +358,7 @@ async def test_a_session_id_the_server_sets_is_sent_back():
 
     server = Stateful({"tools/call": text_result("ok")})
     params = CalendarTool.actions["list_calendars"].params()
-    await calendar(server).execute("list_calendars", params, auth())
+    await calendar(server).execute(context(), "list_calendars", params, auth())
     assert server.requests[-1].headers["mcp-session-id"] == "sess-9"
 
 
@@ -412,7 +430,7 @@ async def test_a_body_that_is_not_json_is_a_tool_error():
     server = Server(body="<html>a proxy sign-in page</html>")
     params = CalendarTool.actions["list_calendars"].params()
     with pytest.raises(ToolError, match="not JSON"):
-        await calendar(server).execute("list_calendars", params, auth())
+        await calendar(server).execute(context(), "list_calendars", params, auth())
 
 
 @pytest.mark.anyio
@@ -420,7 +438,7 @@ async def test_a_server_speaking_another_revision_is_refused_before_the_call():
     server = Server({"initialize": {"result": {"protocolVersion": "1999-01-01"}}})
     params = CalendarTool.actions["list_calendars"].params()
     with pytest.raises(ToolError, match="1999-01-01"):
-        await calendar(server).execute("list_calendars", params, auth())
+        await calendar(server).execute(context(), "list_calendars", params, auth())
     assert [body["method"] for body in server.bodies] == ["initialize"]
 
 
@@ -430,7 +448,7 @@ async def test_structured_content_over_the_limit_is_dropped_rather_than_passed_o
     server = Server({"tools/call": text_result("ok", structuredContent=big)})
     tool = CalendarTool(settings(max_result_chars=50), transport=httpx.MockTransport(server.handle))
     result = await tool.execute(
-        "list_calendars", CalendarTool.actions["list_calendars"].params(), auth()
+        context(), "list_calendars", CalendarTool.actions["list_calendars"].params(), auth()
     )
     assert result.structured is None
     assert result.truncated
@@ -442,7 +460,7 @@ async def test_a_failure_the_server_reports_is_cut_to_the_same_limit():
     tool = CalendarTool(settings(max_result_chars=20), transport=httpx.MockTransport(server.handle))
     with pytest.raises(ToolError) as caught:
         await tool.execute(
-            "list_calendars", CalendarTool.actions["list_calendars"].params(), auth()
+            context(), "list_calendars", CalendarTool.actions["list_calendars"].params(), auth()
         )
     assert "y" * 20 in str(caught.value)
     assert "y" * 21 not in str(caught.value)

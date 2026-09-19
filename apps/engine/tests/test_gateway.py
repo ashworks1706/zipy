@@ -42,6 +42,7 @@ from engine.core.types import (
     OrgId,
     OrgToolConfig,
     ProviderAuth,
+    RequestContext,
     Role,
     Signal,
     ToolCall,
@@ -160,7 +161,9 @@ class Diary(BaseTool[Settings]):
         "move_event": Action("Move an event.", MoveParams, Moved),
     }
 
-    async def execute(self, action: str, params: BaseModel, auth: ProviderAuth | None) -> BaseModel:
+    async def execute(
+        self, ctx: RequestContext, action: str, params: BaseModel, auth: ProviderAuth | None
+    ) -> BaseModel:
         if action == "list_events":
             return Listed(events=["standup"])
         return Moved(event_id="e1")

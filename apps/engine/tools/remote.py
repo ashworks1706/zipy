@@ -25,6 +25,7 @@ from engine.core.types import (
     ConfigError,
     CredentialError,
     ProviderAuth,
+    RequestContext,
     ToolError,
 )
 from engine.tools.base import Action, BaseTool, require_auth
@@ -379,7 +380,13 @@ class RemoteTool[S: RemoteSettings](BaseTool[S]):
                 return str(value)
         return ""
 
-    async def execute(self, action: str, params: BaseModel, auth: ProviderAuth | None) -> BaseModel:
+    async def execute(
+        self,
+        ctx: RequestContext,  # noqa: ARG002 - a remote tool is scoped by the org's token
+        action: str,
+        params: BaseModel,
+        auth: ProviderAuth | None,
+    ) -> BaseModel:
         """Run the action on the server, with the org's token as the bearer."""
         credential = require_auth(auth, self.provider)
         session = Session(self.settings, credential.access_token, self._transport, self.provider)

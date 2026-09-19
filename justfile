@@ -158,6 +158,16 @@ stop *SERVICES:
 # Stop and remove every compose service
 down:
     {{compose}} --profile '*' down
+    @just sandbox-down
+
+# Remove every sandbox session container, which compose does not own
+sandbox-down:
+    #!/usr/bin/env sh
+    ids=$(docker ps -aq --filter label=zipy.sandbox=1 2>/dev/null)
+    if [ -n "$ids" ]; then
+        docker rm --force $ids >/dev/null
+        echo "removed $(echo "$ids" | wc -l | tr -d ' ') sandbox session(s)"
+    fi
 
 # Follow the logs of compose services, all of them by default
 logs *SERVICES:

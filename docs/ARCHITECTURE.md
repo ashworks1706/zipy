@@ -194,6 +194,7 @@ apps/engine/
   auth/                 permissions.py, state.py
   auth/providers/       base.py, registry.py, <provider>/provider.py
   tools/                base.py, registry.py, executor.py, remote.py
+  tools/sandbox/        container.py, the one tool that runs code rather than calling an API
   tools/<tool>/         tool.py, and either client.py + schemas.py or catalog.json
   memory/               manager.py, triggers.py, org_context.py, recall.py
   memory/ingest/        chunking.py, pipeline.py
@@ -294,6 +295,31 @@ prints the suggestion, but `zipy.toml` pins it: Google marks `update_event` non-
 overwriting an event the org already announced is destructive here. A catalog that gains a tool
 nobody listed fails at startup rather than reaching the model, because the registry already
 requires the plugin's actions and the table's actions to be the same set.
+
+### The sandbox
+
+`tools/sandbox/` is the one tool that runs code rather than calling a provider. A command goes to
+a container with no network, a read-only root, every capability dropped, `no-new-privileges`, a
+non-root user, ceilings on memory, CPU, processes and wall clock, and a tmpfs workspace that goes
+when the container does. It reaches no account, so it needs no provider and no scopes.
+
+The engine holds no session map. Every session container carries labels naming the org, the member
+and the session, and its workspace holds a marker file touched on each use, so listing, reaping and
+the per-member cap all read the runtime. A restarted engine sees the sessions it left behind rather
+than leaking them, and `just down` removes every one.
+
+A session is named by the member, and its container name is a hash of the org and the member, so
+two orgs and two people in one org never share a workspace. A session name or a workspace file name
+that could leave the workspace is refused before anything runs.
+
+`run` is `create`, not `destructive`: with no network and a workspace that dies with the container,
+a command cannot touch anything the org would miss. Every setting except `max_output_chars` decides
+what the container may do, so `SandboxTool.locked` keeps them out of an org's overrides.
+
+The tool ships off. It needs a container runtime the engine process can reach, which not every
+deployment has.
+
+### MCP endpoints
 
 The endpoint is not a tunable. It decides where the org's OAuth token is sent, so `RemoteTool`
 lists it in `locked` and `Registry.settings_for` refuses it as a per-org override; it is https or

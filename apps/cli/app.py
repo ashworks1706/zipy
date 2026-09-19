@@ -271,6 +271,9 @@ class ConsoleApp(App[None]):
         # The spinner turns while the agent works.
         if self._closing or self._handed_over:
             return
+        # The timer starts before the layout is mounted and outlives it on the way out.
+        if not self.query("#units"):
+            return
         if self._dirty or self.transcript.waiting:
             self._dirty = False
             self._paint()
