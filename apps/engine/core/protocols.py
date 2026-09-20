@@ -24,6 +24,7 @@ from engine.core.types import (
     OrgId,
     OrgToolConfig,
     PendingConfirmation,
+    Provenance,
     ProviderAuth,
     RecallHit,
     RequestContext,
@@ -100,7 +101,11 @@ class CollaborationStore(Protocol):
     async def state(self, org_id: OrgId, member: MemberRef) -> CollaborationState: ...
 
     async def observe(
-        self, org_id: OrgId, member: MemberRef, signals: Sequence[Signal]
+        self,
+        org_id: OrgId,
+        member: MemberRef,
+        signals: Sequence[Signal],
+        provenance: Provenance,
     ) -> None: ...
 
     async def forget(self, org_id: OrgId, member: MemberRef) -> None: ...

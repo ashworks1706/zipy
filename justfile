@@ -108,10 +108,10 @@ traces *ARGS:
     uv run zipy traces {{ARGS}}
 
 # The eval cases in evals/, against the configured model. Not part of the gate: it needs a model
-eval *ARGS:
-    uv run zipy eval {{ARGS}}
+eval *ARGS="run":
+    uv run evals {{ARGS}}
 
-# ---------- training ----------
+# ---------- testbed ----------
 
 # Datasets from real runs: export, verify, review, curate, stats
 data *ARGS:

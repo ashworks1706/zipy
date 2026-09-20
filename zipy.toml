@@ -99,6 +99,8 @@ dimensions = 1024
 # what it would be without it. The state holds scores and a count, never conversation text.
 [collaboration]
 enabled = false
+# The variant a run is recorded under, written onto every observation. Empty compares nothing.
+arm = ""
 # Weight of one observation in the moving average.
 alpha = 0.15
 # Observations before the state says anything to the model at all.
@@ -236,7 +238,7 @@ sandbox = true
 # Generated data: the raw export, the verified set, the curated set, and training outputs.
 data_dir = ".zipy/training"
 # The review decisions, committed.
-decisions_path = "apps/training/curation/decisions.jsonl"
+decisions_path = "apps/testbed/curation/decisions.jsonl"
 # Skip traces older than this on export. Zero reads every one.
 max_age_days = 0
 

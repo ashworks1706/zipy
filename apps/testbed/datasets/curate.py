@@ -13,8 +13,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from training.core.types import VERDICTS, Decision, TrainingExample, Verdict
-from training.datasets.verify import fingerprint
+from testbed.core.types import VERDICTS, Decision, TrainingExample, Verdict
+from testbed.datasets.verify import fingerprint
 
 
 class Ledger(BaseModel):

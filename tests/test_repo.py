@@ -99,7 +99,7 @@ def test_ci_paths_cover_every_app():
 
 def test_every_version_in_the_repo_agrees():
     versions = {}
-    for app in ("engine", "cli", "training"):
+    for app in ("engine", "cli", "testbed"):
         found = re.search(
             r'^version = "(.*)"', (ROOT / f"apps/{app}/pyproject.toml").read_text(), re.M
         )

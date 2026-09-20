@@ -2,7 +2,7 @@
   <img width="1921" height="418" alt="image" src="https://github.com/user-attachments/assets/eea84b08-15c5-407b-9888-10521b8a0145" />
 </p>
 
-<p align="center"><b>Agent harness for team operations</b></p>
+<p align="center"><b>Adaptive agent harness for teams</b></p>
 
 <p align="center">
     <a href="https://github.com/ashworks1706/zipy/actions/workflows/ci.yml"><img src="https://github.com/ashworks1706/zipy/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -17,12 +17,18 @@
     <a href="docs/ROADMAP.md">Roadmap</a>
 </p>
 
-Zipy is an open-source, self-hosted agent harness for team operations: the loop, the tool
-layer, the permissions, the memory and the traces that a team's agents need, with the chat app
-as one surface rather than the product.
+Zipy is an open-source, self-hosted adaptive agent harness for teams. One agent a whole team
+shares, adapting to each person individually, how much explanation they want and how readily it
+acts before asking, while acting on the calendars, drives and pages the org owns. Adaptation
+changes how it talks and how far it goes on its own. It never changes what needs a confirmation.
 
-A team configures its agents, their tools, providers and knowledge once, and talks to them where
-it already works (Discord today, Slack next), against the org's shared Google Workspace, Notion,
+Around that sits the harness it needs: the loop, the tool layer, the permissions, the memory and
+the traces, with the chat app as one surface rather than the product. The per-person state ships
+switched off until the eval suite says it earns its place, and doubles as a testbed for user
+modelling on a platform a team already uses.
+
+A team configures its agent, its tools, providers and knowledge once, and talks to it where it
+already works (Discord today, Slack next), against the org's shared Google Workspace, Notion,
 GitHub and Zoom accounts. Nothing breaks when an officer graduates. Built first for university
 student orgs, which have the turnover to prove it.
 

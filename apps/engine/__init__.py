@@ -1,1 +1,1 @@
-"""Zipy, an agent harness for team operations."""
+"""Zipy, an adaptive agent harness for teams: per person, never per permission."""

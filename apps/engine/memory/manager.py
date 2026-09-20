@@ -18,6 +18,7 @@ from engine.core.types import (
     ChatMessage,
     Conditioning,
     IngestError,
+    Provenance,
     RecallHit,
     RequestContext,
     Signal,
@@ -57,6 +58,7 @@ class MemoryManager:
         collaboration: CollaborationStore,
         settings: Collaboration,
         conditioning: Conditioning = Conditioning.TEXT,
+        model: str = "",
         files: Files | None = None,
         sandbox: Sandbox | None = None,
     ) -> None:
@@ -68,6 +70,7 @@ class MemoryManager:
         self._collaboration = collaboration
         self._settings = settings
         self._conditioning = conditioning
+        self._model = model
         self._files = files or Files()
         self._sandbox = sandbox
 
@@ -135,4 +138,9 @@ class MemoryManager:
         """Records what a turn showed about the asker. Does nothing while collaboration is off."""
         if not self._settings.enabled or not signals:
             return
-        await self._collaboration.observe(ctx.org_id, ctx.member, signals)
+        await self._collaboration.observe(
+            ctx.org_id,
+            ctx.member,
+            signals,
+            Provenance(request_id=ctx.request_id, arm=self._settings.arm, model=self._model),
+        )

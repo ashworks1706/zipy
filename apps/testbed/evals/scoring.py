@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from engine.core.types import AuditEntry
-from engine.evals.cases import Case
+from testbed.evals.cases import Case
 
 #: What reads as the run asking rather than answering.
 ASKING = ("?",)

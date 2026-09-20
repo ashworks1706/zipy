@@ -26,7 +26,8 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   keywords: [
-    "agent harness",
+    "adaptive agent harness",
+    "per-person adaptation",
     "agent runtime",
     "team operations",
     "tool calling",

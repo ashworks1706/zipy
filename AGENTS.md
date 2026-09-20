@@ -1,10 +1,20 @@
 # Zipy — agent guide
 
-An agent harness for team operations, built first for university student orgs. Zipy owns the
-loop, the tool layer, the permissions, the memory and the traces; a chat workspace (Discord
-today, Slack and others as plugins) is one surface onto it, and `apps/cli` is the other, where
-agents, tools, providers and knowledge are configured. Tools reach the org's Google Calendar,
-Drive, Notion and Zoom through one agent.
+An adaptive agent harness for teams: one agent a whole team shares, adapting to each person
+individually while acting on resources the whole team owns. Built first for university student
+orgs. The invariant holding the two halves together is that adaptation may change how the agent
+talks and how much it does on its own, and may never lower the bar on a consequential action.
+Per-member state is scored dimensions and never stored text, and nothing derived from behaviour
+reaches the permission path.
+
+Zipy owns the loop, the tool layer, the permissions, the memory and the traces; a chat workspace
+(Discord today, Slack and others as plugins) is one surface onto it, and `apps/cli` is the other,
+where the agent, its tools, providers and knowledge are configured. Tools reach the org's Google
+Calendar, Drive, Notion and Zoom through one agent.
+
+The signal categories, the conditioning switch and the eval suite's behaviour axis are
+instrumentation for measuring that adaptation, not decoration. Do not collapse them into
+something simpler without reading why they are separate.
 
 Read `docs/ROADMAP.md` for what is being built in what order, and `docs/ARCHITECTURE.md` for the
 layers, plugins, data model, request lifecycle and invariants. Do not contradict them; propose an
@@ -67,7 +77,8 @@ One repo: a uv workspace of three Python apps, and the website. Language is neve
 apps/engine     the one process: platforms, api, workers, gateway, agent, tools, memory, llm,
                 auth, data
 apps/cli        the developer console; assets/ holds the logo animation exports
-apps/training   datasets from real runs, the decisions about them, and post-training
+apps/testbed    the offline half: datasets, curation, post-training, and experiments over what
+                a deployment produced
 apps/website    the landing page: Next.js, React, Tailwind, TypeScript; no blog
 docs/           ROADMAP.md, ARCHITECTURE.md
 evals/          the cases and fixtures just eval runs
@@ -87,13 +98,13 @@ edited by hand.
 
 ## The dependency rule
 
-Apps never import each other; the website imports nothing from the repo but its generated frames.
-Inside the engine a package imports only packages below it, never a
-sibling on its own row:
+The testbed reads the engine, because an eval runs the real loop and an experiment reads the real
+stores. The engine never reads the testbed, and the console reads neither. The website imports
+nothing from the repo but its generated frames. Inside the engine a package imports only packages
+below it, never a sibling on its own row:
 
 ```
 commands        the zipy command
-evals           the cases in evals/, run over fixtures rather than providers
 wiring          builds everything, runs platforms + api + workers in one event loop
 platforms | api | workers
 gateway         platform-neutral: org and role, rate limit, admin commands, confirmations
@@ -147,15 +158,21 @@ Every replaceable dependency is a protocol in `engine/core/protocols.py` with a 
 `CollaborationStore`. A new one gets a protocol
 and a double in the same change.
 
-## Datasets and training
+## The testbed
 
-`apps/training` is the third app, and imports nothing else in the repo. It reads the same traces
-the evals draft cases from: `data export` turns every `generation` event into an example,
+`apps/testbed` is the third app, and the only one that reads another. Everything measuring the
+agent lives here: `evals/` runs the real gateway over fixtures, `datasets/` turns traces into a
+training set, and `experiments/` holds one folder per question. The engine is the thing being
+measured and never imports what measures it, which is what the layers contract says. A new
+experiment is a folder in `apps/testbed/experiments/` and needs no permission from this document.
+
+Datasets are the part that exists today. It reads the same traces the evals draft cases from:
+`data export` turns every `generation` event into an example,
 `data verify` drops the malformed and the duplicates, `data review` judges them one at a time, and
 `data curate` builds the training set from what was accepted. An example nobody reviewed is not
 training data.
 
-The decisions live in `apps/training/curation/decisions.jsonl`, committed: an export can be run
+The decisions live in `apps/testbed/curation/decisions.jsonl`, committed: an export can be run
 again, a judgment cannot. Each carries the fingerprint of the example it judged, so a changed
 example is reported as stale rather than trained on. `train sft` needs a GPU and the `gpu` extra,
 which the gate never installs.
@@ -178,7 +195,7 @@ one case at both ends of one collaboration dimension: correctness must hold, beh
 Renaming a story means renaming its case; a test holds the two files together. `just eval` is not
 part of `just check`, because the gate needs no model.
 
-`zipy eval-add <request-id> --id <case-id>` drafts a case from a real request's trace, with
+`evals add <request-id> --id <case-id>` drafts a case from a real request's trace, with
 `contains` left empty for the reviewer to fill in.
 
 ## Config

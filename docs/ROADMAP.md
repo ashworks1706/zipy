@@ -53,15 +53,19 @@ The stand-in proves the code, not that the provider agrees with it.
 - [ ] run on existing benchmarks
 - [ ] make short tech writeup on readme
 - [x] Eval cases from the user stories, scored on correctness and behaviour, over fixtures
-- [x] `zipy eval-add` drafts a case from a real request's trace
-- [x] `apps/training`: traces to examples, reviewed one at a time, curated set, SFT
+- [x] `evals add` drafts a case from a real request's trace
+- [x] `apps/testbed`: traces to examples, reviewed one at a time, curated set, SFT
 - [ ] A model post-trained on curated runs, kept only if the eval suite says it helps
 
 ## v0.7 Collaboration state
 
-Built and shipped off. A compact, per-person state derived from how someone works, not from what
-they say about themselves, conditioning the agent per member. Chat history stays unstored, so the
-state updates from behaviour and keeps none of the text behind it.
+Built and shipped off, deliberately: the code is in and the switch is false until the contrast
+table earns it.
+
+A compact, per-person state derived from how someone works, not from what they say about
+themselves, conditioning the agent per member. Chat history stays unstored, so the state updates
+from behaviour and keeps none of the text behind it. It moves tone and autonomy and never a
+permission: the three unticked items below are the evidence the claim still owes, not backlog.
 
 Conditioning goes through a renderer chosen by what the endpoint accepts. Text is built and works
 on every tier. A prefix in embedding space, which would condition the model below the text, needs
@@ -74,6 +78,8 @@ limits the adaptation.
 - [x] Readable and correctable by the person it describes, with `prefer`
 - [x] Conditions the prompt behind a switch, off until the evals say it earns its place
 - [x] A conditioning seam: one renderer per endpoint capability, text built
+- [x] Every observation kept with the request, the arm and the model behind it, so the sequence
+      the moving average came from is not lost
 - [ ] Run the contrast table against a real model and decide whether it ships on
 - [ ] A team-level state under the person's, for norms one person did not set
 - [ ] Measured by the behaviour axis of the eval suite: same question, same model, different
@@ -97,7 +103,7 @@ limits the adaptation.
   the platform, and collaboration state records what behaviour showed rather than what was said.
   A training dataset is the one thing that holds conversation text, and it is not the runtime: it
   is built by hand from local traces, redacted, reviewed example by example, and never read by a
-  request. `apps/training` is not deployed, and the engine never imports it.
+  request. `apps/testbed` is not deployed, and the engine never imports it.
 - Letting an MCP server decide what an action may do. A server says what its tools take; the
   action type, the confirmation, the role check and the audit entry stay here.
 - Features that work on only one platform when the gateway could offer them on all

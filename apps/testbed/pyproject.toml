@@ -1,10 +1,11 @@
 [project]
-name = "training"
+name = "testbed"
 version = "0.1.0"
-description = "Datasets from real runs, curated by hand, and the post-training that reads them"
+description = "The offline half: datasets, curation, post-training and experiments over what a deployment produced"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 dependencies = [
+    "engine",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "pyyaml>=6",
@@ -22,14 +23,18 @@ gpu = [
     "unsloth>=2024.12",
 ]
 
+[tool.uv.sources]
+engine = { workspace = true }
+
 [project.scripts]
-data = "training.datasets.cli:app"
-train = "training.posttrain.cli:app"
+data = "testbed.datasets.cli:app"
+evals = "testbed.evals.cli:app"
+train = "testbed.posttrain.cli:app"
 
 [build-system]
 requires = ["setuptools>=84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-package-dir = { "training" = "." }
-packages = ["training", "training.core", "training.datasets", "training.posttrain"]
+package-dir = { "testbed" = "." }
+packages = ["testbed", "testbed.core", "testbed.datasets", "testbed.evals", "testbed.posttrain"]

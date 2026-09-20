@@ -12,16 +12,16 @@ from datetime import UTC, datetime
 
 from engine.core.types import CollaborationState, Dimension, Evidence, Signal, ZipyError
 from engine.core.types.collaboration import apply_signals
-from engine.evals.cases import Case, Contrast, Suite
-from engine.evals.scoring import (
+from engine.gateway.messages import Answer, ConfirmPrompt, Inbound, InboundAnswer, Text
+from testbed.evals.cases import Case, Contrast, Suite
+from testbed.evals.scoring import (
     Behaviour,
     Correctness,
     behaviour,
     correctness,
     moved,
 )
-from engine.evals.stack import SURFACE, Stack
-from engine.gateway.messages import Answer, ConfirmPrompt, Inbound, InboundAnswer, Text
+from testbed.evals.stack import SURFACE, Stack
 
 #: How far a contrast pushes a dimension, which is as far as it goes.
 ENDS = (0.0, 1.0)

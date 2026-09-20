@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from training.core.types import TrainingExample
+from testbed.core.types import TrainingExample
 
 #: The trace event a training example is made from.
 EVENT = "generation"

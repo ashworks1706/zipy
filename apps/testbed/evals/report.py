@@ -5,7 +5,7 @@ from __future__ import annotations
 from rich.console import Console
 from rich.table import Table
 
-from engine.evals.runner import Pair, Run
+from testbed.evals.runner import Pair, Run
 
 
 def _mark(ok: bool) -> str:

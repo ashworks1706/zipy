@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from training.core.types import TrainingExample
+from testbed.core.types import TrainingExample
 
 
 def fingerprint(example: TrainingExample) -> str:
