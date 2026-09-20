@@ -11,13 +11,12 @@
   --accent-dim: #9e0063;
   --fg: #ece8ef;
   --fg-dim: #8e8397;
-  /* --font-blocks covers only U+2500-259F; every other glyph comes from --font-mono. */
   /* One square of a field. Everything about a field is a multiple of it, so the squares
      stay square at every width rather than stretching with the viewport. */
-  --flag-cell: clamp(8px, 1.1vw, 16px);
+  --flag-cell: clamp(7px, 1.05vw, 15px);
   --mono:
-    var(--font-mono), var(--font-blocks), ui-monospace, SFMono-Regular, Menlo,
-    Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 html,
@@ -51,7 +50,7 @@ code {
   /* Clear of the dense part of the fields, eight of their twelve columns, so the wordmark never
      runs into them at a narrow width. Past that the squares are scattered and the mask has most
      of the way faded them, so the content may sit over the rest of the field. */
-  padding: 2rem calc(var(--flag-cell) * 8 + 0.75rem);
+  padding: 2rem calc(var(--flag-cell) * 10 + 0.75rem);
   /* Above the strips, which are fixed at the edges behind it. */
   position: relative;
   z-index: 1;
@@ -66,15 +65,20 @@ code {
   position: fixed;
   top: 0;
   bottom: 0;
-  width: calc(var(--flag-cell) * 12);
+  width: calc(var(--flag-cell) * 18);
   display: grid;
-  grid-template-columns: repeat(12, var(--flag-cell));
+  grid-template-columns: repeat(18, var(--flag-cell));
   grid-auto-rows: var(--flag-cell);
   /* Rows past the bottom of the viewport are generated and clipped rather than squeezed. */
   overflow: hidden;
   pointer-events: none;
   z-index: 0;
-  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 0%,
+    #000 25%,
+    transparent 100%
+  );
   mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 100%);
 }
 
@@ -101,8 +105,10 @@ code {
   /* Column sets the race inward; row offsets it so the edge arrives as a ripple, not a bar. The
      blackout takes a negative delay, which starts it part way through, so no two squares of the
      field are ever on the same beat. */
-  animation-delay: calc(var(--column) * 55ms + var(--row) * 11ms) calc(var(--seed) * -11s);
-  animation-duration: calc(1100ms + var(--seed) * 900ms), calc(7s + var(--seed) * 6s);
+  animation-delay: calc(var(--column) * 55ms + var(--row) * 11ms)
+    calc(var(--seed) * -11s);
+  animation-duration:
+    calc(1100ms + var(--seed) * 900ms), calc(7s + var(--seed) * 6s);
 }
 
 /* Chaos that slows into place. The gaps between the stops widen, so the square flickers hard at
@@ -199,41 +205,13 @@ code {
 }
 
 .cli-logo {
-  font-family: var(--mono);
-  /* The size before the script measures the glyphs that rendered. 59 columns at a 0.68em
-     advance is the widest monospace fallback worth planning for, so this only ever undershoots
-     and the script grows it to the real fit. vw is the fallback for cqi. */
-  font-size: min(11px, calc((100vw - 2.5rem) / 40.2));
-  font-size: min(11px, calc(100cqi / 40.2));
-  line-height: 1;
-  white-space: pre;
-  color: var(--accent);
-  margin: 0;
-  text-shadow: 0 0 28px rgba(255, 0, 159, 0.35);
-}
-
-.cli-stage {
-  position: relative;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-/* Measured, never shown. Its size is fixed so a webfont swapping in changes its width and the
-   script measures again. */
-.cli-probe {
-  position: absolute;
-  top: 0;
-  left: 0;
-  visibility: hidden;
-  pointer-events: none;
-  min-height: 0;
-  font-size: 100px;
-  /* Zero sized and clipped, so the measured logo adds nothing to the page's scrollable area.
-     scrollWidth still reports the width the text wants. */
-  width: 0;
-  height: 0;
-  overflow: hidden;
+  /* An SVG with a viewBox has no size of its own, so the width is the whole of it and the
+     height follows the aspect ratio. No measuring, no font, nothing to settle. */
+  width: clamp(11rem, 30vw, 24rem);
+  height: auto;
+  display: block;
+  fill: var(--accent);
+  filter: drop-shadow(0 0 28px rgba(255, 0, 159, 0.35));
 }
 
 .landing-tagline {

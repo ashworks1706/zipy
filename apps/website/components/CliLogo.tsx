@@ -1,108 +1,61 @@
-"use client";
-
-import { useEffect, useRef } from "react";
 import { CLI_LOGO } from "../lib/cli-frames";
 
-/** Largest the wordmark is ever drawn, in px. */
-const MAX_FONT_PX = 11;
+/** The cell the console draws the wordmark with. Everything else is a multiple of it. */
+const FILL = "█";
 
-/** Smallest the wordmark is drawn before it stops shrinking, in px. */
-const MIN_FONT_PX = 3;
+const LINES = CLI_LOGO.split("\n");
 
-/** Share of the viewport height the wordmark may take, leaving room for the tagline and links. */
-const HEIGHT_SHARE = 0.26;
+/** The bitmap's own size, in cells. Lines are trimmed, so the width is the longest of them. */
+const COLUMNS = Math.max(...LINES.map((line) => line.length));
+const ROWS = LINES.length;
 
-/** Size the probe is fixed at in the stylesheet. Any size works; it yields the ratio used. */
-const PROBE_PX = 100;
+type Run = { x: number; y: number; width: number };
 
 /**
- * The font size at which the wordmark fits the space, from its measured size rather than an
- * assumed character advance. A monospace fallback with a wider advance than the webfont clips a
- * wordmark sized by arithmetic; measuring the glyphs that actually rendered cannot.
+ * Each unbroken row of filled cells as one rectangle.
+ *
+ * A rectangle per cell would be 400 of them for the same picture. Merging along the row is
+ * enough to bring that under a hundred, and leaves every edge on an integer.
  */
-export function fittedSize(
-  probe: HTMLElement,
-  availableWidth: number,
-  availableHeight: number,
-) {
-  probe.style.minHeight = "0";
-  probe.style.fontSize = `${PROBE_PX}px`;
-  const widthPerPx = probe.scrollWidth / PROBE_PX;
-  const heightPerPx = probe.scrollHeight / PROBE_PX;
-  if (widthPerPx <= 0 || heightPerPx <= 0) {
-    return MAX_FONT_PX;
+const RUNS: Run[] = LINES.flatMap((line, y) => {
+  const runs: Run[] = [];
+  let x = 0;
+  while (x < line.length) {
+    if (line[x] !== FILL) {
+      x += 1;
+      continue;
+    }
+    const start = x;
+    while (x < line.length && line[x] === FILL) {
+      x += 1;
+    }
+    runs.push({ x: start, y, width: x - start });
   }
-  const fits = Math.min(
-    availableWidth / widthPerPx,
-    availableHeight / heightPerPx,
-  );
-  return Math.max(MIN_FONT_PX, Math.min(MAX_FONT_PX, fits));
-}
+  return runs;
+});
 
 /**
- * The Zipy wordmark, as the preformatted block text the console settles on. It does not animate:
- * the size it is drawn at depends on the font that rendered, so a sequence of frames drawn while
- * that is still settling reads differently at different widths.
+ * The Zipy wordmark, as the shape the console draws rather than as the text it draws it with.
+ *
+ * The console has one font and a fixed cell, so block characters and spaces line up there. A
+ * browser has neither: the blocks come from one font and the spaces from another, and the moment
+ * their advances disagree, or one of them arrives late, every row shifts by a different amount
+ * and the letters come apart. Drawing the bitmap as rectangles removes the question. It also
+ * makes the wordmark scale exactly, since an SVG with a viewBox has no size of its own and takes
+ * whatever the stylesheet gives it.
  */
 export function CliLogo() {
-  const stage = useRef<HTMLDivElement>(null);
-  const probe = useRef<HTMLPreElement>(null);
-  const shown = useRef<HTMLPreElement>(null);
-
-  useEffect(() => {
-    const fit = () => {
-      const box = stage.current;
-      const measured = probe.current;
-      const pre = shown.current;
-      if (!box || !measured || !pre) {
-        return;
-      }
-      const size = fittedSize(
-        measured,
-        box.clientWidth,
-        window.innerHeight * HEIGHT_SHARE,
-      );
-      pre.style.fontSize = `${size}px`;
-    };
-
-    // A webfont swapping in changes the glyph advance and so the size that fits, and the swap
-    // lands after the promise resolves, so measure on the frame after it.
-    let frame = 0;
-    const refit = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        frame = requestAnimationFrame(fit);
-      });
-    };
-
-    fit();
-    refit();
-    const observer = new ResizeObserver(fit);
-    if (stage.current) {
-      observer.observe(stage.current);
-    }
-    window.addEventListener("resize", fit);
-    window.addEventListener("orientationchange", fit);
-    const fonts = document.fonts;
-    fonts?.ready.then(refit).catch(() => undefined);
-    fonts?.addEventListener?.("loadingdone", refit);
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      window.removeEventListener("resize", fit);
-      window.removeEventListener("orientationchange", fit);
-      fonts?.removeEventListener?.("loadingdone", refit);
-    };
-  }, []);
-
   return (
-    <div ref={stage} className="cli-stage">
-      <pre ref={probe} className="cli-logo cli-probe" aria-hidden="true">
-        {CLI_LOGO}
-      </pre>
-      <pre ref={shown} aria-label="Zipy" className="cli-logo select-none">
-        {CLI_LOGO}
-      </pre>
-    </div>
+    <svg
+      className="cli-logo"
+      viewBox={`0 0 ${COLUMNS} ${ROWS}`}
+      role="img"
+      aria-label="Zipy"
+      shapeRendering="crispEdges"
+    >
+      {RUNS.map(({ x, y, width }) => (
+        <rect key={`${x}-${y}`} x={x} y={y} width={width} height={1} />
+      ))}
+    </svg>
   );
 }
