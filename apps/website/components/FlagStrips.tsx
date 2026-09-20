@@ -10,7 +10,7 @@ const ROWS = 135;
 /** How fast the scatter thins out. Above one it clears quickly and leaves stragglers. */
 const FALLOFF = 1.6;
 
-type Square = { row: number; column: number; seed: number };
+type Square = { row: number; column: number; seed: number; phase: number };
 
 /**
  * A value in [0, 1) for one cell. Integer operations only, so the server and the browser agree
@@ -34,9 +34,12 @@ const SQUARES: Square[] = Array.from({ length: ROWS }, (_, row) =>
   Array.from({ length: COLUMNS }, (_, column) => ({
     row,
     column,
-    // A second value per cell, so how long a square takes to settle and when it blinks are not
-    // the same number that decided whether it exists at all.
+    // A second value per cell, so how long a square takes to settle is not the same number that
+    // decided whether it exists at all.
     seed: noise(column, row),
+    // A third, for where in its blink cycle the square starts. Spread on its own, so the blinks
+    // are not bunched by duration and none of the field is ever quiet for long.
+    phase: noise(row + 101, column + 37),
   })),
 )
   .flat()
@@ -49,7 +52,7 @@ const SQUARES: Square[] = Array.from({ length: ROWS }, (_, row) =>
 function Field({ side }: { side: "left" | "right" }) {
   return (
     <div className={`flag flag-${side}`} aria-hidden="true">
-      {SQUARES.map(({ row, column, seed }) => (
+      {SQUARES.map(({ row, column, seed, phase }) => (
         <span
           key={`${row}-${column}`}
           className="flag-square"
@@ -60,6 +63,7 @@ function Field({ side }: { side: "left" | "right" }) {
               "--column": column,
               "--row": row,
               "--seed": seed,
+              "--phase": phase,
             } as CSSProperties
           }
         />
