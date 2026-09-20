@@ -1,24 +1,24 @@
 # Zipy — agent guide
 
 An adaptive agent harness for teams: one agent a whole team shares, adapting to each person
-individually while acting on resources the whole team owns. Built first for university student orgs. The invariant that holds the two
-halves together: adaptation may change how the agent talks and how much it does on its own, and
-it may never lower the bar on a consequential action. Per-member state is scored dimensions and
-never stored text, and nothing derived from behaviour reaches the permission path.
+individually while acting on resources the whole team owns. Built first for university student
+orgs. The invariant holding the two halves together is that adaptation may change how the agent
+talks and how much it does on its own, and may never lower the bar on a consequential action.
+Per-member state is scored dimensions and never stored text, and nothing derived from behaviour
+reaches the permission path.
 
 Zipy owns the loop, the tool layer, the permissions, the memory and the traces; a chat workspace
 (Discord today, Slack and others as plugins) is one surface onto it, and `apps/cli` is the other,
 where the agent, its tools, providers and knowledge are configured. Tools reach the org's Google
 Calendar, Drive, Notion and Zoom through one agent.
 
-Zipy is also a testbed for that adaptation, so the signal categories, the conditioning switch and
-the eval suite's behaviour axis are instrumentation and not decoration. Do not collapse them into
+The signal categories, the conditioning switch and the eval suite's behaviour axis are
+instrumentation for measuring that adaptation, not decoration. Do not collapse them into
 something simpler without reading why they are separate.
 
-Read `docs/VISION.md` for the claim, the testbed, and what is deliberately not being built, `docs/ROADMAP.md`
-for what is being built in what order, and `docs/ARCHITECTURE.md` for the layers, plugins, data
-model, request lifecycle and invariants. Do not contradict them; propose an edit to the doc
-instead.
+Read `docs/ROADMAP.md` for what is being built in what order, and `docs/ARCHITECTURE.md` for the
+layers, plugins, data model, request lifecycle and invariants. Do not contradict them; propose an
+edit to the doc instead.
 
 ## Commands
 

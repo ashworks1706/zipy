@@ -11,7 +11,6 @@
 </p>
 
 <p align="center">
-    <a href="docs/VISION.md">Vision</a> •
     <a href="docs/ARCHITECTURE.md">Architecture</a> •
     <a href="docs/USER_STORIES.md">User stories</a> •
     <a href="deploy/README.md">Self-host</a> •
@@ -23,17 +22,10 @@ shares, adapting to each person individually, how much explanation they want and
 acts before asking, while acting on the calendars, drives and pages the org owns. Adaptation
 changes how it talks and how far it goes on its own. It never changes what needs a confirmation.
 
-That is the bet, and [docs/VISION.md](docs/VISION.md) is one page on why it is worth making. The
-per-person half of it is built and ships switched off, until the eval suite's contrast table says
-the adaptation earns its place; the half that holds it, that nothing derived from a person can
-move a permission or a confirmation, is a test today. The rest is the machinery both need to stand
-on: the loop, the tool layer, the permissions, the memory and the traces, with the chat app as one
-surface rather than the product.
-
-It is also a testbed. Adaptation on a chat platform a team already uses, over months rather than
-one annotator sitting, with the signals categorised and the conditioning behind an ablation
-switch, is a place to measure user modelling in deployment rather than in a study.
-[docs/VISION.md](docs/VISION.md#as-a-testbed) says what that can and cannot answer.
+Around that sits the harness it needs: the loop, the tool layer, the permissions, the memory and
+the traces, with the chat app as one surface rather than the product. The per-person state ships
+switched off until the eval suite says it earns its place, and doubles as a testbed for user
+modelling on a platform a team already uses.
 
 A team configures its agent, its tools, providers and knowledge once, and talks to it where it
 already works (Discord today, Slack next), against the org's shared Google Workspace, Notion,

@@ -32,7 +32,7 @@ def test_an_org_may_let_members_create(cfg):
 
 
 def test_collaboration_state_cannot_relax_a_confirmation(cfg):
-    """The VISION invariant: adaptation moves tone and autonomy, never the confirmation bar."""
+    """Adaptation moves tone and autonomy, never the confirmation bar."""
     member = MemberRef(platform="discord", user_id="u1")
     maximal = apply_signals(
         CollaborationState(member=member),

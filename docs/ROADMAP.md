@@ -59,9 +59,8 @@ The stand-in proves the code, not that the provider agrees with it.
 
 ## v0.7 Collaboration state
 
-The thesis, held at one mechanism. Built and shipped off, deliberately: the code is in and the
-switch is false until the contrast table earns it. See [VISION.md](VISION.md) for why this is the
-claim rather than one feature among many, and for what is deliberately not being built around it.
+Built and shipped off, deliberately: the code is in and the switch is false until the contrast
+table earns it.
 
 A compact, per-person state derived from how someone works, not from what they say about
 themselves, conditioning the agent per member. Chat history stays unstored, so the state updates

@@ -1,10 +1,9 @@
 # Contributing
 
 Zipy is an adaptive agent harness for teams: one agent a whole team shares, adapting to each
-person without ever adapting what needs a confirmation. Read [docs/VISION.md](docs/VISION.md) for why that is the claim,
-[AGENTS.md](AGENTS.md) for the commands,
-the dependency rule and the rules every change follows, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-before changing a boundary. Both apply to people and to coding agents alike.
+person without ever adapting what needs a confirmation. Read [AGENTS.md](AGENTS.md) for the
+commands, the dependency rule and the rules every change follows, and
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing a boundary. Both apply to people and to coding agents alike.
 
 ## Setup
 
