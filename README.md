@@ -2,7 +2,7 @@
   <img width="1921" height="418" alt="image" src="https://github.com/user-attachments/assets/eea84b08-15c5-407b-9888-10521b8a0145" />
 </p>
 
-<p align="center"><b>Adaptive agent harness for teams</b></p>
+<p align="center"><b>adaptive agent harness for collaborative teams</b></p>
 
 <p align="center">
     <a href="https://github.com/ashworks1706/zipy/actions/workflows/ci.yml"><img src="https://github.com/ashworks1706/zipy/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
