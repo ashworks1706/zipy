@@ -1,1 +1,1 @@
-"""Zipy, one agent a team shares, adapting per person and never per permission."""
+"""Zipy, an adaptive agent harness for teams: per person, never per permission."""

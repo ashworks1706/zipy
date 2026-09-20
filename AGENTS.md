@@ -1,7 +1,7 @@
 # Zipy — agent guide
 
-One agent a whole team shares, adapting to each person individually while acting on resources
-the whole team owns. Built first for university student orgs. The invariant that holds the two
+An adaptive agent harness for teams: one agent a whole team shares, adapting to each person
+individually while acting on resources the whole team owns. Built first for university student orgs. The invariant that holds the two
 halves together: adaptation may change how the agent talks and how much it does on its own, and
 it may never lower the bar on a consequential action. Per-member state is scored dimensions and
 never stored text, and nothing derived from behaviour reaches the permission path.

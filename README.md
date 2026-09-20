@@ -2,7 +2,7 @@
   <img width="1921" height="418" alt="image" src="https://github.com/user-attachments/assets/eea84b08-15c5-407b-9888-10521b8a0145" />
 </p>
 
-<p align="center"><b>One agent, shared by your team, different for each person</b></p>
+<p align="center"><b>Adaptive agent harness for teams</b></p>
 
 <p align="center">
     <a href="https://github.com/ashworks1706/zipy/actions/workflows/ci.yml"><img src="https://github.com/ashworks1706/zipy/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -18,10 +18,10 @@
     <a href="docs/ROADMAP.md">Roadmap</a>
 </p>
 
-Zipy is an open-source, self-hosted agent that a whole team shares. It adapts to each person
-individually, how much explanation they want and how readily it acts before asking, while acting
-on the calendars, drives and pages the org owns. Adaptation changes how it talks and how far it
-goes on its own. It never changes what needs a confirmation.
+Zipy is an open-source, self-hosted adaptive agent harness for teams. One agent a whole team
+shares, adapting to each person individually, how much explanation they want and how readily it
+acts before asking, while acting on the calendars, drives and pages the org owns. Adaptation
+changes how it talks and how far it goes on its own. It never changes what needs a confirmation.
 
 That is the bet, and [docs/VISION.md](docs/VISION.md) is one page on why it is worth making. The
 per-person half of it is built and ships switched off, until the eval suite's contrast table says

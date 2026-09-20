@@ -1,6 +1,6 @@
 # Vision
 
-What Zipy is for, in one page. `docs/ROADMAP.md` says what is being built and in what order;
+Zipy is an adaptive agent harness for teams. What that is for, in one page. `docs/ROADMAP.md` says what is being built and in what order;
 `docs/ARCHITECTURE.md` says how it is put together. This says why any of it is worth building.
 
 
