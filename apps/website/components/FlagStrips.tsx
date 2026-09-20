@@ -1,11 +1,11 @@
 import type { CSSProperties } from "react";
 
 /** Squares across one field. Column 0 is the outer edge, whichever side the field sits on. */
-const COLUMNS = 12;
+const COLUMNS = 18;
 
 /** Rows generated. The cell is a fixed square, so this covers the tallest viewport and the rest
     is clipped. Fixed, so the pattern does not reflow as the viewport changes. */
-const ROWS = 110;
+const ROWS = 135;
 
 /** How fast the scatter thins out. Above one it clears quickly and leaves stragglers. */
 const FALLOFF = 1.6;

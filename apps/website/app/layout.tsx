@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
-import localFont from "next/font/local";
 import { DESCRIPTION, REPO_URL, SITE_URL, TAGLINE } from "../lib/site";
 import "./globals.css";
 
@@ -9,14 +8,6 @@ const mono = JetBrains_Mono({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-mono",
-});
-
-// JetBrains Mono box-drawing and block glyphs, U+2500-259F, which the latin subset lacks.
-const blocks = localFont({
-  src: "./fonts/jetbrains-mono-blocks.woff2",
-  display: "block",
-  variable: "--font-blocks",
-  declarations: [{ prop: "unicode-range", value: "U+2500-259F" }],
 });
 
 export const metadata: Metadata = {
@@ -68,7 +59,11 @@ export default function RootLayout({
 }>) {
   return (
     // Hydration warnings are suppressed on the html element only.
-    <html lang="en" className={`dark ${mono.variable} ${blocks.variable}`} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`dark ${mono.variable}`}
+      suppressHydrationWarning
+    >
       <body className="antialiased">{children}</body>
     </html>
   );
