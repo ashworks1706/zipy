@@ -90,21 +90,93 @@ code {
 }
 
 .flag-square {
-  background: var(--accent);
+  background-color: var(--accent);
   opacity: 0;
-  animation: flag-in 620ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-  /* Column sets the race inward; row offsets it so the edge arrives as a ripple, not a bar. */
-  animation-delay: calc(var(--column) * 55ms + var(--row) * 11ms);
+  /* Two animations, on two properties, so both can run at once: the settle owns opacity and the
+     transform, the blackout owns the colour. One property driven by two animations would leave
+     whichever is listed last in charge. */
+  animation:
+    flag-settle cubic-bezier(0.16, 1, 0.3, 1) forwards,
+    flag-blackout steps(1, end) infinite;
+  /* Column sets the race inward; row offsets it so the edge arrives as a ripple, not a bar. The
+     blackout takes a negative delay, which starts it part way through, so no two squares of the
+     field are ever on the same beat. */
+  animation-delay: calc(var(--column) * 55ms + var(--row) * 11ms) calc(var(--seed) * -11s);
+  animation-duration: calc(1100ms + var(--seed) * 900ms), calc(7s + var(--seed) * 6s);
 }
 
-@keyframes flag-in {
-  from {
+/* Chaos that slows into place. The gaps between the stops widen, so the square flickers hard at
+   the start and is barely moving by the end; the eased timing function stretches the tail
+   further. It settles at the opacity the field is drawn at. */
+@keyframes flag-settle {
+  0% {
     opacity: 0;
-    transform: translateX(-140%);
+    transform: translateX(-160%);
   }
-  to {
+  3% {
+    opacity: 0.62;
+    transform: translateX(-40%);
+  }
+  6% {
+    opacity: 0.03;
+    transform: translateX(-52%);
+  }
+  10% {
+    opacity: 0.5;
+    transform: translateX(-12%);
+  }
+  15% {
+    opacity: 0.06;
+    transform: translateX(-22%);
+  }
+  22% {
+    opacity: 0.44;
+    transform: translateX(6%);
+  }
+  31% {
+    opacity: 0.09;
+    transform: translateX(-8%);
+  }
+  43% {
+    opacity: 0.34;
+    transform: translateX(4%);
+  }
+  58% {
+    opacity: 0.12;
+    transform: translateX(-3%);
+  }
+  76% {
+    opacity: 0.26;
+    transform: translateX(1%);
+  }
+  100% {
     opacity: 0.2;
     transform: none;
+  }
+}
+
+/* Most of the cycle the square is lit. Twice in it the colour cuts out, once briefly and once
+   for longer, with no tween between. */
+@keyframes flag-blackout {
+  0%,
+  88% {
+    background-color: var(--accent);
+  }
+  89%,
+  90% {
+    background-color: transparent;
+  }
+  91%,
+  95% {
+    background-color: var(--accent);
+  }
+  96%,
+  98% {
+    background-color: transparent;
+  }
+  99%,
+  100% {
+    background-color: var(--accent);
   }
 }
 
