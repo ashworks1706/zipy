@@ -43,6 +43,12 @@ code {
   font-family: var(--mono);
 }
 
+/* Above the fields, which are fixed at the edges behind it. */
+.page {
+  position: relative;
+  z-index: 1;
+}
+
 .landing {
   min-height: 100svh;
   display: grid;
@@ -51,9 +57,6 @@ code {
      runs into them at a narrow width. Past that the squares are scattered and the mask has most
      of the way faded them, so the content may sit over the rest of the field. */
   padding: 2rem calc(var(--flag-cell) * 10 + 0.75rem);
-  /* Above the strips, which are fixed at the edges behind it. */
-  position: relative;
-  z-index: 1;
 }
 
 /* A checkered field at each edge, racing in from the outside on load and scattering inward.
@@ -311,4 +314,182 @@ code {
 .landing-link:hover {
   color: var(--accent);
   border-color: var(--accent-dim);
+}
+
+/* The README, in a window. It is opaque, so unlike the hero it does not need to keep clear of
+   the fields: it covers them, and can use the width instead. */
+.readme {
+  width: min(60rem, 100%);
+  margin: 0 auto;
+  padding: 0 clamp(1rem, 4vw, 2.5rem) 5rem;
+  animation: rise 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 560ms;
+}
+
+.readme-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  background: var(--bg-raised);
+  padding: 0.6rem 0.85rem;
+  position: relative;
+}
+
+.readme-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border: 1px solid var(--accent-dim);
+}
+
+.readme-name {
+  margin-left: 0.4rem;
+  color: var(--fg-dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+}
+
+.readme-body {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  /* A window rather than the rest of the page: the README scrolls inside it. */
+  max-height: 70svh;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.readme-prose {
+  padding: 1.6rem 1.5rem 2rem;
+  color: var(--fg-dim);
+  font-size: 0.82rem;
+  line-height: 1.75;
+}
+
+.readme-prose > *:first-child {
+  margin-top: 0;
+}
+
+.readme-prose p,
+.readme-prose ul,
+.readme-prose ol,
+.readme-prose blockquote,
+.readme-prose pre,
+.readme-prose table {
+  margin: 0 0 1.1rem;
+}
+
+.readme-prose h1,
+.readme-prose h2,
+.readme-prose h3 {
+  margin: 2rem 0 0.85rem;
+  color: var(--fg);
+  font-size: 0.9rem;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+}
+
+.readme-prose h1 {
+  font-size: 1rem;
+}
+
+.readme-prose a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--accent-dim);
+}
+
+.readme-prose a:hover {
+  border-bottom-color: var(--accent);
+}
+
+.readme-prose strong {
+  color: var(--fg);
+  font-weight: 400;
+}
+
+.readme-prose code {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 0.05rem 0.3rem;
+  font-size: 0.95em;
+}
+
+.readme-prose pre {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+}
+
+.readme-prose pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.readme-prose ul,
+.readme-prose ol {
+  padding-left: 1.2rem;
+}
+
+.readme-prose li {
+  margin: 0.3rem 0;
+}
+
+.readme-prose ul {
+  list-style: square;
+}
+
+.readme-prose ol {
+  list-style: decimal;
+}
+
+.readme-prose blockquote {
+  border-left: 2px solid var(--accent-dim);
+  padding-left: 0.9rem;
+  color: var(--fg-dim);
+}
+
+.readme-prose img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Badge rows sit on one line rather than stacking, which is how they read on GitHub. */
+.readme-prose p:has(> a > img) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.readme-prose p:has(> a > img) img {
+  display: inline-block;
+}
+
+.readme-prose table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95em;
+}
+
+.readme-prose th,
+.readme-prose td {
+  border: 1px solid var(--line);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+.readme-prose hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.8rem 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .readme {
+    animation: none;
+  }
 }
