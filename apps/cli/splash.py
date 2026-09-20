@@ -33,7 +33,7 @@ class Splash(Screen[None]):
         with Middle(), Center():
             yield Static(id="logo")
         with Center():
-            yield Static("agent harness for team operations", id="tagline")
+            yield Static("one agent, shared by your team, different for each person", id="tagline")
 
     def on_mount(self) -> None:
         self._show()

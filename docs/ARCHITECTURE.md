@@ -1,7 +1,8 @@
 # Architecture
 
-How Zipy is structured, how a request flows through it, and how it grows. Read the README and
-[USER_STORIES.md](USER_STORIES.md) first; this assumes you know what Zipy does. The dependency
+How Zipy is structured, how a request flows through it, and how it grows. Read the README,
+[VISION.md](VISION.md) and [USER_STORIES.md](USER_STORIES.md) first; this assumes you know what
+Zipy does and why. The dependency
 rule below is enforced by the import-linter contracts in the root `pyproject.toml` and by
 `apps/engine/tests/test_plugins.py`; changing a rule means changing the doc and the check in the
 same commit.
@@ -49,6 +50,14 @@ an authorization header, and neither do logs or traces.
 
 **The config decides what is dangerous, never the model.** Every tool action has a type in
 `zipy.toml`: read, create or destructive. Destructive calls wait for a confirmation.
+
+**One agent for the team, adapted per person, never relaxed per person.** Collaboration state is
+per member; permissions and action types are per org. A person's state can move how much
+explanation an answer carries and how readily the agent acts where asking was optional. It cannot
+make a destructive call skip its confirmation and it cannot widen what a role may do, because
+nothing derived from behaviour is an input to `agent/classifier.py` or `auth/permissions.py`.
+That separation is the claim in [VISION.md](VISION.md), so it is held by a test rather than by
+the accident of the two never having been wired together.
 
 **Longevity over cleverness.** Identifiers from outside (platform ids, provider names, tool names)
 are strings, never enums in the database, so a new plugin needs no migration. Model choices are

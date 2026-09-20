@@ -1,14 +1,20 @@
 # Zipy — agent guide
 
-An agent harness for team operations, built first for university student orgs. Zipy owns the
-loop, the tool layer, the permissions, the memory and the traces; a chat workspace (Discord
-today, Slack and others as plugins) is one surface onto it, and `apps/cli` is the other, where
-agents, tools, providers and knowledge are configured. Tools reach the org's Google Calendar,
-Drive, Notion and Zoom through one agent.
+One agent a whole team shares, adapting to each person individually while acting on resources
+the whole team owns. Built first for university student orgs. The invariant that holds the two
+halves together: adaptation may change how the agent talks and how much it does on its own, and
+it may never lower the bar on a consequential action. Per-member state is scored dimensions and
+never stored text, and nothing derived from behaviour reaches the permission path.
 
-Read `docs/ROADMAP.md` for what is being built in what order, and `docs/ARCHITECTURE.md` for the
-layers, plugins, data model, request lifecycle and invariants. Do not contradict them; propose an
-edit to the doc instead.
+Zipy owns the loop, the tool layer, the permissions, the memory and the traces; a chat workspace
+(Discord today, Slack and others as plugins) is one surface onto it, and `apps/cli` is the other,
+where the agent, its tools, providers and knowledge are configured. Tools reach the org's Google
+Calendar, Drive, Notion and Zoom through one agent.
+
+Read `docs/VISION.md` for the claim and what is deliberately not being built, `docs/ROADMAP.md`
+for what is being built in what order, and `docs/ARCHITECTURE.md` for the layers, plugins, data
+model, request lifecycle and invariants. Do not contradict them; propose an edit to the doc
+instead.
 
 ## Commands
 

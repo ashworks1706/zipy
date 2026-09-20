@@ -59,9 +59,14 @@ The stand-in proves the code, not that the provider agrees with it.
 
 ## v0.7 Collaboration state
 
-Built and shipped off. A compact, per-person state derived from how someone works, not from what
-they say about themselves, conditioning the agent per member. Chat history stays unstored, so the
-state updates from behaviour and keeps none of the text behind it.
+The thesis, held at one mechanism. Built and shipped off, deliberately: the code is in and the
+switch is false until the contrast table earns it. See [VISION.md](VISION.md) for why this is the
+claim rather than one feature among many, and for what is deliberately not being built around it.
+
+A compact, per-person state derived from how someone works, not from what they say about
+themselves, conditioning the agent per member. Chat history stays unstored, so the state updates
+from behaviour and keeps none of the text behind it. It moves tone and autonomy and never a
+permission: the three unticked items below are the evidence the claim still owes, not backlog.
 
 Conditioning goes through a renderer chosen by what the endpoint accepts. Text is built and works
 on every tier. A prefix in embedding space, which would condition the model below the text, needs
