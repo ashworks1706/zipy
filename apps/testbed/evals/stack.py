@@ -13,6 +13,7 @@ from typing import Any
 
 from engine.agent.orchestrator import Orchestrator
 from engine.agent.prompt import PromptBuilder
+from engine.cognition.state import Cognition
 from engine.core.config import Config
 from engine.core.doubles import (
     AllowAll,
@@ -135,9 +136,11 @@ def build(config: Config, raw: dict[str, Any], model: ChatModel | None = None) -
             org_context=org_context,
             embedder=LiteLlmEmbedder(config.models["embedding"]),
             documents=MemoryDocuments(),
-            collaboration=collaboration,
-            settings=config.collaboration,
-            model=config.models["chat"].model,
+            cognition=Cognition(
+                store=collaboration,
+                settings=config.collaboration,
+                model=config.models["chat"].model,
+            ),
         ),
         prompts=PromptBuilder(system_template(config.agent.system_template), config.app.name),
         registry=replayed,

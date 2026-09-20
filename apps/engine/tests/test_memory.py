@@ -2,6 +2,7 @@
 
 import pytest
 
+from engine.cognition.state import Cognition
 from engine.core.types import FactCategory, OrgFact
 from engine.memory.org_context import render
 from engine.memory.triggers import wants_recall
@@ -42,8 +43,8 @@ def test_a_signal_moves_its_dimension_toward_the_target_and_leaves_the_others():
 
 
 def test_a_state_says_nothing_until_enough_has_been_observed():
+    from engine.cognition.conditioning import render
     from engine.core.types import CollaborationState, Dimension, MemberRef
-    from engine.memory.collaboration import render
 
     member = MemberRef("discord", "u1")
     decided = {Dimension.DEPTH: 0.05}
@@ -53,8 +54,8 @@ def test_a_state_says_nothing_until_enough_has_been_observed():
 
 
 def test_a_score_near_the_middle_asks_for_nothing():
+    from engine.cognition.conditioning import render
     from engine.core.types import CollaborationState, Dimension, MemberRef
-    from engine.memory.collaboration import render
 
     member = MemberRef("discord", "u1")
     undecided = {Dimension.DEPTH: 0.5, Dimension.AUTONOMY: 0.55}
@@ -64,8 +65,8 @@ def test_a_score_near_the_middle_asks_for_nothing():
 
 def test_every_conditioning_the_config_accepts_has_a_renderer():
     """Config validates against IMPLEMENTED; the renderers are what make it true."""
+    from engine.cognition.conditioning import RENDERERS
     from engine.core.types import IMPLEMENTED
-    from engine.memory.collaboration import RENDERERS
 
     assert set(RENDERERS) == set(IMPLEMENTED)
 
@@ -81,8 +82,9 @@ def test_a_conditioning_with_no_renderer_is_refused_at_boot():
 
 
 def test_the_text_renderer_is_what_a_default_role_gets(cfg):
+    from engine.cognition.conditioning import render
+    from engine.cognition.conditioning.text import render_text
     from engine.core.types import CollaborationState, Conditioning, Dimension, MemberRef
-    from engine.memory.collaboration import render, render_text
 
     assert cfg.models["chat"].conditioning is Conditioning.TEXT
     state = CollaborationState(MemberRef("local", "u1"), {Dimension.DEPTH: 0.1}, observations=9)
@@ -105,7 +107,7 @@ def _history(*speakers):
 
 
 def _read(message, history, cfg):
-    from engine.memory import follow_up
+    from engine.cognition import signals as follow_up
 
     return follow_up.read(
         message,
@@ -188,8 +190,10 @@ def test_a_turn_is_never_read_while_collaboration_is_off(cfg, ctx):
         org_context=MemoryOrgContext(),
         embedder=FixedEmbedder([0.1]),
         documents=MemoryDocuments(),
-        collaboration=collaboration,
-        settings=cfg.collaboration,
+        cognition=Cognition(
+            store=collaboration,
+            settings=cfg.collaboration,
+        ),
     )
     asyncio.run(manager.build(ctx, "just tell me"))
     assert collaboration.by_member == {}
@@ -217,8 +221,10 @@ def test_a_follow_up_is_recorded_when_collaboration_is_on(cfg, ctx):
         org_context=MemoryOrgContext(),
         embedder=FixedEmbedder([0.1]),
         documents=MemoryDocuments(),
-        collaboration=collaboration,
-        settings=cfg.collaboration.model_copy(update={"enabled": True}),
+        cognition=Cognition(
+            store=collaboration,
+            settings=cfg.collaboration.model_copy(update={"enabled": True}),
+        ),
     )
     asyncio.run(manager.build(ctx, "just tell me"))
     state = collaboration.by_member[(ctx.org_id, ctx.member)]

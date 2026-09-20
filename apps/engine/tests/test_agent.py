@@ -11,6 +11,7 @@ from pydantic import BaseModel, SecretStr
 
 from engine.agent.orchestrator import Orchestrator
 from engine.agent.prompt import RECALL_HEADER, REPLY_HEADER, PromptBuilder
+from engine.cognition.state import Cognition
 from engine.core.config import Agent, Permissions, RateLimit, ToolSettings
 from engine.core.doubles import (
     FixedEmbedder,
@@ -322,8 +323,10 @@ def orchestrator(
         org_context=org_context,
         embedder=FixedEmbedder([0.1]),
         documents=MemoryDocuments(),
-        collaboration=MemoryCollaboration(),
-        settings=cfg.collaboration,
+        cognition=Cognition(
+            store=MemoryCollaboration(),
+            settings=cfg.collaboration,
+        ),
     )
     model = ScriptedModel(script=script)
     held = confirmations if confirmations is not None else MemoryConfirmations()

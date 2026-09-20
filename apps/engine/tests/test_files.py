@@ -7,6 +7,7 @@ import zipfile
 import httpx
 import pytest
 
+from engine.cognition.state import Cognition
 from engine.core.config import Files
 from engine.core.doubles import MemorySandbox
 from engine.core.types import Attachment, IngestError, SandboxOutput
@@ -282,8 +283,10 @@ def _manager(cfg, documents, files=None):
         org_context=MemoryOrgContext(),
         embedder=FixedEmbedder([0.1]),
         documents=documents,
-        collaboration=MemoryCollaboration(),
-        settings=cfg.collaboration,
+        cognition=Cognition(
+            store=MemoryCollaboration(),
+            settings=cfg.collaboration,
+        ),
         files=files or Files(),
     )
 
