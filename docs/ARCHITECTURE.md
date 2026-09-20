@@ -206,6 +206,8 @@ apps/engine/
   tools/<tool>/         tool.py, and either client.py + schemas.py or catalog.json
   memory/               manager.py, triggers.py, org_context.py, recall.py
   memory/ingest/        chunking.py, pipeline.py
+  cognition/            signals.py, state.py: a turn read into signals, and what is held
+  cognition/conditioning/  one renderer per conditioning; text.py is the one built
   agent/                orchestrator.py, prompt.py, classifier.py, templates/system.md.j2
   gateway/              gateway.py, messages.py, admin.py, render.py
   platforms/            base.py, registry.py, <platform>/{platform,render}.py
@@ -979,7 +981,7 @@ change:
 | local | llama.cpp, `just model` | yes | no |
 | local+ | vLLM or SGLang | yes | possible, not built |
 
-`conditioning` on a model role says which the endpoint accepts. `memory/collaboration.py` holds one
+`conditioning` on a model role says which the endpoint accepts. `cognition/conditioning/` holds one
 renderer per conditioning and `core/types/collaboration.IMPLEMENTED` names the ones that exist; a
 role asking for anything else is refused at boot rather than silently conditioning on nothing. A
 test holds the renderers to that list.

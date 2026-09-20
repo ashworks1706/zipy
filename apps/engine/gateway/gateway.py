@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from engine.agent.orchestrator import Orchestrator
 from engine.auth.state import ConnectState, sign
+from engine.cognition.conditioning import render as render_collaborator
 from engine.core.config import Budget, Config
 from engine.core.protocols import (
     CollaborationStore,
@@ -55,7 +56,6 @@ from engine.gateway.messages import (
     WorkspaceInstalled,
 )
 from engine.gateway.render import split
-from engine.memory.collaboration import render as render_collaborator
 from engine.telemetry.logging import bind, get
 from engine.telemetry.metrics import Metrics
 from engine.tools.registry import Registry

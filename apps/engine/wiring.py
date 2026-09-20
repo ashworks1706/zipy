@@ -21,6 +21,7 @@ from engine.api.app import create_app
 from engine.api.routes.oauth import OAuthRoutes
 from engine.api.routes.webhooks import WebhookRoutes
 from engine.auth.providers.registry import Providers
+from engine.cognition.state import Cognition
 from engine.core.config import Config, PlatformSettings
 from engine.core.protocols import JobQueue, TraceSink
 from engine.core.types import ChannelRef, ChatMessage, ConfigError, SandboxError
@@ -208,10 +209,12 @@ def assemble(config: Config, only: Sequence[str] = (), sandbox_ready: bool = Tru
         org_context=org_context,
         embedder=embedder,
         documents=documents,
-        collaboration=collaboration,
-        settings=config.collaboration,
-        conditioning=config.models["chat"].conditioning,
-        model=config.models["chat"].model,
+        cognition=Cognition(
+            store=collaboration,
+            settings=config.collaboration,
+            conditioning=config.models["chat"].conditioning,
+            model=config.models["chat"].model,
+        ),
         files=config.files,
         sandbox=sandbox,
     )

@@ -97,6 +97,7 @@ modules = ["cli", "testbed"]
 #   gateway
 #   agent
 #   memory | tools | llm | auth
+#   cognition
 #   data
 #   telemetry
 #   core
@@ -116,6 +117,7 @@ layers = [
     "engine.gateway",
     "engine.agent",
     "engine.memory | engine.tools | engine.llm | engine.auth",
+    "engine.cognition",
     "engine.data",
     "engine.telemetry",
     "engine.core",

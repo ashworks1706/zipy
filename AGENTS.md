@@ -74,7 +74,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for releases and the full CI and CD table
 One repo: a uv workspace of three Python apps, and the website. Language is never a folder.
 
 ```
-apps/engine     the one process: platforms, api, workers, gateway, agent, tools, memory, llm,
+apps/engine     the one process: platforms, api, workers, gateway, agent, tools, memory,
+                cognition, llm,
                 auth, data
 apps/cli        the developer console; assets/ holds the logo animation exports
 apps/testbed    the offline half: datasets, curation, post-training, and experiments over what
@@ -110,6 +111,8 @@ platforms | api | workers
 gateway         platform-neutral: org and role, rate limit, admin commands, confirmations
 agent           orchestrator, prompt builder, classifier
 memory | tools | llm | auth
+cognition       how the agent works with one person: a turn read into signals, what is held,
+                and what conditions on it. Never an input to a permission or a confirmation
 data            postgres, pgvector, redis, the credential vault
 telemetry       structlog, trace files, prometheus metrics, sentry
 core            config, types, protocols, doubles
@@ -181,7 +184,7 @@ which the gate never installs.
 
 Everything is OpenAI-compatible, so a tier is a `[models.chat]` change: a hosted provider,
 llama.cpp via `just model`, or vLLM. `conditioning` on the role says what the endpoint accepts.
-`memory/collaboration.py` holds one renderer per conditioning and `core/types` names which exist;
+`cognition/conditioning/` holds one renderer per conditioning and `core/types` names which exist;
 anything else is refused at boot. Text is the only one built and works on every tier. Adding a
 prefix renderer is a renderer plus a serving tier, never a change to the gateway or the loop.
 

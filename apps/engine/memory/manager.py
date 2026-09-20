@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from engine.core.config import Collaboration, Files, Memory
+from engine.cognition.state import Cognition
+from engine.core.config import Files, Memory
 from engine.core.protocols import (
-    CollaborationStore,
     ConversationSource,
     DocumentStore,
     Embedder,
@@ -16,15 +16,11 @@ from engine.core.protocols import (
 )
 from engine.core.types import (
     ChatMessage,
-    Conditioning,
     IngestError,
-    Provenance,
     RecallHit,
     RequestContext,
     Signal,
 )
-from engine.memory import follow_up
-from engine.memory.collaboration import render as render_collaborator
 from engine.memory.ingest import files as file_reader
 from engine.memory.ingest.pipeline import ingest
 from engine.memory.org_context import render
@@ -55,10 +51,7 @@ class MemoryManager:
         org_context: OrgContextStore,
         embedder: Embedder,
         documents: DocumentStore,
-        collaboration: CollaborationStore,
-        settings: Collaboration,
-        conditioning: Conditioning = Conditioning.TEXT,
-        model: str = "",
+        cognition: Cognition,
         files: Files | None = None,
         sandbox: Sandbox | None = None,
     ) -> None:
@@ -67,10 +60,7 @@ class MemoryManager:
         self._org_context = org_context
         self._embedder = embedder
         self._documents = documents
-        self._collaboration = collaboration
-        self._settings = settings
-        self._conditioning = conditioning
-        self._model = model
+        self._cognition = cognition
         self._files = files or Files()
         self._sandbox = sandbox
 
@@ -116,31 +106,12 @@ class MemoryManager:
         self, ctx: RequestContext, message: str, history: list[ChatMessage]
     ) -> None:
         """Record what a follow-up turn shows before the state is read for this request."""
-        if not self._settings.enabled:
-            return
-        signals = follow_up.read(
-            message,
-            history,
-            self._settings.brevity_triggers,
-            self._settings.detail_triggers,
-            self._settings.correction_triggers,
-        )
-        await self.observe(ctx, signals)
+        await self.observe(ctx, self._cognition.read(message, history))
 
     async def _collaborator(self, ctx: RequestContext) -> str:
-        """What the asker's state asks for, or nothing while collaboration is off."""
-        if not self._settings.enabled:
-            return ""
-        state = await self._collaboration.state(ctx.org_id, ctx.member)
-        return render_collaborator(state, self._settings.min_observations, self._conditioning)
+        """What the asker's state asks for, or nothing while cognition is off."""
+        return await self._cognition.conditioning(ctx)
 
     async def observe(self, ctx: RequestContext, signals: Sequence[Signal]) -> None:
-        """Records what a turn showed about the asker. Does nothing while collaboration is off."""
-        if not self._settings.enabled or not signals:
-            return
-        await self._collaboration.observe(
-            ctx.org_id,
-            ctx.member,
-            signals,
-            Provenance(request_id=ctx.request_id, arm=self._settings.arm, model=self._model),
-        )
+        """Records what a turn showed about the asker. Does nothing while cognition is off."""
+        await self._cognition.observe(ctx, signals)

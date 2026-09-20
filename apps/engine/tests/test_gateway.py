@@ -10,6 +10,7 @@ from pydantic import BaseModel, SecretStr
 
 from engine.agent.orchestrator import Orchestrator
 from engine.agent.prompt import PromptBuilder
+from engine.cognition.state import Cognition
 from engine.core.config import Agent, Data, Permissions, RateLimit, ToolSettings
 from engine.core.doubles import (
     AllowAll,
@@ -256,8 +257,10 @@ def stack(
             org_context=org_context,
             embedder=FixedEmbedder([0.1]),
             documents=MemoryDocuments(),
-            collaboration=collaboration,
-            settings=cfg.collaboration,
+            cognition=Cognition(
+                store=collaboration,
+                settings=cfg.collaboration,
+            ),
         ),
         prompts=PromptBuilder(TEMPLATE, "Zipy"),
         registry=registry,
