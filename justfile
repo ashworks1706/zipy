@@ -111,7 +111,7 @@ traces *ARGS:
 eval *ARGS:
     uv run zipy eval {{ARGS}}
 
-# ---------- training ----------
+# ---------- testbed ----------
 
 # Datasets from real runs: export, verify, review, curate, stats
 data *ARGS:

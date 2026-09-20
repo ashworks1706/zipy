@@ -13,8 +13,8 @@ __pycache__
 .claude
 docs
 apps/cli
-apps/training
+apps/testbed
 # The lockfile is checked against every workspace member, so the manifests go in.
 !apps/cli/pyproject.toml
-!apps/training/pyproject.toml
+!apps/testbed/pyproject.toml
 apps/website

@@ -34,7 +34,7 @@ jobs:
             python:
               - 'apps/engine/**'
               - 'apps/cli/**'
-              - 'apps/training/**'
+              - 'apps/testbed/**'
               - 'tests/**'
               - 'evals/**'
               - 'docs/USER_STORIES.md'

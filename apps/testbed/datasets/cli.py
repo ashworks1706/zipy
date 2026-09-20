@@ -9,9 +9,9 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from training.core.settings import load
-from training.core.types import TrainingError, TrainingExample
-from training.datasets import curate, export, redact, review, verify
+from testbed.core.settings import load
+from testbed.core.types import TrainingError, TrainingExample
+from testbed.datasets import curate, export, redact, review, verify
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 console = Console()

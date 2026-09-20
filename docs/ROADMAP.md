@@ -54,7 +54,7 @@ The stand-in proves the code, not that the provider agrees with it.
 - [ ] make short tech writeup on readme
 - [x] Eval cases from the user stories, scored on correctness and behaviour, over fixtures
 - [x] `zipy eval-add` drafts a case from a real request's trace
-- [x] `apps/training`: traces to examples, reviewed one at a time, curated set, SFT
+- [x] `apps/testbed`: traces to examples, reviewed one at a time, curated set, SFT
 - [ ] A model post-trained on curated runs, kept only if the eval suite says it helps
 
 ## v0.7 Collaboration state
@@ -101,7 +101,7 @@ limits the adaptation.
   the platform, and collaboration state records what behaviour showed rather than what was said.
   A training dataset is the one thing that holds conversation text, and it is not the runtime: it
   is built by hand from local traces, redacted, reviewed example by example, and never read by a
-  request. `apps/training` is not deployed, and the engine never imports it.
+  request. `apps/testbed` is not deployed, and the engine never imports it.
 - Letting an MCP server decide what an action may do. A server says what its tools take; the
   action type, the confirmation, the role check and the audit entry stay here.
 - Features that work on only one platform when the gateway could offer them on all

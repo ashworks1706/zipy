@@ -18,7 +18,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from training.core.types import Answer, TrainingExample
+from testbed.core.types import Answer, TrainingExample
 
 #: What each key means.
 ANSWERS: dict[str, Answer] = {

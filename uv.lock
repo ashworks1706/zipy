@@ -20,7 +20,7 @@ resolution-markers = [
 members = [
     "cli",
     "engine",
-    "training",
+    "testbed",
 ]
 
 [manifest.dependency-groups]
@@ -4097,6 +4097,42 @@ wheels = [
 ]
 
 [[package]]
+name = "testbed"
+version = "0.1.0"
+source = { editable = "apps/testbed" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "typer" },
+]
+
+[package.optional-dependencies]
+gpu = [
+    { name = "datasets" },
+    { name = "torch" },
+    { name = "transformers" },
+    { name = "trl" },
+    { name = "unsloth" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "datasets", marker = "extra == 'gpu'", specifier = ">=3.0" },
+    { name = "pydantic", specifier = ">=2.10" },
+    { name = "pydantic-settings", specifier = ">=2.7" },
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "rich", specifier = ">=13" },
+    { name = "torch", marker = "extra == 'gpu'", specifier = ">=2.5" },
+    { name = "transformers", marker = "extra == 'gpu'", specifier = ">=4.47" },
+    { name = "trl", marker = "extra == 'gpu'", specifier = ">=0.12" },
+    { name = "typer", specifier = ">=0.15" },
+    { name = "unsloth", marker = "extra == 'gpu'", specifier = ">=2024.12" },
+]
+provides-extras = ["gpu"]
+
+[[package]]
 name = "textual"
 version = "8.2.8"
 source = { registry = "https://pypi.org/simple" }
@@ -4281,42 +4317,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/0d/ea/b2a5bd54b28a324da
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl", hash = "sha256:c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73", size = 80199, upload-time = "2026-09-11T07:25:14.599Z" },
 ]
-
-[[package]]
-name = "training"
-version = "0.1.0"
-source = { editable = "apps/training" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pyyaml" },
-    { name = "rich" },
-    { name = "typer" },
-]
-
-[package.optional-dependencies]
-gpu = [
-    { name = "datasets" },
-    { name = "torch" },
-    { name = "transformers" },
-    { name = "trl" },
-    { name = "unsloth" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "datasets", marker = "extra == 'gpu'", specifier = ">=3.0" },
-    { name = "pydantic", specifier = ">=2.10" },
-    { name = "pydantic-settings", specifier = ">=2.7" },
-    { name = "pyyaml", specifier = ">=6" },
-    { name = "rich", specifier = ">=13" },
-    { name = "torch", marker = "extra == 'gpu'", specifier = ">=2.5" },
-    { name = "transformers", marker = "extra == 'gpu'", specifier = ">=4.47" },
-    { name = "trl", marker = "extra == 'gpu'", specifier = ">=0.12" },
-    { name = "typer", specifier = ">=0.15" },
-    { name = "unsloth", marker = "extra == 'gpu'", specifier = ">=2024.12" },
-]
-provides-extras = ["gpu"]
 
 [[package]]
 name = "transformers"

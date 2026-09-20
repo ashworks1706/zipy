@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from training.core.types import TrainingExample
+from testbed.core.types import TrainingExample
 
 #: What is replaced, and what it is replaced by.
 PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (

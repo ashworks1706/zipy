@@ -13,7 +13,7 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from training.core.types import SftConfig, SftPlan, TrainingError, TrainingExample
+from testbed.core.types import SftConfig, SftPlan, TrainingError, TrainingExample
 
 
 def load_config(path: Path) -> SftConfig:

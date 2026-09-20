@@ -18,7 +18,7 @@ from pydantic_settings import (
     TomlConfigSettingsSource,
 )
 
-from training.core.types import TrainingError
+from testbed.core.types import TrainingError
 
 
 class _Foreign(BaseModel):
@@ -39,7 +39,7 @@ class Training(BaseModel):
     #: Generated data. Ignored by git.
     data_dir: Path = Path(".zipy/training")
     #: The review decisions, in source control.
-    decisions_path: Path = Path("apps/training/curation/decisions.jsonl")
+    decisions_path: Path = Path("apps/testbed/curation/decisions.jsonl")
     #: Traces older than this are skipped by export. Zero reads every one.
     max_age_days: int = 0
 

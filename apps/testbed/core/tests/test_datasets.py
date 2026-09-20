@@ -6,10 +6,10 @@ import json
 import pytest
 from rich.console import Console
 
-from training.core.settings import Config
-from training.core.types import TrainingError, TrainingExample
-from training.datasets import curate, export, redact, review, verify
-from training.posttrain import sft
+from testbed.core.settings import Config
+from testbed.core.types import TrainingError, TrainingExample
+from testbed.datasets import curate, export, redact, review, verify
+from testbed.posttrain import sft
 
 GENERATION = {
     "at": "2026-09-18T02:00:00+00:00",
@@ -278,7 +278,7 @@ def test_a_negative_age_is_refused(monkeypatch):
 def test_the_committed_train_config_loads_and_reads_the_curated_set():
     from pathlib import Path
 
-    cfg = sft.load_config(Path("apps/training/configs/train/sft.yaml"))
+    cfg = sft.load_config(Path("apps/testbed/configs/train/sft.yaml"))
     assert cfg.dataset.name == "sft.jsonl"
     assert cfg.train.epochs > 0
 

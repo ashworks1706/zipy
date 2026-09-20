@@ -7,14 +7,14 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from training.core.types import TrainingError
-from training.posttrain import sft
+from testbed.core.types import TrainingError
+from testbed.posttrain import sft
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 console = Console()
 err = Console(stderr=True)
 
-DEFAULT_CONFIG = Path("apps/training/configs/train/sft.yaml")
+DEFAULT_CONFIG = Path("apps/testbed/configs/train/sft.yaml")
 
 
 @app.callback()

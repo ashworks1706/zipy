@@ -217,7 +217,7 @@ apps/engine/
 apps/cli/               the developer console over just recipes
   assets/               logo.json, logo-animated.json: the logo animation, ASCII Motion exports
   logo.py, splash.py    the animation the console opens with
-apps/training/          datasets from real runs, and the post-training that reads them
+apps/testbed/          the offline half: datasets, curation, post-training, experiments
   core/                 settings and types; imports nothing else in the repo
   datasets/             export, redact, verify, curate, review, the data command
   curation/             decisions.jsonl, in source control
@@ -979,9 +979,15 @@ serving tier rather than a change to the gateway, the orchestrator or the prompt
 that is worth building is a question for the contrast table, not for the architecture.
 
 
-## Training
+## The testbed
 
-`apps/training` turns the same traces into a dataset. A `generation` event carries the messages
+`apps/testbed` is where a run is read back rather than made. The split with `engine.evals` is the
+independence contract: evals is a layer of the engine, so it can build the real gateway and run a
+case; the testbed imports no engine code and works from the database, the traces and exported
+files. An experiment that needs the agent to run belongs in evals; one that asks what already
+happened belongs here, as a folder in `apps/testbed/experiments/`.
+
+Datasets are the part built. `apps/testbed` turns the same traces into a dataset. A `generation` event carries the messages
 sent to the model and the reply that came back, so an example needs no translation to be trained
 on, and nothing here needs a telemetry service.
 
@@ -996,13 +1002,13 @@ train sft      post-training over that set
 An example nobody has reviewed is not training data. That is the whole point of the step: a model
 trained on an unreviewed export learns whatever the current one already does, mistakes included.
 
-The decisions live in `apps/training/curation/decisions.jsonl`, in source control, because an
+The decisions live in `apps/testbed/curation/decisions.jsonl`, in source control, because an
 export can be run again and produces the same examples while a judgment cannot. Each decision
 carries the fingerprint of the example it judged, so an example that changed underneath is reported
 as stale rather than trained on under a judgment about something else.
 
 `train sft` needs a GPU and the `gpu` extra, which the gate never installs. It writes an adapter;
-what serves one is a question for `[models.chat]` and is not decided in `apps/training`. The app
+what serves one is a question for `[models.chat]` and is not decided in `apps/testbed`. The app
 imports nothing else in the repo, which the independence contract holds it to.
 
 
@@ -1143,7 +1149,7 @@ and the Release workflow verifies every version against the tag before publishin
 | Layering | import-linter contracts; grimp-based plugin isolation tests | `[tool.importlinter]`, `tests/test_plugins.py` |
 | Tests | pytest, pytest-asyncio; `integration` marker for Postgres and Redis, which need ZIPY_TEST_DATABASE_URL because they drop every table; eslint and tsc for the website | `apps/**/tests`, `just check-website` |
 | Evals | the user stories as cases, scored on correctness and behaviour, against the configured model over fixtures; not part of the gate | `evals/`, `engine/evals`, `just eval` |
-| Datasets and training | traces to examples, a committed ledger of keep, drop and fix decisions, Unsloth QLoRA over what was accepted | `apps/training`, `just data`, `just train` |
+| Datasets and training | traces to examples, a committed ledger of keep, drop and fix decisions, Unsloth QLoRA over what was accepted | `apps/testbed`, `just data`, `just train` |
 | Diagrams | mermaid, rendered by mermaid-cli in `just diagrams` | `docs/ARCHITECTURE.md` |
 | Container | uv base image, non-root, amd64 and arm64 | `deploy/Dockerfile` |
 | Deploy | Docker Compose on one VPS; Caddy or nginx for HTTPS | `deploy/compose.yml`, `deploy/compose.prod.yml` |

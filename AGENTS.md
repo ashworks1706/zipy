@@ -77,7 +77,8 @@ One repo: a uv workspace of three Python apps, and the website. Language is neve
 apps/engine     the one process: platforms, api, workers, gateway, agent, tools, memory, llm,
                 auth, data
 apps/cli        the developer console; assets/ holds the logo animation exports
-apps/training   datasets from real runs, the decisions about them, and post-training
+apps/testbed    the offline half: datasets, curation, post-training, and experiments over what
+                a deployment produced
 apps/website    the landing page: Next.js, React, Tailwind, TypeScript; no blog
 docs/           ROADMAP.md, ARCHITECTURE.md
 evals/          the cases and fixtures just eval runs
@@ -157,15 +158,21 @@ Every replaceable dependency is a protocol in `engine/core/protocols.py` with a 
 `CollaborationStore`. A new one gets a protocol
 and a double in the same change.
 
-## Datasets and training
+## The testbed
 
-`apps/training` is the third app, and imports nothing else in the repo. It reads the same traces
-the evals draft cases from: `data export` turns every `generation` event into an example,
+`apps/testbed` is the third app, and imports nothing else in the repo. That line is what keeps
+the two halves apart: anything which has to run the agent lives in `engine.evals`, a layer of the
+engine with the gateway and the orchestrator under it, and anything which reads back what a run
+or a deployment produced lives here, over the database, the traces and exported files. A new
+experiment is a folder in `apps/testbed/experiments/` and needs no permission from this document.
+
+Datasets are the part that exists today. It reads the same traces the evals draft cases from:
+`data export` turns every `generation` event into an example,
 `data verify` drops the malformed and the duplicates, `data review` judges them one at a time, and
 `data curate` builds the training set from what was accepted. An example nobody reviewed is not
 training data.
 
-The decisions live in `apps/training/curation/decisions.jsonl`, committed: an export can be run
+The decisions live in `apps/testbed/curation/decisions.jsonl`, committed: an export can be run
 again, a judgment cannot. Each carries the fingerprint of the example it judged, so a changed
 example is reported as stale rather than trained on. `train sft` needs a GPU and the `gpu` extra,
 which the gate never installs.
