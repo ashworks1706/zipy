@@ -78,6 +78,8 @@ limits the adaptation.
 - [x] Readable and correctable by the person it describes, with `prefer`
 - [x] Conditions the prompt behind a switch, off until the evals say it earns its place
 - [x] A conditioning seam: one renderer per endpoint capability, text built
+- [x] Every observation kept with the request, the arm and the model behind it, so the sequence
+      the moving average came from is not lost
 - [ ] Run the contrast table against a real model and decide whether it ships on
 - [ ] A team-level state under the person's, for norms one person did not set
 - [ ] Measured by the behaviour axis of the eval suite: same question, same model, different

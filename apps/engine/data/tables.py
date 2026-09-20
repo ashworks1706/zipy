@@ -106,6 +106,33 @@ class OrgContextRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class MemberObservationRow(Base):
+    """One observation that moved one dimension, kept after it was applied.
+
+    member_state holds where a person is; this holds how they got there. The scores are a moving
+    average, so the sequence behind them cannot be recovered from the state and is gone unless it
+    is written here. No text column, for the same reason member_state has none: a dimension, a
+    target, the category of evidence, and which run produced it.
+    """
+
+    __tablename__ = "member_observations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    org_id: Mapped[UUID] = mapped_column(ForeignKey("orgs.org_id"), index=True)
+    platform: Mapped[str] = mapped_column(ID)
+    user_id: Mapped[str] = mapped_column(ID)
+    dimension: Mapped[str] = mapped_column(ID)
+    target: Mapped[float] = mapped_column(Double)
+    evidence: Mapped[str] = mapped_column(ID)
+    weight: Mapped[float] = mapped_column(Double)
+    request_id: Mapped[str] = mapped_column(ID, default="")
+    #: The variant this request ran under. Empty when nothing is being compared.
+    arm: Mapped[str] = mapped_column(ID, default="")
+    #: What served the request, so a provider changing a model is visible rather than read as drift.
+    model: Mapped[str] = mapped_column(String(200), default="")
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class MemberStateRow(Base):
     """How one person works with the agent, as scores.
 

@@ -37,6 +37,7 @@ from engine.core.types import (
     OrgId,
     OrgToolConfig,
     PendingConfirmation,
+    Provenance,
     ProviderAuth,
     RateLimited,
     Role,
@@ -69,7 +70,13 @@ from engine.data.repos.org_context import PgOrgContext
 from engine.data.repos.orgs import PgOrgs
 from engine.data.repos.tool_config import PgToolConfig
 from engine.data.repos.workspaces import PgWorkspaces
-from engine.data.tables import EMBEDDING_DIMENSIONS, AuditRow, Base, CredentialRow
+from engine.data.tables import (
+    EMBEDDING_DIMENSIONS,
+    AuditRow,
+    Base,
+    CredentialRow,
+    MemberObservationRow,
+)
 
 DATABASE_URL = os.environ.get("ZIPY_TEST_DATABASE_URL", "")
 REDIS_URL = os.environ.get("ZIPY_DATA__REDIS_URL", "redis://127.0.0.1:6379/0")
@@ -414,12 +421,10 @@ async def test_collaboration_state_moves_by_signals_and_never_crosses_an_org(fac
     assert (await collaboration.state(soda.org_id, ash)).observations == 0
     assert (await collaboration.state(soda.org_id, ash)).score(Dimension.DEPTH) == NEUTRAL
 
-    await collaboration.observe(
-        soda.org_id, ash, [Signal(Dimension.DEPTH, 0.0, Evidence.CONFIRMATION_CANCELLED)]
-    )
-    await collaboration.observe(
-        soda.org_id, ash, [Signal(Dimension.DEPTH, 0.0, Evidence.CONFIRMATION_CANCELLED)]
-    )
+    signal = [Signal(Dimension.DEPTH, 0.0, Evidence.CONFIRMATION_CANCELLED)]
+    where = Provenance(request_id="req-1", arm="control", model="a-model")
+    await collaboration.observe(soda.org_id, ash, signal, where)
+    await collaboration.observe(soda.org_id, ash, signal, where)
     twice = await collaboration.state(soda.org_id, ash)
     assert twice.observations == 2
     assert twice.score(Dimension.DEPTH) < NEUTRAL
@@ -432,6 +437,43 @@ async def test_collaboration_state_moves_by_signals_and_never_crosses_an_org(fac
     assert (await collaboration.state(soda.org_id, ash)).observations == 2
     await collaboration.forget(soda.org_id, ash)
     assert (await collaboration.state(soda.org_id, ash)).observations == 0
+
+
+@pytest.mark.integration
+async def test_every_observation_is_kept_with_where_it_came_from(factory):
+    """The state is a moving average, so the signals behind it are only where they are written."""
+    orgs, collaboration = PgOrgs(factory), PgCollaboration(factory)
+    soda = await orgs.create("SoDA", 500)
+    ash = MemberRef("discord", "u1")
+
+    await collaboration.observe(
+        soda.org_id,
+        ash,
+        [
+            Signal(Dimension.DEPTH, 0.0, Evidence.ASKED_FOR_BREVITY),
+            Signal(Dimension.AUTONOMY, 1.0, Evidence.CONFIRMATION_CONFIRMED, weight=4.0),
+        ],
+        Provenance(request_id="req-7", arm="conditioned", model="a-model"),
+    )
+
+    async with factory() as session:
+        rows = (
+            await session.scalars(
+                select(MemberObservationRow).order_by(MemberObservationRow.dimension)
+            )
+        ).all()
+    assert [(row.dimension, row.target, row.evidence, row.weight) for row in rows] == [
+        (Dimension.AUTONOMY.value, 1.0, Evidence.CONFIRMATION_CONFIRMED.value, 4.0),
+        (Dimension.DEPTH.value, 0.0, Evidence.ASKED_FOR_BREVITY.value, 1.0),
+    ]
+    assert {(row.request_id, row.arm, row.model) for row in rows} == {
+        ("req-7", "conditioned", "a-model")
+    }
+
+    # The state can be dropped; what it was derived from is a separate decision.
+    await collaboration.forget(soda.org_id, ash)
+    async with factory() as session:
+        assert len((await session.scalars(select(MemberObservationRow))).all()) == 2
 
 
 @pytest.mark.integration

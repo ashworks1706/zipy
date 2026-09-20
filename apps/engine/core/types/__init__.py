@@ -26,6 +26,7 @@ from engine.core.types.collaboration import (
     Conditioning,
     Dimension,
     Evidence,
+    Provenance,
     Signal,
 )
 from engine.core.types.errors import (
@@ -80,6 +81,7 @@ __all__ = [
     "Conditioning",
     "Dimension",
     "Evidence",
+    "Provenance",
     "Signal",
     "ActionType",
     "AgentReply",

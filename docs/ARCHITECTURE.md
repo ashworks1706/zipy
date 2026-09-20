@@ -712,6 +712,15 @@ rendered into the system prompt as instructions rather than numbers, it never ov
 permission check or a confirmation, and `collaboration.enabled` is false until the eval suite's
 behaviour axis says it earns its place.
 
+Every signal is kept in `member_observations` after it is applied: the dimension, the target, the
+category of evidence, the request that produced it, the arm the request ran under and what model
+served it. No text column there either. The state is a moving average, so the sequence behind it
+cannot be recovered from it, and a question about how someone's state got where it is has nowhere
+else to look. `arm` and `model` are written from the start rather than added later, because a
+variant recorded after the fact is a guess and a provider changing a model underneath a deployment
+would otherwise read as the state drifting on its own. `apps/testbed` reads that table; the engine
+only writes it.
+
 It moves three ways. Answering a confirmation is read as a signal on autonomy: confirming says the
 asking was unnecessary, cancelling says it was not. A turn that follows an answer is read for what
 it asks for: shorter, or more, or that the answer was wrong; the category is kept and the words are

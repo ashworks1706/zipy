@@ -23,6 +23,7 @@ from engine.core.types import (
     OrgId,
     OrgToolConfig,
     PendingConfirmation,
+    Provenance,
     ProviderAuth,
     RecallHit,
     RequestContext,
@@ -141,13 +142,22 @@ class MemoryCollaboration:
     """Collaboration state held in a dict."""
 
     by_member: dict[tuple[OrgId, MemberRef], CollaborationState] = field(default_factory=dict)
+    #: Every signal applied, with where it came from. The append-only log, in memory.
+    observed: list[tuple[Provenance, Signal]] = field(default_factory=list)
 
     async def state(self, org_id: OrgId, member: MemberRef) -> CollaborationState:
         return self.by_member.get((org_id, member), CollaborationState(member=member))
 
-    async def observe(self, org_id: OrgId, member: MemberRef, signals: Sequence[Signal]) -> None:
+    async def observe(
+        self,
+        org_id: OrgId,
+        member: MemberRef,
+        signals: Sequence[Signal],
+        provenance: Provenance,
+    ) -> None:
         current = await self.state(org_id, member)
         self.by_member[(org_id, member)] = apply_signals(current, signals)
+        self.observed.extend((provenance, signal) for signal in signals)
 
     async def forget(self, org_id: OrgId, member: MemberRef) -> None:
         self.by_member.pop((org_id, member), None)

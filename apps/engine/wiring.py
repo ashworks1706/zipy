@@ -211,6 +211,7 @@ def assemble(config: Config, only: Sequence[str] = (), sandbox_ready: bool = Tru
         collaboration=collaboration,
         settings=config.collaboration,
         conditioning=config.models["chat"].conditioning,
+        model=config.models["chat"].model,
         files=config.files,
         sandbox=sandbox,
     )

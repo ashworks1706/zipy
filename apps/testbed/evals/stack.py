@@ -137,6 +137,7 @@ def build(config: Config, raw: dict[str, Any], model: ChatModel | None = None) -
             documents=MemoryDocuments(),
             collaboration=collaboration,
             settings=config.collaboration,
+            model=config.models["chat"].model,
         ),
         prompts=PromptBuilder(system_template(config.agent.system_template), config.app.name),
         registry=replayed,

@@ -77,6 +77,20 @@ class Signal:
 
 
 @dataclass(frozen=True)
+class Provenance:
+    """Where one observation came from, so a run can be told apart from another later.
+
+    Identifiers and categories, like the signal it accompanies. arm names the variant the request
+    ran under and model names what served it, because a provider changing a model underneath a
+    deployment would otherwise read as the state drifting on its own.
+    """
+
+    request_id: str = ""
+    arm: str = ""
+    model: str = ""
+
+
+@dataclass(frozen=True)
 class CollaborationState:
     """A person's scores, and how many observations are behind them."""
 

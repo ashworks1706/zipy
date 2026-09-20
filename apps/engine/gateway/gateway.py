@@ -34,6 +34,7 @@ from engine.core.types import (
     OrgFact,
     OrgToolConfig,
     Progress,
+    Provenance,
     RequestContext,
     Role,
     Signal,
@@ -468,6 +469,11 @@ class Gateway:
                     weight=STATED_WEIGHT,
                 )
             ],
+            Provenance(
+                request_id=ctx.request_id,
+                arm=self._config.collaboration.arm,
+                model=self._config.models["chat"].model,
+            ),
         )
         return await self._preferences(ctx)
 

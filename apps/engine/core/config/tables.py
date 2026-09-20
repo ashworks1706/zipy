@@ -141,6 +141,8 @@ class Collaboration(_Table):
     enabled: bool = False
     alpha: float = 0.15
     min_observations: int = 5
+    #: The variant a run is recorded under, written onto every observation. Empty compares nothing.
+    arm: str = ""
     # Phrases that read a follow-up turn. Only a turn right after an answer is read at all.
     brevity_triggers: list[str] = []
     detail_triggers: list[str] = []
