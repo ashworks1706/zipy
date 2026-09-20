@@ -1,21 +1,46 @@
 import type { CSSProperties } from "react";
 
-/** Squares across one strip. The outermost is column 0, whichever edge the strip sits on. */
-const COLUMNS = 7;
+/** Squares across one field. Column 0 is the outer edge, whichever side the field sits on. */
+const COLUMNS = 12;
 
-/** Squares down one strip. Fixed, so the pattern does not reflow as the viewport changes. */
-const ROWS = 22;
+/** Rows generated. The cell is a fixed square, so this covers the tallest viewport and the rest
+    is clipped. Fixed, so the pattern does not reflow as the viewport changes. */
+const ROWS = 110;
+
+/** How fast the scatter thins out. Above one it clears quickly and leaves stragglers. */
+const FALLOFF = 1.6;
 
 type Square = { row: number; column: number };
 
-/** The filled half of the checkerboard. The other half is the ground showing through. */
+/**
+ * A value in [0, 1) for one cell. Integer operations only, so the server and the browser agree
+ * and the markup they each produce is the same.
+ */
+function noise(row: number, column: number) {
+  let hash = (row * 73856093) ^ (column * 19349663);
+  hash = Math.imul(hash ^ (hash >>> 15), 2246822519);
+  hash = Math.imul(hash ^ (hash >>> 13), 3266489917);
+  return ((hash ^ (hash >>> 16)) >>> 0) / 4294967296;
+}
+
+/**
+ * The squares of one field: a checkerboard against the edge, thinning into loose blocks inward.
+ *
+ * Every square sits on the checkerboard lattice, so the scatter still reads as a flag coming
+ * apart rather than as noise. Which of them survive is decided per cell and does not change
+ * between renders.
+ */
 const SQUARES: Square[] = Array.from({ length: ROWS }, (_, row) =>
   Array.from({ length: COLUMNS }, (_, column) => ({ row, column })),
 )
   .flat()
-  .filter(({ row, column }) => (row + column) % 2 === 0);
+  .filter(
+    ({ row, column }) =>
+      (row + column) % 2 === 0 &&
+      noise(row, column) < (1 - column / (COLUMNS - 1)) ** FALLOFF,
+  );
 
-function Strip({ side }: { side: "left" | "right" }) {
+function Field({ side }: { side: "left" | "right" }) {
   return (
     <div className={`flag flag-${side}`} aria-hidden="true">
       {SQUARES.map(({ row, column }) => (
@@ -37,17 +62,17 @@ function Strip({ side }: { side: "left" | "right" }) {
 }
 
 /**
- * Two checkered strips that race in from the edges on load and fade out toward the middle.
+ * Two checkered fields that race in from the edges on load and scatter toward the middle.
  *
- * Decoration only. Every square is the same colour and opacity; the dissipation is a mask on the
- * strip rather than a value per square, so the falloff does not have to be kept in step with the
- * number of columns.
+ * Decoration only. Every square is the same colour and opacity; the fade is a mask on the field
+ * rather than a value per square, so the falloff does not have to be kept in step with the number
+ * of columns.
  */
 export function FlagStrips() {
   return (
     <>
-      <Strip side="left" />
-      <Strip side="right" />
+      <Field side="left" />
+      <Field side="right" />
     </>
   );
 }

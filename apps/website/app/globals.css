@@ -12,7 +12,9 @@
   --fg: #ece8ef;
   --fg-dim: #8e8397;
   /* --font-blocks covers only U+2500-259F; every other glyph comes from --font-mono. */
-  --flag-width: clamp(3.5rem, 13vw, 10rem);
+  /* One square of a field. Everything about a field is a multiple of it, so the squares
+     stay square at every width rather than stretching with the viewport. */
+  --flag-cell: clamp(8px, 1.1vw, 16px);
   --mono:
     var(--font-mono), var(--font-blocks), ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -46,14 +48,16 @@ code {
   min-height: 100svh;
   display: grid;
   place-items: center;
-  /* Clear of the strips, so the wordmark never runs into them at a narrow width. */
-  padding: 2rem calc(var(--flag-width) + 0.75rem);
+  /* Clear of the dense part of the fields, eight of their twelve columns, so the wordmark never
+     runs into them at a narrow width. Past that the squares are scattered and the mask has most
+     of the way faded them, so the content may sit over the rest of the field. */
+  padding: 2rem calc(var(--flag-cell) * 8 + 0.75rem);
   /* Above the strips, which are fixed at the edges behind it. */
   position: relative;
   z-index: 1;
 }
 
-/* A checkered strip at each edge, racing in from the outside on load.
+/* A checkered field at each edge, racing in from the outside on load and scattering inward.
 
    Fixed rather than absolute so it spans the viewport whatever the page height, and masked from
    the outer edge inward so it fades out before it reaches the content rather than stopping on a
@@ -62,14 +66,16 @@ code {
   position: fixed;
   top: 0;
   bottom: 0;
-  width: var(--flag-width);
+  width: calc(var(--flag-cell) * 12);
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  grid-template-rows: repeat(22, 1fr);
+  grid-template-columns: repeat(12, var(--flag-cell));
+  grid-auto-rows: var(--flag-cell);
+  /* Rows past the bottom of the viewport are generated and clipped rather than squeezed. */
+  overflow: hidden;
   pointer-events: none;
   z-index: 0;
-  -webkit-mask-image: linear-gradient(to right, #000 0%, transparent 100%);
-  mask-image: linear-gradient(to right, #000 0%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 100%);
 }
 
 .flag-left {
@@ -88,7 +94,7 @@ code {
   opacity: 0;
   animation: flag-in 620ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   /* Column sets the race inward; row offsets it so the edge arrives as a ripple, not a bar. */
-  animation-delay: calc(var(--column) * 110ms + var(--row) * 14ms);
+  animation-delay: calc(var(--column) * 55ms + var(--row) * 11ms);
 }
 
 @keyframes flag-in {
