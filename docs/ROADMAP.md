@@ -53,7 +53,7 @@ The stand-in proves the code, not that the provider agrees with it.
 - [ ] run on existing benchmarks
 - [ ] make short tech writeup on readme
 - [x] Eval cases from the user stories, scored on correctness and behaviour, over fixtures
-- [x] `zipy eval-add` drafts a case from a real request's trace
+- [x] `evals add` drafts a case from a real request's trace
 - [x] `apps/testbed`: traces to examples, reviewed one at a time, curated set, SFT
 - [ ] A model post-trained on curated runs, kept only if the eval suite says it helps
 

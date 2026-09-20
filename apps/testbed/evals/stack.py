@@ -41,7 +41,6 @@ from engine.core.types import (
     Workspace,
     WorkspaceRef,
 )
-from engine.evals import fixtures
 from engine.gateway.gateway import Gateway
 from engine.gateway.messages import Capabilities
 from engine.llm.client import LiteLlmChat
@@ -50,6 +49,7 @@ from engine.memory.manager import MemoryManager
 from engine.tools.executor import Executor
 from engine.tools.registry import Registry
 from engine.wiring import system_template
+from testbed.evals import fixtures
 
 #: The surface a case is asked on. A plain one, so no case is scored on a platform's formatting.
 SURFACE = Capabilities(

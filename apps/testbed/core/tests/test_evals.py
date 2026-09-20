@@ -21,14 +21,14 @@ from engine.core.types import (
     ToolCall,
     ToolError,
 )
-from engine.evals import draft as drafting
-from engine.evals import fixtures, runner
-from engine.evals.cases import Case, Contrast, Suite, load
-from engine.evals.scoring import behaviour, correctness, moved
-from engine.evals.stack import build
 from engine.tools.registry import Registry
+from testbed.evals import draft as drafting
+from testbed.evals import fixtures, runner
+from testbed.evals.cases import Case, Contrast, Suite, load
+from testbed.evals.scoring import behaviour, correctness, moved
+from testbed.evals.stack import build
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 CASES = ROOT / "evals" / "cases.toml"
 FIXTURES = ROOT / "evals" / "fixtures.toml"
 

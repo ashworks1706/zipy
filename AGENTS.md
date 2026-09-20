@@ -98,13 +98,13 @@ edited by hand.
 
 ## The dependency rule
 
-Apps never import each other; the website imports nothing from the repo but its generated frames.
-Inside the engine a package imports only packages below it, never a
-sibling on its own row:
+The testbed reads the engine, because an eval runs the real loop and an experiment reads the real
+stores. The engine never reads the testbed, and the console reads neither. The website imports
+nothing from the repo but its generated frames. Inside the engine a package imports only packages
+below it, never a sibling on its own row:
 
 ```
 commands        the zipy command
-evals           the cases in evals/, run over fixtures rather than providers
 wiring          builds everything, runs platforms + api + workers in one event loop
 platforms | api | workers
 gateway         platform-neutral: org and role, rate limit, admin commands, confirmations
@@ -160,10 +160,10 @@ and a double in the same change.
 
 ## The testbed
 
-`apps/testbed` is the third app, and imports nothing else in the repo. That line is what keeps
-the two halves apart: anything which has to run the agent lives in `engine.evals`, a layer of the
-engine with the gateway and the orchestrator under it, and anything which reads back what a run
-or a deployment produced lives here, over the database, the traces and exported files. A new
+`apps/testbed` is the third app, and the only one that reads another. Everything measuring the
+agent lives here: `evals/` runs the real gateway over fixtures, `datasets/` turns traces into a
+training set, and `experiments/` holds one folder per question. The engine is the thing being
+measured and never imports what measures it, which is what the layers contract says. A new
 experiment is a folder in `apps/testbed/experiments/` and needs no permission from this document.
 
 Datasets are the part that exists today. It reads the same traces the evals draft cases from:
@@ -195,7 +195,7 @@ one case at both ends of one collaboration dimension: correctness must hold, beh
 Renaming a story means renaming its case; a test holds the two files together. `just eval` is not
 part of `just check`, because the gate needs no model.
 
-`zipy eval-add <request-id> --id <case-id>` drafts a case from a real request's trace, with
+`evals add <request-id> --id <case-id>` drafts a case from a real request's trace, with
 `contains` left empty for the reviewer to fill in.
 
 ## Config

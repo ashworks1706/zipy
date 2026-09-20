@@ -217,11 +217,13 @@ apps/engine/
 apps/cli/               the developer console over just recipes
   assets/               logo.json, logo-animated.json: the logo animation, ASCII Motion exports
   logo.py, splash.py    the animation the console opens with
-apps/testbed/          the offline half: datasets, curation, post-training, experiments
-  core/                 settings and types; imports nothing else in the repo
+apps/testbed/           everything that measures the agent; the one app that reads another
+  core/                 settings, types, the tests of this app
+  evals/                cases, fixtures, the stack a case runs on, the evals command
   datasets/             export, redact, verify, curate, review, the data command
   curation/             decisions.jsonl, in source control
   posttrain/            SFT over the curated set, the train command
+  experiments/          one folder per question, imported by nothing
 apps/website/           the landing page, Next.js App Router
   app/                  layout, page, not-found, sitemap, robots, icon, fonts
   components/           CliAnimation
@@ -923,7 +925,7 @@ Ship it on when correctness holds across both ends of a dimension and behaviour 
 off otherwise, whatever the mechanism behind the state.
 
 A bad answer becomes a case without hand-writing TOML. `zipy traces` lists the recent requests and
-`zipy eval-add <request-id> --id <case-id>` drafts one: the trace gives the question, the actions
+`evals add <request-id> --id <case-id>` drafts one: the trace gives the question, the actions
 that ran and whether anything waited for a confirmation, and `contains` is left empty for the
 reviewer to say what the answer should have carried.
 
@@ -981,11 +983,12 @@ that is worth building is a question for the contrast table, not for the archite
 
 ## The testbed
 
-`apps/testbed` is where a run is read back rather than made. The split with `engine.evals` is the
-independence contract: evals is a layer of the engine, so it can build the real gateway and run a
-case; the testbed imports no engine code and works from the database, the traces and exported
-files. An experiment that needs the agent to run belongs in evals; one that asks what already
-happened belongs here, as a folder in `apps/testbed/experiments/`.
+`apps/testbed` holds everything that measures the agent, and is the one app allowed to import
+another. The layers contract gives the direction: the testbed reads the engine, the engine never
+reads the testbed. That is what lets `evals/stack.py` build the real gateway and orchestrator
+instead of a copy of them, and it is why nothing the engine ships depends on how it is measured.
+An experiment is a folder in `apps/testbed/experiments/`, imported by nothing, so abandoning one
+is deleting it.
 
 Datasets are the part built. `apps/testbed` turns the same traces into a dataset. A `generation` event carries the messages
 sent to the model and the reply that came back, so an example needs no translation to be trained
@@ -1008,8 +1011,7 @@ carries the fingerprint of the example it judged, so an example that changed und
 as stale rather than trained on under a judgment about something else.
 
 `train sft` needs a GPU and the `gpu` extra, which the gate never installs. It writes an adapter;
-what serves one is a question for `[models.chat]` and is not decided in `apps/testbed`. The app
-imports nothing else in the repo, which the independence contract holds it to.
+what serves one is a question for `[models.chat]` and is not decided in `apps/testbed`.
 
 
 ## Console
@@ -1148,7 +1150,7 @@ and the Release workflow verifies every version against the tag before publishin
 | Types | mypy `--strict` over both apps | `[tool.mypy]` |
 | Layering | import-linter contracts; grimp-based plugin isolation tests | `[tool.importlinter]`, `tests/test_plugins.py` |
 | Tests | pytest, pytest-asyncio; `integration` marker for Postgres and Redis, which need ZIPY_TEST_DATABASE_URL because they drop every table; eslint and tsc for the website | `apps/**/tests`, `just check-website` |
-| Evals | the user stories as cases, scored on correctness and behaviour, against the configured model over fixtures; not part of the gate | `evals/`, `engine/evals`, `just eval` |
+| Evals | the user stories as cases, scored on correctness and behaviour, against the configured model over fixtures; not part of the gate | `evals/`, `testbed/evals`, `just eval` |
 | Datasets and training | traces to examples, a committed ledger of keep, drop and fix decisions, Unsloth QLoRA over what was accepted | `apps/testbed`, `just data`, `just train` |
 | Diagrams | mermaid, rendered by mermaid-cli in `just diagrams` | `docs/ARCHITECTURE.md` |
 | Container | uv base image, non-root, amd64 and arm64 | `deploy/Dockerfile` |

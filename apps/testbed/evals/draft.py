@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from engine.core.types import ConfigError
-from engine.evals.cases import Case
+from testbed.evals.cases import Case
 
 #: The trace event carrying the messages one model call was given.
 GENERATION = "generation"

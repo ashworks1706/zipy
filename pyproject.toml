@@ -72,15 +72,26 @@ root_packages = ["engine", "cli", "testbed"]
 include_external_packages = true
 exclude_type_checking_imports = true
 
+# The testbed reads the engine: it runs the real loop for an eval and the real stores for an
+# experiment. The engine never reads the testbed, and the console reads neither.
 [[tool.importlinter.contracts]]
-name = "apps never import each other"
+name = "the testbed reads the engine, never the other way"
+type = "layers"
+layers = ["testbed", "engine"]
+
+[[tool.importlinter.contracts]]
+name = "the console imports no other app, and no app imports it"
 type = "independence"
-modules = ["engine", "cli", "testbed"]
+modules = ["cli", "engine"]
+
+[[tool.importlinter.contracts]]
+name = "the console and the testbed never import each other"
+type = "independence"
+modules = ["cli", "testbed"]
 
 # ---------------------------------------------------------------- inside the engine
 #
 #   commands
-#   evals
 #   wiring
 #   platforms | api | workers
 #   gateway
@@ -100,7 +111,6 @@ name = "engine layering"
 type = "layers"
 layers = [
     "engine.commands",
-    "engine.evals",
     "engine.wiring",
     "engine.platforms | engine.api | engine.workers",
     "engine.gateway",

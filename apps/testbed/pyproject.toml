@@ -5,6 +5,7 @@ description = "The offline half: datasets, curation, post-training and experimen
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 dependencies = [
+    "engine",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "pyyaml>=6",
@@ -22,8 +23,12 @@ gpu = [
     "unsloth>=2024.12",
 ]
 
+[tool.uv.sources]
+engine = { workspace = true }
+
 [project.scripts]
 data = "testbed.datasets.cli:app"
+evals = "testbed.evals.cli:app"
 train = "testbed.posttrain.cli:app"
 
 [build-system]
@@ -32,4 +37,4 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 package-dir = { "testbed" = "." }
-packages = ["testbed", "testbed.core", "testbed.datasets", "testbed.posttrain"]
+packages = ["testbed", "testbed.core", "testbed.datasets", "testbed.evals", "testbed.posttrain"]

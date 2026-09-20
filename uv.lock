@@ -4101,6 +4101,7 @@ name = "testbed"
 version = "0.1.0"
 source = { editable = "apps/testbed" }
 dependencies = [
+    { name = "engine" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyyaml" },
@@ -4120,6 +4121,7 @@ gpu = [
 [package.metadata]
 requires-dist = [
     { name = "datasets", marker = "extra == 'gpu'", specifier = ">=3.0" },
+    { name = "engine", editable = "apps/engine" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6" },

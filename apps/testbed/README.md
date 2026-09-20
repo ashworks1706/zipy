@@ -3,13 +3,14 @@
 The offline half. Datasets from real runs, the decisions made about them, the post-training that
 reads them, and experiments over what a deployment produced.
 
-It imports nothing else in the repo. Anything that has to run the agent lives in
-`apps/engine/evals`, which is a layer of the engine and can build the real gateway and
-orchestrator; this app reads the database, the traces and exported files instead. The independence
-contract in the root `pyproject.toml` holds the line.
+Everything that measures the agent lives here, and this is the one app that imports another. The
+layers contract in the root `pyproject.toml` gives the direction: the testbed reads the engine,
+the engine never reads the testbed. That is what lets an eval build the real gateway rather than a
+copy of it, and it keeps the thing being measured independent of what measures it.
 
 ```
 core/           settings, types, tests
+evals/          cases, fixtures, the stack a case runs on, the evals command
 datasets/       traces to examples: export, redact, verify, review, curate
 curation/       decisions.jsonl, the ledger, committed
 posttrain/      SFT over the curated set. Needs a GPU and `uv sync --extra gpu`
@@ -34,7 +35,7 @@ why. Each decision carries the fingerprint of the example it judged, so a change
 reported as stale rather than trained on.
 
 Curation feeds the evals as well as the training set: a run worth keeping can become a case in
-`evals/cases.toml` with `zipy eval-add`.
+`evals/cases.toml` with `evals add`.
 
 ## Post-training
 
