@@ -12,6 +12,7 @@
   --fg: #ece8ef;
   --fg-dim: #8e8397;
   /* --font-blocks covers only U+2500-259F; every other glyph comes from --font-mono. */
+  --flag-width: clamp(3.5rem, 13vw, 10rem);
   --mono:
     var(--font-mono), var(--font-blocks), ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -45,7 +46,67 @@ code {
   min-height: 100svh;
   display: grid;
   place-items: center;
-  padding: 2rem 1rem;
+  /* Clear of the strips, so the wordmark never runs into them at a narrow width. */
+  padding: 2rem calc(var(--flag-width) + 0.75rem);
+  /* Above the strips, which are fixed at the edges behind it. */
+  position: relative;
+  z-index: 1;
+}
+
+/* A checkered strip at each edge, racing in from the outside on load.
+
+   Fixed rather than absolute so it spans the viewport whatever the page height, and masked from
+   the outer edge inward so it fades out before it reaches the content rather than stopping on a
+   line. Decoration: aria-hidden, and it takes no pointer events. */
+.flag {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: var(--flag-width);
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(22, 1fr);
+  pointer-events: none;
+  z-index: 0;
+  -webkit-mask-image: linear-gradient(to right, #000 0%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, transparent 100%);
+}
+
+.flag-left {
+  left: 0;
+}
+
+/* Mirrored, so column 0 is the right edge and the squares race inward from there. The squares
+   are plain rectangles, so the flip is invisible. */
+.flag-right {
+  right: 0;
+  transform: scaleX(-1);
+}
+
+.flag-square {
+  background: var(--accent);
+  opacity: 0;
+  animation: flag-in 620ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  /* Column sets the race inward; row offsets it so the edge arrives as a ripple, not a bar. */
+  animation-delay: calc(var(--column) * 110ms + var(--row) * 14ms);
+}
+
+@keyframes flag-in {
+  from {
+    opacity: 0;
+    transform: translateX(-140%);
+  }
+  to {
+    opacity: 0.2;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flag-square {
+    animation: none;
+    opacity: 0.2;
+  }
 }
 
 .landing-inner {
@@ -59,25 +120,18 @@ code {
   max-width: 60rem;
 }
 
-.cli-animation {
+.cli-logo {
   font-family: var(--mono);
   /* The size before the script measures the glyphs that rendered. 59 columns at a 0.68em
      advance is the widest monospace fallback worth planning for, so this only ever undershoots
      and the script grows it to the real fit. vw is the fallback for cqi. */
-  font-size: min(18px, calc((100vw - 2.5rem) / 40.2));
-  font-size: min(18px, calc(100cqi / 40.2));
-  line-height: 1.05;
+  font-size: min(11px, calc((100vw - 2.5rem) / 40.2));
+  font-size: min(11px, calc(100cqi / 40.2));
+  line-height: 1;
   white-space: pre;
   color: var(--accent);
   margin: 0;
-  /* Height of the logo, so the blank frame does not collapse the page. */
-  min-height: calc(13 * 1.05em);
-}
-
-/* Glow applies once the animation settles. */
-.cli-animation.is-settled {
   text-shadow: 0 0 28px rgba(255, 0, 159, 0.35);
-  transition: text-shadow 0.5s ease;
 }
 
 .cli-stage {
@@ -87,8 +141,8 @@ code {
   justify-content: center;
 }
 
-/* Measured, never shown. It carries the full logo so the blank frames do not shrink the fit, and
-   its size is fixed so a webfont swapping in changes its width and the script measures again. */
+/* Measured, never shown. Its size is fixed so a webfont swapping in changes its width and the
+   script measures again. */
 .cli-probe {
   position: absolute;
   top: 0;
