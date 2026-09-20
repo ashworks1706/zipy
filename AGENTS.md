@@ -11,7 +11,11 @@ Zipy owns the loop, the tool layer, the permissions, the memory and the traces; 
 where the agent, its tools, providers and knowledge are configured. Tools reach the org's Google
 Calendar, Drive, Notion and Zoom through one agent.
 
-Read `docs/VISION.md` for the claim and what is deliberately not being built, `docs/ROADMAP.md`
+Zipy is also a testbed for that adaptation, so the signal categories, the conditioning switch and
+the eval suite's behaviour axis are instrumentation and not decoration. Do not collapse them into
+something simpler without reading why they are separate.
+
+Read `docs/VISION.md` for the claim, the testbed, and what is deliberately not being built, `docs/ROADMAP.md`
 for what is being built in what order, and `docs/ARCHITECTURE.md` for the layers, plugins, data
 model, request lifecycle and invariants. Do not contradict them; propose an edit to the doc
 instead.

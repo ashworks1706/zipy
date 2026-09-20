@@ -30,6 +30,11 @@ move a permission or a confirmation, is a test today. The rest is the machinery 
 on: the loop, the tool layer, the permissions, the memory and the traces, with the chat app as one
 surface rather than the product.
 
+It is also a testbed. Adaptation on a chat platform a team already uses, over months rather than
+one annotator sitting, with the signals categorised and the conditioning behind an ablation
+switch, is a place to measure user modelling in deployment rather than in a study.
+[docs/VISION.md](docs/VISION.md#as-a-testbed) says what that can and cannot answer.
+
 A team configures its agent, its tools, providers and knowledge once, and talks to it where it
 already works (Discord today, Slack next), against the org's shared Google Workspace, Notion,
 GitHub and Zoom accounts. Nothing breaks when an officer graduates. Built first for university
