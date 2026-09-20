@@ -10,7 +10,7 @@ const ROWS = 110;
 /** How fast the scatter thins out. Above one it clears quickly and leaves stragglers. */
 const FALLOFF = 1.6;
 
-type Square = { row: number; column: number };
+type Square = { row: number; column: number; seed: number };
 
 /**
  * A value in [0, 1) for one cell. Integer operations only, so the server and the browser agree
@@ -31,7 +31,13 @@ function noise(row: number, column: number) {
  * between renders.
  */
 const SQUARES: Square[] = Array.from({ length: ROWS }, (_, row) =>
-  Array.from({ length: COLUMNS }, (_, column) => ({ row, column })),
+  Array.from({ length: COLUMNS }, (_, column) => ({
+    row,
+    column,
+    // A second value per cell, so how long a square takes to settle and when it blinks are not
+    // the same number that decided whether it exists at all.
+    seed: noise(column, row),
+  })),
 )
   .flat()
   .filter(
@@ -43,7 +49,7 @@ const SQUARES: Square[] = Array.from({ length: ROWS }, (_, row) =>
 function Field({ side }: { side: "left" | "right" }) {
   return (
     <div className={`flag flag-${side}`} aria-hidden="true">
-      {SQUARES.map(({ row, column }) => (
+      {SQUARES.map(({ row, column, seed }) => (
         <span
           key={`${row}-${column}`}
           className="flag-square"
@@ -53,6 +59,7 @@ function Field({ side }: { side: "left" | "right" }) {
               gridColumn: column + 1,
               "--column": column,
               "--row": row,
+              "--seed": seed,
             } as CSSProperties
           }
         />
@@ -64,9 +71,9 @@ function Field({ side }: { side: "left" | "right" }) {
 /**
  * Two checkered fields that race in from the edges on load and scatter toward the middle.
  *
- * Decoration only. Every square is the same colour and opacity; the fade is a mask on the field
- * rather than a value per square, so the falloff does not have to be kept in step with the number
- * of columns.
+ * Decoration only. Every square is the same colour; the fade across the field is a mask rather
+ * than a value per square, so the falloff does not have to be kept in step with the number of
+ * columns. Each square carries a seed the stylesheet uses to settle and blink off its neighbours.
  */
 export function FlagStrips() {
   return (
