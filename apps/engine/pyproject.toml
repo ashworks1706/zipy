@@ -14,7 +14,7 @@ dependencies = [
     "discord.py>=2.4",
     # http
     "fastapi>=0.115",
-    "uvicorn>=0.32",
+    "uvicorn>=0.53.0",
     # model
     "litellm>=1.60",
     # integrations

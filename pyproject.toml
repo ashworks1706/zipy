@@ -15,7 +15,7 @@ members = ["apps/engine", "apps/cli", "apps/testbed"]
 
 [dependency-groups]
 dev = [
-    "ruff>=0.9",
+    "ruff>=0.16.8",
     "pytest>=8",
     "pytest-asyncio>=0.24",
     "mypy>=1.14",
