@@ -16,7 +16,7 @@ dependencies = [
 # Post-training only. The gate never installs these, and nothing outside posttrain imports them.
 [project.optional-dependencies]
 gpu = [
-    "datasets>=3.0",
+    "datasets>=5.0.1",
     "torch>=2.5",
     "transformers>=4.47",
     "trl>=0.12",
